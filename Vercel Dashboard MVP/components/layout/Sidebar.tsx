@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronRight,
 } from 'lucide-react'
+import MeridianBeacon from '@/components/brand/MeridianBeacon'
 
 const navItems = [
   { href: '/dashboard', label: 'Mission Control', icon: LayoutDashboard },
@@ -30,10 +31,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="px-5 py-5 border-b border-white/8">
         <div className="flex items-center gap-2.5">
-          {/* Placeholder beacon — replaced by MeridianBeacon in Phase 2 */}
-          <div className="w-7 h-7 rounded-full bg-gold/20 border border-gold/40 flex items-center justify-center">
-            <div className="w-2 h-2 rounded-full bg-gold" />
-          </div>
+          <MeridianBeacon size={28} variant="gold" animate={true} />
           <div>
             <div className="text-[13px] font-medium text-white tracking-wide italic">meridian</div>
             <div className="text-[9px] text-blue-mid tracking-widest uppercase mt-0.5">Solvega Labs</div>
