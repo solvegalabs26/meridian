@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import MeridianBeacon from '@/components/brand/MeridianBeacon'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -31,8 +32,8 @@ export default async function DashboardPage() {
 
       {/* Empty state — no sweep yet */}
       <div className="bg-white rounded-2xl border border-[var(--border)] p-12 text-center">
-        <div className="w-16 h-16 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center mx-auto mb-5">
-          <div className="w-5 h-5 rounded-full bg-gold/60" />
+        <div className="flex justify-center mb-5">
+          <MeridianBeacon size={64} variant="gold" animate={true} />
         </div>
         <h2 className="text-[18px] font-medium text-[var(--text)] mb-2">
           Run your first sweep to see Mission Control
