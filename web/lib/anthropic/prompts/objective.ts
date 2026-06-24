@@ -30,7 +30,7 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
       keywords: objective.signal_keywords ?? [],
       recent_signals: recentSignals,
       open_actions: openActions ?? [],
-      notes: objective.notes ?? '',
+      notes: (objective.notes ?? '').slice(0, 300),
     })),
   }
 }

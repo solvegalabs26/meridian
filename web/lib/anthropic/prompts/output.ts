@@ -27,13 +27,31 @@ export interface SweepAPIResponse {
 
 export function parseAnthropicResponse(content: string): SweepAPIResponse {
   // Strip any markdown code fences if present
-  const cleaned = content
+  let cleaned = content
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
     .replace(/\s*```$/i, '')
     .trim()
 
-  const parsed = JSON.parse(cleaned) as SweepAPIResponse
+  // Attempt to repair truncated JSON by finding the last complete objective
+  let parsed: SweepAPIResponse
+  try {
+    parsed = JSON.parse(cleaned) as SweepAPIResponse
+  } catch {
+    // Try to close the JSON at the last complete objective entry
+    const lastCompleteObj = cleaned.lastIndexOf('},\n    {')
+    if (lastCompleteObj > 0) {
+      cleaned = cleaned.slice(0, lastCompleteObj + 1) + ']}}'
+      try {
+        parsed = JSON.parse(cleaned) as SweepAPIResponse
+      } catch {
+        // Last resort: extract what we can
+        throw new Error(`Anthropic response truncated — increase max_tokens. Original: ${content.slice(0, 200)}`)
+      }
+    } else {
+      throw new Error(`Invalid JSON from Anthropic: ${content.slice(0, 200)}`)
+    }
+  }
 
   // Validate required fields
   if (!parsed.sweep_summary || !Array.isArray(parsed.objectives)) {

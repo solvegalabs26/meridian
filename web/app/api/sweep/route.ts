@@ -86,9 +86,9 @@ export async function POST(request: NextRequest) {
 
       const newsArticles = newsSignalsMap[obj.id] ?? []
       const recentSignals = newsArticles.map(a => ({
-        title: a.title,
-        body: a.description,
-        source: a.url,
+        title: a.title.slice(0, 120),
+        body: (a.description ?? '').slice(0, 200),
+        source: a.source,
         relevance: 'medium' as const,
         date: a.publishedAt.split('T')[0],
       }))
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     const message = await getAnthropicClient().messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: systemPrompt,
       messages: [{ role: 'user', content: JSON.stringify(userMessage) }],
     })
