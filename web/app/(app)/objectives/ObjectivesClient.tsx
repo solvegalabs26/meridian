@@ -45,21 +45,23 @@ export default function ObjectivesClient({ objectives, error }: Props) {
         </Link>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 mb-5 bg-white border border-[var(--border)] rounded-xl p-1 w-fit">
+      {/* Tab links */}
+      <div className="flex items-center gap-6 mb-6">
         {tabs.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
+            className={`group flex items-baseline gap-1.5 text-[11px] font-semibold tracking-widest uppercase transition-colors ${
               tab === t.id
-                ? 'bg-navy text-white shadow-sm'
-                : 'text-[var(--text2)] hover:text-[var(--text)] hover:bg-[var(--gray-lt)]'
+                ? 'text-[var(--blue)]'
+                : 'text-[var(--text3)] hover:text-[var(--blue)]'
             }`}
           >
-            {t.label}
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-              tab === t.id ? 'bg-white/20 text-white' : 'bg-[var(--gray-lt)] text-[var(--text3)]'
+            <span className={tab === t.id ? '' : 'group-hover:animate-pulse'}>
+              {t.label}
+            </span>
+            <span className={`text-[10px] font-normal tracking-normal normal-case ${
+              tab === t.id ? 'text-[var(--blue)]' : 'text-[var(--text3)]'
             }`}>
               {t.count}
             </span>
