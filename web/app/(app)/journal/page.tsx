@@ -31,7 +31,7 @@ export default async function JournalPage() {
   return (
     <div className="max-w-3xl">
       <div className="mb-6">
-        <h1 className="text-[22px] font-medium text-[var(--text)]">Founder Journal</h1>
+        <h1 className="text-[22px] font-medium text-[var(--text)]">Journal</h1>
         <p className="text-[13px] text-[var(--text3)] mt-0.5">30-week Persistent Objective State experiment · Started June 23, 2026</p>
       </div>
 

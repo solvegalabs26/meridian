@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meridian — Subscription Tier Architecture v1.1</title>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --navy:#0D1B3E;--blue:#2E7CB8;--blue-lt:#E6F1FB;--blue-mid:#5090C0;
+  --gold:#C9A227;--gold-lt:#FEF8E7;
+  --green:#0F6E56;--green-lt:#E1F5EE;
+  --amber:#BA7517;--amber-lt:#FEF3E0;
+  --red:#A32D2D;--red-lt:#FDEEEE;
+  --purple:#534AB7;--purple-lt:#EEEDFE;
+  --night:#0D1B2A;--warm-white:#F7F6F3;
+  --border:rgba(255,255,255,.08);
+  --text-dim:rgba(255,255,255,.38);--text-mid:rgba(255,255,255,.65);
+  --gray-lt:#F2F2F0;--gray-md:#DDDDD8;--text:#1A1A18;--text2:#3A3A38;--text3:#888780;
+}
+html{background:#fff;color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.65;}
+
+.sidenav{position:fixed;top:0;left:0;width:230px;height:100vh;background:var(--navy);overflow-y:auto;padding:1.5rem 0;z-index:100;}
+.sidenav-logo{padding:.75rem 1.25rem 1rem;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:.75rem;}
+.sidenav-name{font-size:13px;font-weight:500;color:#fff;}
+.sidenav-sub{font-size:9px;color:var(--blue-mid);letter-spacing:.1em;text-transform:uppercase;margin-top:2px;}
+.nav-sec{font-size:8.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.28);padding:.6rem 1.25rem .3rem;}
+.nav-a{display:block;font-size:12px;color:rgba(255,255,255,.52);padding:.38rem 1.25rem;text-decoration:none;border-left:2px solid transparent;transition:all .12s;}
+.nav-a:hover{color:#fff;border-left-color:var(--blue);}
+.nav-a.sub{padding-left:1.75rem;font-size:11.5px;color:rgba(255,255,255,.35);}
+.nav-a.active{color:#fff;border-left-color:var(--gold);background:rgba(255,255,255,.04);}
+
+.main{margin-left:230px;padding:3rem 3.5rem 6rem;}
+.inner{max-width:920px;}
+.doc-title{font-size:32px;font-weight:500;letter-spacing:-.02em;margin-bottom:.4rem;}
+.doc-meta{font-size:12px;color:var(--text3);margin-bottom:.75rem;display:flex;gap:1.5rem;flex-wrap:wrap;}
+.doc-change{font-size:11px;color:var(--amber);background:var(--amber-lt);padding:4px 10px;border-radius:20px;display:inline-block;margin-bottom:2rem;}
+
+h1{font-size:22px;font-weight:500;margin:3rem 0 .85rem;padding-top:3rem;border-top:1px solid var(--gray-md);}
+h1:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+h2{font-size:16px;font-weight:600;color:var(--text);margin:2rem 0 .65rem;}
+h3{font-size:14px;font-weight:600;color:var(--blue);margin:1.5rem 0 .5rem;}
+p{font-size:14px;color:var(--text2);line-height:1.75;margin-bottom:.85rem;}
+code{font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--gray-lt);padding:2px 6px;border-radius:4px;color:var(--purple);}
+pre{font-family:'JetBrains Mono',monospace;font-size:12px;background:var(--gray-lt);border:.5px solid var(--gray-md);border-radius:8px;padding:1.25rem 1.5rem;overflow-x:auto;line-height:1.7;margin:1rem 0;color:var(--text);}
+pre .cm{color:#6B7280;font-style:italic;}
+pre .kw{color:var(--blue);}
+pre .st{color:var(--green);}
+
+.callout{padding:1rem 1.25rem;border-radius:8px;margin:1.25rem 0;border-left:3px solid;}
+.callout.info{background:var(--blue-lt);border-color:var(--blue);}
+.callout.warn{background:var(--amber-lt);border-color:var(--amber);}
+.callout.success{background:var(--green-lt);border-color:var(--green);}
+.callout.purple{background:var(--purple-lt);border-color:var(--purple);}
+.callout.gold{background:var(--gold-lt);border-color:var(--gold);}
+.callout-h{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.4rem;}
+.callout.info .callout-h{color:var(--blue);}
+.callout.warn .callout-h{color:var(--amber);}
+.callout.success .callout-h{color:var(--green);}
+.callout.purple .callout-h{color:var(--purple);}
+.callout.gold .callout-h{color:var(--amber);}
+.callout p{margin:0;font-size:13px;color:var(--text2);}
+
+table{width:100%;border-collapse:collapse;font-size:13px;margin:1rem 0;}
+th{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text3);padding:8px 12px;text-align:left;border-bottom:1.5px solid var(--gray-md);background:var(--gray-lt);}
+td{padding:9px 12px;border-bottom:.5px solid var(--gray-md);color:var(--text2);vertical-align:top;line-height:1.55;}
+tr:last-child td{border-bottom:none;}
+.check{color:var(--green);font-weight:700;}
+.cross{color:var(--red);}
+.badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;display:inline-block;}
+.badge.free{background:var(--gray-lt);color:var(--text3);}
+.badge.exp{background:var(--blue-lt);color:var(--blue);}
+.badge.acc{background:var(--gold-lt);color:var(--amber);}
+.badge.cmd{background:var(--purple-lt);color:var(--purple);}
+.badge.q27{background:#1A1A18;color:rgba(255,255,255,.7);}
+.comp-row-h td{background:var(--gray-lt);font-weight:600;font-size:11px;color:var(--text3);letter-spacing:.05em;text-transform:uppercase;}
+ul,ol{padding-left:1.4rem;margin:.5rem 0;}
+li{font-size:13.5px;color:var(--text2);line-height:1.7;margin-bottom:.2rem;}
+
+/* ── TIER CARDS ── */
+.tier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:1.5rem 0;}
+.tier-card{border-radius:14px;overflow:hidden;border:.5px solid var(--gray-md);position:relative;}
+.tier-card.popular{border-color:var(--gold);}
+.tier-card.popular::before{content:'MOST POPULAR';position:absolute;top:0;left:0;right:0;text-align:center;font-size:9px;font-weight:700;letter-spacing:.14em;background:var(--gold);color:#fff;padding:4px 0;}
+.tier-head{padding:1.25rem 1.25rem 1rem;border-bottom:.5px solid var(--gray-md);}
+.tier-card.popular .tier-head{background:var(--navy);padding-top:2rem;}
+.tier-name{font-size:15px;font-weight:600;margin-bottom:2px;}
+.tier-card.popular .tier-name{color:#fff;}
+.tier-price{font-size:28px;font-weight:300;letter-spacing:-.02em;margin:.5rem 0 2px;}
+.tier-card.popular .tier-price{color:#fff;}
+.tier-cadence{font-size:11px;color:var(--text3);}
+.tier-card.popular .tier-cadence{color:rgba(255,255,255,.5);}
+.tier-annual{font-size:11px;color:var(--green);margin-top:4px;font-weight:500;}
+.tier-card.popular .tier-annual{color:var(--gold);}
+.tier-body{padding:1rem 1.25rem;}
+.tier-feat{font-size:12px;color:var(--text2);padding:.28rem 0;display:flex;align-items:flex-start;gap:6px;line-height:1.5;}
+.tier-feat .check{flex-shrink:0;margin-top:1px;}
+.tier-feat .cross{flex-shrink:0;margin-top:1px;}
+.tier-cta{display:block;text-align:center;padding:.65rem;border-radius:8px;font-size:13px;font-weight:500;margin:0 1.25rem 1rem;cursor:pointer;border:none;}
+.cta-exp{background:var(--blue);color:#fff;}
+.cta-acc{background:var(--gold);color:#fff;}
+.cta-cmd{background:var(--navy);color:#fff;}
+
+/* ── CREDIT CARDS ── */
+.credit-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:1.25rem 0;}
+.credit-card{border-radius:12px;border:.5px solid var(--gray-md);padding:1.25rem;text-align:center;}
+.credit-card.best{border-color:var(--gold);background:var(--gold-lt);}
+.credit-count{font-size:28px;font-weight:300;color:var(--text);margin-bottom:4px;}
+.credit-label{font-size:11px;color:var(--text3);letter-spacing:.04em;margin-bottom:.75rem;}
+.credit-price{font-size:20px;font-weight:500;color:var(--text);margin-bottom:2px;}
+.credit-per{font-size:11px;color:var(--text3);}
+.credit-card.best .credit-per{color:var(--green);font-weight:500;}
+.credit-badge{font-size:9px;font-weight:700;letter-spacing:.1em;background:var(--gold);color:#fff;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:.75rem;}
+
+/* ── DISCLAIMER BOX ── */
+.disclaimer{background:var(--gray-lt);border:.5px solid var(--gray-md);border-radius:8px;padding:.85rem 1.1rem;margin:1.25rem 0;}
+.disclaimer-label{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text3);margin-bottom:.35rem;}
+.disclaimer-text{font-size:12px;color:var(--text3);line-height:1.65;}
+.disclaimer-dark{background:rgba(255,255,255,.04);border:.5px solid rgba(255,255,255,.08);border-radius:8px;padding:.85rem 1.1rem;margin:1.25rem 0;}
+.disclaimer-dark .disclaimer-label{color:rgba(255,255,255,.3);}
+.disclaimer-dark .disclaimer-text{color:rgba(255,255,255,.35);}
+
+/* ── SURFACE MATRIX ── */
+.surface-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.25rem 0;}
+.surface-card{border:.5px solid var(--gray-md);border-radius:10px;padding:1.1rem 1.25rem;}
+.surface-name{font-size:12px;font-weight:600;color:var(--text);margin-bottom:.2rem;}
+.surface-route{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--blue-mid);margin-bottom:.5rem;}
+.surface-why{font-size:12px;color:var(--text3);line-height:1.55;}
+.surface-card.priority{border-color:var(--red);background:var(--red-lt);}
+.surface-card.priority .surface-name{color:var(--red);}
+
+/* ── MOCKUPS ── */
+.mockup{border:.5px solid var(--gray-md);border-radius:14px;overflow:hidden;margin:1.5rem 0;}
+.mockup-bar{background:var(--night);padding:.75rem 1.25rem;display:flex;align-items:center;gap:.5rem;}
+.mockup-dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.2);}
+.mockup-url{font-size:11px;color:rgba(255,255,255,.3);font-family:'JetBrains Mono',monospace;margin-left:.5rem;}
+.mockup-body{background:var(--night);padding:2.5rem 2rem;}
+.mock-title{font-family:'EB Garamond',serif;font-size:26px;font-style:italic;color:#fff;text-align:center;margin-bottom:.4rem;}
+.mock-sub{font-size:11px;color:rgba(255,255,255,.4);text-align:center;margin-bottom:1.75rem;letter-spacing:.06em;}
+.mock-toggle{display:flex;align-items:center;justify-content:center;gap:.75rem;margin-bottom:1.5rem;}
+.mock-toggle span{font-size:12px;color:rgba(255,255,255,.4);}
+.mock-toggle span.act{color:#fff;font-weight:500;}
+.mock-pill{width:36px;height:20px;border-radius:20px;background:var(--blue);position:relative;cursor:pointer;}
+.mock-pill::after{content:'';position:absolute;right:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;}
+.mock-tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;max-width:700px;margin:0 auto 1.25rem;}
+.mock-tier{border-radius:10px;border:1px solid rgba(255,255,255,.1);padding:1rem;cursor:pointer;}
+.mock-tier.sel{border-color:var(--gold);background:rgba(201,162,39,.08);}
+.mock-tier-badge{font-size:9px;font-weight:700;letter-spacing:.1em;background:var(--gold);color:#fff;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:.5rem;}
+.mock-tier-name{font-size:12px;font-weight:600;color:#fff;margin-bottom:4px;}
+.mock-tier-price{font-size:20px;font-weight:300;color:#fff;margin:.4rem 0 2px;}
+.mock-tier-mo{font-size:10px;color:rgba(255,255,255,.38);}
+.mock-tier-ann{font-size:10px;color:rgba(201,162,39,.8);margin-top:3px;}
+.mock-tier-feat{font-size:10px;color:rgba(255,255,255,.45);margin-top:.6rem;line-height:1.6;}
+.mock-credits{max-width:700px;margin:0 auto 1.5rem;border-top:1px solid rgba(255,255,255,.06);padding-top:1.25rem;}
+.mock-credits-label{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.3);text-align:center;margin-bottom:.75rem;}
+.mock-credit-row{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;}
+.mock-credit-item{border-radius:8px;border:1px solid rgba(255,255,255,.08);padding:.6rem;text-align:center;cursor:pointer;}
+.mock-credit-item.sel{border-color:rgba(201,162,39,.4);background:rgba(201,162,39,.07);}
+.mock-credit-count{font-size:16px;font-weight:500;color:#fff;}
+.mock-credit-price{font-size:11px;color:rgba(255,255,255,.45);}
+.mock-credit-per{font-size:9px;color:rgba(255,255,255,.28);}
+.mock-cta{display:block;margin:0 auto;padding:.7rem 2.5rem;border-radius:8px;background:var(--gold);color:#fff;font-size:14px;font-weight:500;border:none;cursor:pointer;max-width:280px;text-align:center;}
+.mock-skip{display:block;text-align:center;font-size:11px;color:rgba(255,255,255,.25);margin-top:.65rem;cursor:pointer;}
+
+/* profile mockup */
+.mock-form{max-width:520px;margin:0 auto;}
+.mock-field{margin-bottom:1rem;}
+.mock-label{font-size:11px;font-weight:500;color:rgba(255,255,255,.55);margin-bottom:.35rem;letter-spacing:.04em;}
+.mock-input{width:100%;background:rgba(255,255,255,.07);border:.5px solid rgba(255,255,255,.12);border-radius:8px;padding:.65rem 1rem;font-size:13px;color:#fff;font-family:'Inter',sans-serif;}
+.mock-select{width:100%;background:rgba(255,255,255,.07);border:.5px solid rgba(255,255,255,.12);border-radius:8px;padding:.65rem 1rem;font-size:13px;color:rgba(255,255,255,.6);}
+
+/* sweep reveal mockup */
+.mock-beacon{text-align:center;margin-bottom:1.5rem;}
+.mock-confidence{font-size:64px;font-weight:300;color:var(--gold);text-align:center;letter-spacing:-.03em;}
+.mock-conf-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);text-align:center;margin-top:4px;}
+
+.footer{font-size:11px;color:var(--text3);text-align:center;margin-top:4rem;padding-top:1.5rem;border-top:.5px solid var(--gray-md);}
+.version-badge{font-size:9px;font-weight:700;letter-spacing:.12em;background:var(--amber-lt);color:var(--amber);padding:2px 8px;border-radius:20px;display:inline-block;margin-left:.5rem;vertical-align:middle;}
+
+@media(max-width:768px){.sidenav{display:none;}.main{margin-left:0;padding:1.5rem;}.tier-grid,.credit-grid,.mock-tiers,.surface-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<nav class="sidenav">
+  <div class="sidenav-logo">
+    <div class="sidenav-name">Meridian Subscriptions</div>
+    <div class="sidenav-sub">Tier Architecture v1.1</div>
+  </div>
+  <div class="nav-sec">What changed in v1.1</div>
+  <a href="#changes" class="nav-a">Changelog</a>
+  <div class="nav-sec">Architecture</div>
+  <a href="#s1" class="nav-a">1. Tier overview</a>
+  <a href="#s2" class="nav-a">2. Tier definitions</a>
+  <a href="#s3" class="nav-a">3. Sweep credit system</a>
+  <a href="#s4" class="nav-a">4. Feature comparison</a>
+  <a href="#s5" class="nav-a">5. Enterprise — Q2 2027</a>
+  <a href="#s6" class="nav-a">6. Disclaimer system</a>
+  <a href="#s6-where" class="nav-a sub">Where it appears</a>
+  <a href="#s6-text" class="nav-a sub">Exact language</a>
+  <a href="#s6-mockups" class="nav-a sub">Onboarding mockups</a>
+  <a href="#s7" class="nav-a">7. Onboarding gate</a>
+  <a href="#s8" class="nav-a">8. Database enforcement</a>
+  <a href="#s9" class="nav-a">9. Stripe spec</a>
+  <a href="#s10" class="nav-a">10. Claude Code prompt</a>
+</nav>
+
+<div class="main">
+<div class="inner">
+
+<div class="doc-title">Meridian Subscription Tier Architecture <span class="version-badge">v1.1</span></div>
+<div class="doc-meta">
+  <span>📋 Version 1.1</span>
+  <span>📅 June 23, 2026</span>
+  <span>🏢 Solvega Labs</span>
+  <span>🔒 Confidential</span>
+</div>
+<div class="doc-change">Updated from v1.0 · 3 changes · see changelog</div>
+
+<!-- CHANGELOG -->
+<h1 id="changes">Changelog — v1.0 → v1.1</h1>
+<table>
+  <tr><th>#</th><th>Change</th><th>Detail</th></tr>
+  <tr><td>1</td><td><strong>Accelerator sweep corrected</strong></td><td>Changed from "Daily signal sweeps" (implied unlimited) to "1 daily signal sweep" — the standard cadence. Sweep credit add-on system added as a new section (Section 3).</td></tr>
+  <tr><td>2</td><td><strong>Enterprise archived to Q2 2027</strong></td><td>Enterprise tier removed from public-facing tier cards and pricing UI. Replaced with a simple "For teams — contact us" card with no pricing. Full enterprise architecture deferred to Q2 2027 project list (see Section 5).</td></tr>
+  <tr><td>3</td><td><strong>Disclaimer system added</strong></td><td>Complete disclaimer placement matrix defined across all AI output surfaces. Exact language specified per surface. Onboarding and subscription screen mockups updated to show disclaimer in context. See Section 6.</td></tr>
+</table>
+
+<!-- ═══ SECTION 1 ═══ -->
+<h1 id="s1">1. Tier Overview</h1>
+<p>Three self-serve subscription tiers plus a 7-day trial. Enterprise is deferred to Q2 2027. Sweep credits are an add-on purchase available on all tiers.</p>
+
+<div class="tier-grid">
+  <!-- Explorer -->
+  <div class="tier-card">
+    <div class="tier-head">
+      <div class="tier-name">Explorer</div>
+      <div class="tier-price">$19<span style="font-size:14px;font-weight:400;">/mo</span></div>
+      <div class="tier-cadence">billed monthly</div>
+      <div class="tier-annual">or $190/yr — save $38</div>
+    </div>
+    <div class="tier-body">
+      <div class="tier-feat"><span class="check">✓</span> 5 active objectives</div>
+      <div class="tier-feat"><span class="check">✓</span> 1 weekly signal sweep</div>
+      <div class="tier-feat"><span class="check">✓</span> Mission Control dashboard</div>
+      <div class="tier-feat"><span class="check">✓</span> Signal feed + manual entry</div>
+      <div class="tier-feat"><span class="check">✓</span> Confidence scorecards</div>
+      <div class="tier-feat"><span class="check">✓</span> Prediction log (10)</div>
+      <div class="tier-feat"><span class="check">✓</span> Journal (30 weeks)</div>
+      <div class="tier-feat"><span class="check">✓</span> Email alerts</div>
+      <div class="tier-feat"><span class="check">✓</span> + Buy sweep credits</div>
+      <div class="tier-feat"><span class="cross">✗</span> Cross-dep detection</div>
+    </div>
+    <button class="tier-cta cta-exp">Start Explorer</button>
+  </div>
+
+  <!-- Accelerator -->
+  <div class="tier-card popular">
+    <div class="tier-head">
+      <div class="tier-name" style="color:#fff;">Accelerator</div>
+      <div class="tier-price">$49<span style="font-size:14px;font-weight:400;">/mo</span></div>
+      <div class="tier-cadence">billed monthly</div>
+      <div class="tier-annual">or $490/yr — save $98</div>
+    </div>
+    <div class="tier-body">
+      <div class="tier-feat"><span class="check">✓</span> 15 active objectives</div>
+      <div class="tier-feat"><span class="check">✓</span> <strong>1 daily signal sweep</strong></div>
+      <div class="tier-feat"><span class="check">✓</span> Everything in Explorer</div>
+      <div class="tier-feat"><span class="check">✓</span> <strong>Cross-dependency detection</strong></div>
+      <div class="tier-feat"><span class="check">✓</span> Unlimited predictions</div>
+      <div class="tier-feat"><span class="check">✓</span> Priority sweep queue</div>
+      <div class="tier-feat"><span class="check">✓</span> Push + SMS alerts</div>
+      <div class="tier-feat"><span class="check">✓</span> Scenario engine (beta)</div>
+      <div class="tier-feat"><span class="check">✓</span> + Buy sweep credits</div>
+      <div class="tier-feat"><span class="cross">✗</span> API access</div>
+    </div>
+    <button class="tier-cta cta-acc">Start Accelerator</button>
+  </div>
+
+  <!-- Command -->
+  <div class="tier-card">
+    <div class="tier-head">
+      <div class="tier-name">Command</div>
+      <div class="tier-price">$99<span style="font-size:14px;font-weight:400;">/mo</span></div>
+      <div class="tier-cadence">billed monthly</div>
+      <div class="tier-annual">or $990/yr — save $198</div>
+    </div>
+    <div class="tier-body">
+      <div class="tier-feat"><span class="check">✓</span> Unlimited objectives</div>
+      <div class="tier-feat"><span class="check">✓</span> <strong>1 hourly sweep + monitoring</strong></div>
+      <div class="tier-feat"><span class="check">✓</span> Everything in Accelerator</div>
+      <div class="tier-feat"><span class="check">✓</span> API access</div>
+      <div class="tier-feat"><span class="check">✓</span> Custom signal sources</div>
+      <div class="tier-feat"><span class="check">✓</span> White-glove onboarding call</div>
+      <div class="tier-feat"><span class="check">✓</span> Dedicated sweep queue</div>
+      <div class="tier-feat"><span class="check">✓</span> Early feature access</div>
+      <div class="tier-feat"><span class="check">✓</span> Priority support (4hr SLA)</div>
+      <div class="tier-feat"><span class="check">✓</span> + Buy sweep credits</div>
+    </div>
+    <button class="tier-cta cta-cmd">Start Command</button>
+  </div>
+</div>
+
+<!-- ═══ SECTION 2 ═══ -->
+<h1 id="s2">2. Tier Definitions</h1>
+<h2>Trial — 7 days, no card required</h2>
+<table>
+  <tr><th>Limit</th><th>Value</th><th>Enforcement</th></tr>
+  <tr><td>Active objectives</td><td>3</td><td>Block at 3 — show upgrade prompt</td></tr>
+  <tr><td>Signal sweeps</td><td>1 total during trial</td><td>Disable SweepButton after first use</td></tr>
+  <tr><td>Predictions</td><td>0</td><td>Lock /predictions with upgrade prompt</td></tr>
+  <tr><td>Journal</td><td>0</td><td>Lock /journal with upgrade prompt</td></tr>
+  <tr><td>Email alerts</td><td>Off</td><td>No alerts sent during trial</td></tr>
+  <tr><td>Sweep credits</td><td>1 free credit granted at signup</td><td>Allows one extra sweep even on trial</td></tr>
+  <tr><td>Duration</td><td>7 days from signup</td><td>profiles.trial_ends_at</td></tr>
+</table>
+
+<h2>Explorer — $19/month · $190/year</h2>
+<table>
+  <tr><th>Limit</th><th>Value</th><th>Notes</th></tr>
+  <tr><td>Active objectives</td><td>5</td><td>Enough for real life: career, finance, health, 2 personal</td></tr>
+  <tr><td>Included sweeps</td><td>1 per week (automated)</td><td>Fires on user's signup day-of-week anniversary</td></tr>
+  <tr><td>Sweep credits</td><td>Purchase available</td><td>Buy extra sweeps on demand — see Section 3</td></tr>
+  <tr><td>Predictions</td><td>10 active</td><td>Creates natural upgrade pressure at 10</td></tr>
+  <tr><td>Journal</td><td>30 weeks</td><td>Full journal access</td></tr>
+  <tr><td>Email alerts</td><td>On — confidence ±5pts</td><td>Core alert: material change notification</td></tr>
+  <tr><td>Cross-dep detection</td><td>Off</td><td>Primary Accelerator upgrade hook</td></tr>
+  <tr><td>Signal history</td><td>90 days rolling</td><td></td></tr>
+</table>
+
+<h2>Accelerator — $49/month · $490/year</h2>
+<table>
+  <tr><th>Limit</th><th>Value</th><th>Notes</th></tr>
+  <tr><td>Active objectives</td><td>15</td><td>Full life management capacity</td></tr>
+  <tr><td>Included sweeps</td><td>1 per day (automated)</td><td>Daily cadence catches same-day time-sensitive signals</td></tr>
+  <tr><td>Sweep credits</td><td>Purchase available</td><td>Extra on-demand sweeps beyond daily included</td></tr>
+  <tr><td>Predictions</td><td>Unlimited</td><td></td></tr>
+  <tr><td>Cross-dep detection</td><td>On</td><td>The headline upgrade feature</td></tr>
+  <tr><td>Push + SMS alerts</td><td>On</td><td>Time-sensitive events need mobile push</td></tr>
+  <tr><td>Scenario engine</td><td>Beta access</td><td>What-if modeling</td></tr>
+  <tr><td>Signal history</td><td>365 days</td><td></td></tr>
+  <tr><td>Priority sweep queue</td><td>On</td><td>Runs before Trial/Explorer queue</td></tr>
+</table>
+
+<h2>Command — $99/month · $990/year</h2>
+<table>
+  <tr><th>Limit</th><th>Value</th><th>Notes</th></tr>
+  <tr><td>Active objectives</td><td>Unlimited</td><td></td></tr>
+  <tr><td>Included sweeps</td><td>1 per hour (automated monitoring)</td><td>Catches registration windows and signals within 60 min</td></tr>
+  <tr><td>Sweep credits</td><td>Purchase available</td><td>On-demand sweeps beyond hourly monitoring</td></tr>
+  <tr><td>API access</td><td>Full REST API</td><td>External integrations</td></tr>
+  <tr><td>Custom signal sources</td><td>On</td><td>User-defined URLs and RSS feeds</td></tr>
+  <tr><td>White-glove onboarding</td><td>30-min video call</td><td>Configuration support with Jason</td></tr>
+  <tr><td>Signal history</td><td>Unlimited</td><td>Full outcome record — the moat</td></tr>
+  <tr><td>Priority support</td><td>4hr response SLA</td><td>Direct email to jason@solvegalabs.com</td></tr>
+</table>
+
+<!-- ═══ SECTION 3 ═══ -->
+<h1 id="s3">3. Sweep Credit System</h1>
+<p>Sweep credits let any user purchase additional on-demand sweeps beyond their plan's included cadence. One credit = one full sweep across all active objectives. Credits never expire and are available on all tiers including Trial.</p>
+
+<div class="callout gold">
+  <div class="callout-h">Why credits work</div>
+  <p>A Trial user who isn't ready to subscribe can buy 5 credits for $4 and keep using the product. An Explorer user tracking a time-sensitive job window can burn 3 credits in one week when the hiring announcement drops. This usage pattern tells you exactly who your power users are before they upgrade — it's the most honest upgrade signal in the product.</p>
+</div>
+
+<div class="credit-grid">
+  <div class="credit-card">
+    <div class="credit-count">5</div>
+    <div class="credit-label">SWEEP CREDITS</div>
+    <div class="credit-price">$4</div>
+    <div class="credit-per">$0.80 per sweep</div>
+  </div>
+  <div class="credit-card best">
+    <div class="credit-badge">BEST VALUE</div>
+    <div class="credit-count">15</div>
+    <div class="credit-label">SWEEP CREDITS</div>
+    <div class="credit-price">$10</div>
+    <div class="credit-per">$0.67 per sweep — save 16%</div>
+  </div>
+  <div class="credit-card">
+    <div class="credit-count">50</div>
+    <div class="credit-label">SWEEP CREDITS</div>
+    <div class="credit-price">$25</div>
+    <div class="credit-per">$0.50 per sweep — save 38%</div>
+  </div>
+</div>
+
+<h2>Cost model</h2>
+<table>
+  <tr><th>Bundle</th><th>Price</th><th>Per credit</th><th>Anthropic API cost/sweep</th><th>Gross margin</th></tr>
+  <tr><td>5 credits</td><td>$4.00</td><td>$0.80</td><td>~$0.04 (5 objectives)</td><td>~95%</td></tr>
+  <tr><td>15 credits</td><td>$10.00</td><td>$0.67</td><td>~$0.04</td><td>~94%</td></tr>
+  <tr><td>50 credits</td><td>$25.00</td><td>$0.50</td><td>~$0.04</td><td>~92%</td></tr>
+</table>
+
+<h2>Implementation — Stripe one-time payment products</h2>
+<pre>
+<span class="cm">-- Supabase: add to profiles table</span>
+<span class="kw">alter table</span> public.profiles
+  <span class="kw">add column if not exists</span> sweep_credits int <span class="kw">default</span> 0;
+
+<span class="cm">-- On sweep: deduct 1 credit if no included sweep available</span>
+<span class="cm">-- On credit purchase: webhook adds credit count to profiles.sweep_credits</span>
+</pre>
+<pre>
+<span class="cm">// Stripe one-time payment products (not subscriptions)</span>
+STRIPE_PRICE_CREDITS_5  = price_...   <span class="cm">// $4.00 one-time</span>
+STRIPE_PRICE_CREDITS_15 = price_...   <span class="cm">// $10.00 one-time</span>
+STRIPE_PRICE_CREDITS_50 = price_...   <span class="cm">// $25.00 one-time</span>
+
+<span class="cm">// Webhook: payment_intent.succeeded → add credits to profiles</span>
+<span class="cm">// Credit deduction: in /api/sweep route, after plan sweep check</span>
+</pre>
+
+<!-- ═══ SECTION 4 ═══ -->
+<h1 id="s4">4. Full Feature Comparison</h1>
+<table>
+  <tr>
+    <th>Feature</th>
+    <th><span class="badge free">Trial</span></th>
+    <th><span class="badge exp">Explorer $19</span></th>
+    <th><span class="badge acc">Accelerator $49</span></th>
+    <th><span class="badge cmd">Command $99</span></th>
+  </tr>
+  <tr class="comp-row-h"><td colspan="5">Objectives</td></tr>
+  <tr><td>Active objectives</td><td>3</td><td>5</td><td>15</td><td>Unlimited</td></tr>
+  <tr><td>Archived objectives</td><td>—</td><td>Unlimited</td><td>Unlimited</td><td>Unlimited</td></tr>
+  <tr class="comp-row-h"><td colspan="5">Signal Sweeps</td></tr>
+  <tr><td>Included sweep cadence</td><td>1 total</td><td>1 / week</td><td>1 / day</td><td>1 / hour</td></tr>
+  <tr><td>Sweep credits (add-on)</td><td><span class="check">✓</span> + 1 free at signup</td><td><span class="check">✓</span> purchase any bundle</td><td><span class="check">✓</span> purchase any bundle</td><td><span class="check">✓</span> purchase any bundle</td></tr>
+  <tr><td>NewsAPI automated signals</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+  <tr><td>Manual signal entry</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+  <tr><td>Custom signal sources</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td></tr>
+  <tr><td>Priority sweep queue</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td>Dedicated</td></tr>
+  <tr class="comp-row-h"><td colspan="5">Intelligence</td></tr>
+  <tr><td>Confidence scoring</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+  <tr><td>Action recommendations</td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+  <tr><td>Cross-dependency detection</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+  <tr><td>Scenario engine</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td>Beta</td><td><span class="check">✓</span></td></tr>
+  <tr><td>Outcome trend reports</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td>Monthly PDF</td><td>Weekly PDF</td></tr>
+  <tr class="comp-row-h"><td colspan="5">Journal & Predictions</td></tr>
+  <tr><td>Journal access</td><td><span class="cross">✗</span></td><td>30 weeks</td><td>30 weeks</td><td>Unlimited</td></tr>
+  <tr><td>Prediction log</td><td><span class="cross">✗</span></td><td>10 active</td><td>Unlimited</td><td>Unlimited</td></tr>
+  <tr><td>Signal history</td><td>Trial only</td><td>90 days</td><td>365 days</td><td>Unlimited</td></tr>
+  <tr class="comp-row-h"><td colspan="5">Alerts</td></tr>
+  <tr><td>Email alerts</td><td><span class="cross">✗</span></td><td>Confidence ±5</td><td>All thresholds</td><td>All thresholds</td></tr>
+  <tr><td>Push notifications</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+  <tr><td>SMS alerts</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td><td><span class="check">✓</span></td></tr>
+  <tr class="comp-row-h"><td colspan="5">Access</td></tr>
+  <tr><td>API access</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td></tr>
+  <tr><td>White-glove onboarding call</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="check">✓</span></td></tr>
+  <tr><td>Priority support</td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td><span class="cross">✗</span></td><td>4hr SLA</td></tr>
+</table>
+
+<!-- ═══ SECTION 5 ═══ -->
+<h1 id="s5">5. Enterprise — Archived · Target Q2 2027</h1>
+
+<div class="callout warn">
+  <div class="callout-h">Archived — Not in current product scope</div>
+  <p>Enterprise is a separate revenue channel requiring different legal terms, sales motion, pricing structure, and product components. It is not appropriate to build alongside the self-serve subscription business at this stage. Target: Q2 2027 after self-serve is profitable and a technical co-founder or enterprise sales resource is engaged.</p>
+</div>
+
+<h2>What Enterprise actually means (for when the time comes)</h2>
+<p>Two distinct enterprise models exist and should not be conflated:</p>
+
+<table>
+  <tr><th>Model</th><th>Description</th><th>Target customer</th><th>Pricing model</th><th>Dependencies</th></tr>
+  <tr>
+    <td><strong>Option A — Team accounts</strong></td>
+    <td>Multiple users under one org billing. Same product, multi-seat management layer. Example: PE firm with 4 partners each tracking portfolio objectives.</td>
+    <td>Small teams, family offices, professional partnerships</td>
+    <td>$299–499/month for team seats</td>
+    <td>Teams/orgs table, seat management, shared billing admin, optional shared objective visibility</td>
+  </tr>
+  <tr>
+    <td><strong>Option B — White-label / API licensing</strong></td>
+    <td>Meridian's POS engine embedded in another company's product. Example: financial advisory firm offering POS tracking to clients, HR platform adding objective state to employee development tools.</td>
+    <td>Financial advisors, HR platforms, insurance, wellness platforms</td>
+    <td>$25k–250k/year annual contract</td>
+    <td>Dedicated API, white-label theming, custom data isolation, enterprise SSO (SAML/OKTA), audit logs, dedicated infrastructure, MSA, DPA, SLA with financial penalties</td>
+  </tr>
+</table>
+
+<h2>Q2 2027 Enterprise project list</h2>
+<div class="callout purple">
+  <div class="callout-h">Captured for future build — not current scope</div>
+  <p>When Enterprise build begins in Q2 2027, these are the workstreams:</p>
+</div>
+<ul>
+  <li>Master Services Agreement (MSA) template — requires attorney review, separate from consumer T&C</li>
+  <li>Data Processing Agreement (DPA) — required for any B2B data handling, GDPR compliance if international clients</li>
+  <li>SLA with defined uptime guarantees and financial penalties — requires dedicated infrastructure</li>
+  <li>Enterprise SSO — SAML/OKTA integration for corporate identity management</li>
+  <li>Audit logs — every data access event logged for compliance review</li>
+  <li>Custom data isolation — each enterprise client's data in isolated schema or database</li>
+  <li>White-label theming — client's brand on Meridian's engine</li>
+  <li>Dedicated customer success function — not founder-handled at enterprise scale</li>
+  <li>Enterprise sales motion — outbound, procurement cycles, security questionnaires</li>
+  <li>Pricing strategy — annual contract minimums, per-seat vs per-API-call vs flat fee</li>
+</ul>
+
+<h2>What to show users right now</h2>
+<p>The /onboarding/plan screen shows a minimal "For teams" card with no pricing, just a contact link. This captures inbound interest without making commitments.</p>
+<pre>
+<span class="cm">// /onboarding/plan — Enterprise contact card (no pricing shown)</span>
+&lt;div className="tier-card enterprise"&gt;
+  &lt;h3&gt;For teams&lt;/h3&gt;
+  &lt;p&gt;Organizations, advisory firms, and teams with shared objectives.&lt;/p&gt;
+  &lt;a href="mailto:jason@solvegalabs.com?subject=Meridian Enterprise"&gt;
+    Contact us
+  &lt;/a&gt;
+&lt;/div&gt;
+</pre>
+
+<!-- ═══ SECTION 6 ═══ -->
+<h1 id="s6">6. Disclaimer System</h1>
+<p>Meridian's AI output — confidence scores, action recommendations, signal analysis, cross-dependency detections — must always appear alongside a clear, consistent, non-intrusive disclaimer. The goal is normalized presence, not legal wallpaper. Users who see it everywhere stop reading it as a warning and start reading it as part of the product's honest identity.</p>
+
+<h2 id="s6-where">Where the disclaimer appears</h2>
+
+<div class="surface-grid">
+  <div class="surface-card priority">
+    <div class="surface-name">🔴 Onboarding — profile screen</div>
+    <div class="surface-route">/onboarding/profile</div>
+    <div class="surface-why">User is about to enter personal life data. Sets expectations before any AI output is generated. Highest-stakes consent moment.</div>
+  </div>
+  <div class="surface-card priority">
+    <div class="surface-name">🔴 Subscription / plan screen</div>
+    <div class="surface-route">/onboarding/plan</div>
+    <div class="surface-why">User is making a financial commitment based in part on product value claims. Disclaimer must appear before payment.</div>
+  </div>
+  <div class="surface-card priority">
+    <div class="surface-name">🔴 First sweep reveal</div>
+    <div class="surface-route">/onboarding/sweep</div>
+    <div class="surface-why">First AI output the user sees. They're most likely to over-weight this score. Disclaimer appears directly below the confidence number before they proceed to dashboard.</div>
+  </div>
+  <div class="surface-card priority">
+    <div class="surface-name">🔴 Objective scorecard</div>
+    <div class="surface-route">/objectives/[id]</div>
+    <div class="surface-why">Where AI confidence scores and action recommendations are most concentrated and most likely to influence real decisions. Single-line below action list.</div>
+  </div>
+  <div class="surface-card">
+    <div class="surface-name">Mission Control dashboard</div>
+    <div class="surface-route">/dashboard</div>
+    <div class="surface-why">Persistent footer line. Seen on every session. Normalizes disclaimer as part of the product identity rather than a one-time modal.</div>
+  </div>
+  <div class="surface-card">
+    <div class="surface-name">Email alerts</div>
+    <div class="surface-route">Resend transactional emails</div>
+    <div class="surface-why">Every confidence change alert email. Footer below unsubscribe link. User may act on email before returning to app.</div>
+  </div>
+  <div class="surface-card">
+    <div class="surface-name">Signal feed</div>
+    <div class="surface-route">/signals</div>
+    <div class="surface-why">One-line persistent footer. Signals are third-party sourced — accuracy of underlying information is outside Meridian's control.</div>
+  </div>
+  <div class="surface-card">
+    <div class="surface-name">Terms of Service</div>
+    <div class="surface-route">/legal/terms</div>
+    <div class="surface-why">Full legal language — all clauses including limitation of liability, not-a-professional-advisor, and AI accuracy disclaimer. Attorney reviewed before first paying user.</div>
+  </div>
+  <div class="surface-card">
+    <div class="surface-name">Privacy Policy</div>
+    <div class="surface-route">/legal/privacy</div>
+    <div class="surface-why">Anthropic API data flow disclosure required here. User inputs are processed by a third-party AI provider.</div>
+  </div>
+</div>
+
+<h2 id="s6-text">Exact disclaimer language — by surface</h2>
+
+<table>
+  <tr><th>Surface</th><th>Format</th><th>Text</th></tr>
+  <tr>
+    <td>Onboarding profile screen</td>
+    <td>Box below input fields</td>
+    <td><em>"Meridian uses AI to analyze your objectives and surface relevant signals. Its output is for informational purposes only and is not professional financial, legal, career, or medical advice. Always verify recommendations independently before acting on them."</em></td>
+  </tr>
+  <tr>
+    <td>Subscription / plan screen</td>
+    <td>Footer line below tier cards</td>
+    <td><em>"Meridian is an AI-powered intelligence tool, not a professional advisor. Confidence scores and recommendations are analytical outputs only. See our Terms of Service for full details."</em></td>
+  </tr>
+  <tr>
+    <td>First sweep reveal (onboarding)</td>
+    <td>Small text below confidence score</td>
+    <td><em>"This score reflects Meridian's AI analysis of available signals. It is not a guarantee of outcome. Review our methodology and always apply your own judgment."</em></td>
+  </tr>
+  <tr>
+    <td>Objective scorecard (below action list)</td>
+    <td>Single line, muted style</td>
+    <td><em>"Meridian's analysis is for informational purposes only — not professional financial, legal, career, or medical advice."</em></td>
+  </tr>
+  <tr>
+    <td>Dashboard footer (persistent)</td>
+    <td>Footer of every page</td>
+    <td><em>"Meridian · AI-powered intelligence · Not professional advice · <a>Terms</a> · <a>Privacy</a>"</em></td>
+  </tr>
+  <tr>
+    <td>Email alerts</td>
+    <td>Email footer</td>
+    <td><em>"Meridian's confidence scores and recommendations are AI-generated for informational purposes only and do not constitute professional advice of any kind."</em></td>
+  </tr>
+</table>
+
+<h2 id="s6-mockups">Live mockups — disclaimer in context</h2>
+
+<!-- Onboarding plan screen mockup -->
+<div class="mockup">
+  <div class="mockup-bar">
+    <div class="mockup-dot"></div><div class="mockup-dot"></div><div class="mockup-dot"></div>
+    <span class="mockup-url">meridian-chi-gilt.vercel.app/onboarding/plan</span>
+  </div>
+  <div class="mockup-body">
+    <div class="mock-title">Choose your plan</div>
+    <div class="mock-sub">START FREE · 7-DAY TRIAL · NO CREDIT CARD REQUIRED</div>
+    <div class="mock-toggle">
+      <span>Monthly</span>
+      <div class="mock-pill"></div>
+      <span class="act">Annual <span style="color:var(--gold);font-size:10px;"> save 2 months</span></span>
+    </div>
+    <div class="mock-tiers">
+      <div class="mock-tier">
+        <div class="mock-tier-name">Explorer</div>
+        <div class="mock-tier-price">$19<span style="font-size:12px;">/mo</span></div>
+        <div class="mock-tier-mo">billed monthly</div>
+        <div class="mock-tier-ann">$190/yr · save $38</div>
+        <div class="mock-tier-feat">5 objectives<br>1 weekly sweep<br>Journal + predictions<br>Email alerts</div>
+      </div>
+      <div class="mock-tier sel">
+        <div class="mock-tier-badge">MOST POPULAR</div>
+        <div class="mock-tier-name">Accelerator</div>
+        <div class="mock-tier-price">$49<span style="font-size:12px;">/mo</span></div>
+        <div class="mock-tier-mo">billed monthly</div>
+        <div class="mock-tier-ann">$490/yr · save $98</div>
+        <div class="mock-tier-feat">15 objectives<br>1 daily sweep<br>Cross-dep detection<br>Push + SMS alerts</div>
+      </div>
+      <div class="mock-tier">
+        <div class="mock-tier-name">Command</div>
+        <div class="mock-tier-price">$99<span style="font-size:12px;">/mo</span></div>
+        <div class="mock-tier-mo">billed monthly</div>
+        <div class="mock-tier-ann">$990/yr · save $198</div>
+        <div class="mock-tier-feat">Unlimited objectives<br>1 hourly sweep<br>API access<br>White-glove setup</div>
+      </div>
+    </div>
+
+    <!-- Credit add-on section -->
+    <div class="mock-credits">
+      <div class="mock-credits-label">Add sweep credits — run extra sweeps any time</div>
+      <div class="mock-credit-row">
+        <div class="mock-credit-item">
+          <div class="mock-credit-count">5</div>
+          <div class="mock-credit-price">$4</div>
+          <div class="mock-credit-per">$0.80 each</div>
+        </div>
+        <div class="mock-credit-item sel">
+          <div class="mock-credit-count">15</div>
+          <div class="mock-credit-price">$10</div>
+          <div class="mock-credit-per">best value · $0.67 each</div>
+        </div>
+        <div class="mock-credit-item">
+          <div class="mock-credit-count">50</div>
+          <div class="mock-credit-price">$25</div>
+          <div class="mock-credit-per">$0.50 each</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="mock-cta">Start free 7-day trial</button>
+    <div class="mock-skip">Skip for now — continue with trial only</div>
+
+    <!-- DISCLAIMER — plan screen -->
+    <div class="disclaimer-dark" style="max-width:620px;margin:1.25rem auto 0;">
+      <div class="disclaimer-label">Important</div>
+      <div class="disclaimer-text">Meridian is an AI-powered intelligence tool, not a professional advisor. Confidence scores and recommendations are analytical outputs only and do not constitute financial, legal, career, or medical advice. Always verify recommendations independently before acting on them. See our <span style="color:rgba(255,255,255,.5);text-decoration:underline;">Terms of Service</span> and <span style="color:rgba(255,255,255,.5);text-decoration:underline;">Privacy Policy</span> for full details.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Onboarding profile screen mockup -->
+<div class="mockup">
+  <div class="mockup-bar">
+    <div class="mockup-dot"></div><div class="mockup-dot"></div><div class="mockup-dot"></div>
+    <span class="mockup-url">meridian-chi-gilt.vercel.app/onboarding/profile</span>
+  </div>
+  <div class="mockup-body">
+    <div class="mock-title">Tell us about yourself</div>
+    <div class="mock-sub">STEP 3 OF 5 · PERSONALIZE YOUR INTELLIGENCE</div>
+    <div class="mock-form">
+      <div class="mock-field">
+        <div class="mock-label">YOUR NAME</div>
+        <input class="mock-input" placeholder="Jason" readonly/>
+      </div>
+      <div class="mock-field">
+        <div class="mock-label">TONE PREFERENCE</div>
+        <select class="mock-select"><option>Direct — give me the facts, no softening</option></select>
+      </div>
+      <div class="mock-field">
+        <div class="mock-label">DEPTH PREFERENCE</div>
+        <select class="mock-select"><option>Standard — full analysis with key context</option></select>
+      </div>
+
+      <!-- DISCLAIMER — profile screen -->
+      <div class="disclaimer-dark" style="margin-top:1.5rem;">
+        <div class="disclaimer-label">How Meridian uses your information</div>
+        <div class="disclaimer-text">The information you share — your name, goals, and preferences — is used solely to personalize Meridian's AI analysis of your objectives. Your data is never sold to third parties. Meridian's output is for informational purposes only and is not professional financial, legal, career, or medical advice. Always apply your own judgment before acting on any recommendation. By continuing you agree to our <span style="color:rgba(255,255,255,.5);text-decoration:underline;">Terms of Service</span> and <span style="color:rgba(255,255,255,.5);text-decoration:underline;">Privacy Policy</span>.</div>
+      </div>
+
+      <button class="mock-cta" style="margin-top:1.25rem;">Continue →</button>
+    </div>
+  </div>
+</div>
+
+<!-- First sweep reveal mockup -->
+<div class="mockup">
+  <div class="mockup-bar">
+    <div class="mockup-dot"></div><div class="mockup-dot"></div><div class="mockup-dot"></div>
+    <span class="mockup-url">meridian-chi-gilt.vercel.app/onboarding/sweep</span>
+  </div>
+  <div class="mockup-body">
+    <div class="mock-title" style="margin-bottom:1.5rem;">Meridian has analyzed your first objective</div>
+    <div class="mock-beacon">
+      <svg width="64" height="80" viewBox="0 0 64 80" aria-label="Meridian beacon">
+        <circle cx="32" cy="50" r="20" fill="#C9A227" opacity=".07"/>
+        <circle cx="32" cy="50" r="13" fill="#C9A227" opacity=".12"/>
+        <circle cx="32" cy="50" r="8.5" fill="#C9A227"/>
+        <line x1="32" y1="50" x2="32" y2="14" stroke="rgba(255,255,255,.44)" stroke-width="1.6" stroke-linecap="round"/>
+        <polygon points="28,18 32,8 36,18" fill="#C9A227"/>
+      </svg>
+    </div>
+    <div class="mock-confidence">74%</div>
+    <div class="mock-conf-label">CURRENT CONFIDENCE · ALASKA AIRLINES FO HIRE</div>
+
+    <!-- DISCLAIMER — sweep reveal -->
+    <div class="disclaimer-dark" style="max-width:500px;margin:1.25rem auto 1.5rem;">
+      <div class="disclaimer-text" style="text-align:center;">This score reflects Meridian's AI analysis of available signals. It is not a guarantee of outcome. Apply your own judgment before acting on any recommendation.</div>
+    </div>
+
+    <button class="mock-cta">Go to Mission Control →</button>
+  </div>
+</div>
+
+<!-- ═══ SECTION 7 ═══ -->
+<h1 id="s7">7. Onboarding Gate Design</h1>
+<table>
+  <tr><th>Step</th><th>Route</th><th>Content</th><th>MVP status</th></tr>
+  <tr><td>1</td><td>/onboarding</td><td>Welcome — "The home screen of your life." · Get started CTA</td><td>Live ✓</td></tr>
+  <tr><td><strong>2 (NEW)</strong></td><td>/onboarding/plan</td><td>Plan selection + credit add-on + disclaimer</td><td>Build now</td></tr>
+  <tr><td>3</td><td>/onboarding/profile</td><td>Name, tone, depth preference + disclaimer box</td><td>Update with disclaimer</td></tr>
+  <tr><td>4</td><td>/onboarding/objective</td><td>First objective creation form</td><td>Exists</td></tr>
+  <tr><td>5</td><td>/onboarding/sweep</td><td>First sweep reveal + confidence + disclaimer</td><td>Update with disclaimer</td></tr>
+</table>
+
+<!-- ═══ SECTION 8 ═══ -->
+<h1 id="s8">8. Database Enforcement</h1>
+<pre>
+<span class="cm">-- Full migration: run in Supabase SQL editor</span>
+<span class="kw">alter table</span> public.profiles
+  <span class="kw">add column if not exists</span> intended_tier       text,
+  <span class="kw">add column if not exists</span> stripe_price_id     text,
+  <span class="kw">add column if not exists</span> billing_cycle       text <span class="kw">default</span> 'monthly',
+  <span class="kw">add column if not exists</span> current_period_end  timestamptz,
+  <span class="kw">add column if not exists</span> sweep_credits       int  <span class="kw">default</span> 0;
+</pre>
+<pre>
+<span class="cm">// lib/config/tiers.ts — TIER_LIMITS constant</span>
+export const TIER_LIMITS = {
+  trial:       { max_objectives:3,  sweep_cadence:'one-time', max_predictions:0,  journal:false, cross_dep:false, starting_credits:1 },
+  explorer:    { max_objectives:5,  sweep_cadence:'weekly',   max_predictions:10, journal:true,  cross_dep:false },
+  accelerator: { max_objectives:15, sweep_cadence:'daily',    max_predictions:Infinity, journal:true, cross_dep:true, push:true, sms:true },
+  command:     { max_objectives:Infinity, sweep_cadence:'hourly', max_predictions:Infinity, journal:true, cross_dep:true, push:true, sms:true, api:true },
+} as const;
+</pre>
+
+<!-- ═══ SECTION 9 ═══ -->
+<h1 id="s9">9. Stripe Integration Spec</h1>
+<h2>Subscription products</h2>
+<table>
+  <tr><th>Product</th><th>Env var</th><th>Amount</th><th>Interval</th><th>Trial</th></tr>
+  <tr><td>Meridian Explorer</td><td>STRIPE_PRICE_EXPLORER_MONTHLY</td><td>$19.00</td><td>month</td><td>7 days</td></tr>
+  <tr><td>Meridian Explorer</td><td>STRIPE_PRICE_EXPLORER_ANNUAL</td><td>$190.00</td><td>year</td><td>7 days</td></tr>
+  <tr><td>Meridian Accelerator</td><td>STRIPE_PRICE_ACCELERATOR_MONTHLY</td><td>$49.00</td><td>month</td><td>7 days</td></tr>
+  <tr><td>Meridian Accelerator</td><td>STRIPE_PRICE_ACCELERATOR_ANNUAL</td><td>$490.00</td><td>year</td><td>7 days</td></tr>
+  <tr><td>Meridian Command</td><td>STRIPE_PRICE_COMMAND_MONTHLY</td><td>$99.00</td><td>month</td><td>7 days</td></tr>
+  <tr><td>Meridian Command</td><td>STRIPE_PRICE_COMMAND_ANNUAL</td><td>$990.00</td><td>year</td><td>7 days</td></tr>
+</table>
+<h2>Sweep credit products (one-time payments)</h2>
+<table>
+  <tr><th>Product</th><th>Env var</th><th>Amount</th><th>Credits granted</th></tr>
+  <tr><td>Sweep Credits — 5 pack</td><td>STRIPE_PRICE_CREDITS_5</td><td>$4.00</td><td>+5</td></tr>
+  <tr><td>Sweep Credits — 15 pack</td><td>STRIPE_PRICE_CREDITS_15</td><td>$10.00</td><td>+15</td></tr>
+  <tr><td>Sweep Credits — 50 pack</td><td>STRIPE_PRICE_CREDITS_50</td><td>$25.00</td><td>+50</td></tr>
+</table>
+<h2>Webhook events</h2>
+<table>
+  <tr><th>Event</th><th>Action</th></tr>
+  <tr><td>checkout.session.completed</td><td>Set profiles.tier, stripe_customer_id, stripe_price_id</td></tr>
+  <tr><td>payment_intent.succeeded</td><td>If credit purchase: add credits to profiles.sweep_credits</td></tr>
+  <tr><td>customer.subscription.updated</td><td>Update profiles.tier and current_period_end</td></tr>
+  <tr><td>customer.subscription.deleted</td><td>Set profiles.tier = 'trial', clear stripe fields</td></tr>
+  <tr><td>invoice.payment_failed</td><td>Send dunning email via Resend</td></tr>
+  <tr><td>customer.subscription.trial_will_end</td><td>Send Day 5 trial expiry email via Resend</td></tr>
+</table>
+
+<!-- ═══ SECTION 10 ═══ -->
+<h1 id="s10">10. Claude Code Prompt</h1>
+<div class="callout warn">
+  <div class="callout-h">Paste into Claude Code · branch: feature/subscription-tiers</div>
+  <p>Run <code>git checkout -b feature/subscription-tiers</code> first. Make a checkpoint commit after each step.</p>
+</div>
+<pre>
+Build the Meridian subscription tier system. Run this Supabase migration first:
+
+alter table public.profiles
+  add column if not exists intended_tier      text,
+  add column if not exists stripe_price_id    text,
+  add column if not exists billing_cycle      text default 'monthly',
+  add column if not exists current_period_end timestamptz,
+  add column if not exists sweep_credits      int  default 0;
+
+STEP 1 — lib/config/tiers.ts
+Create TIER_LIMITS constant with: max_objectives, sweep_cadence, max_predictions,
+journal access, cross_dep, push, sms, api flags per tier (trial/explorer/
+accelerator/command). Export Tier type and getTierLimit helper.
+
+STEP 2 — /app/onboarding/plan/page.tsx  (NEW STEP — insert before /onboarding/profile)
+Update /onboarding page.tsx so "Get started" navigates to /onboarding/plan.
+
+Build the plan selection screen:
+- Billing toggle: Monthly / Annual (annual default, updates all prices live)
+- Three tier cards: Explorer ($19/$190), Accelerator ($49/$490 — pre-selected
+  with "Most popular" gold badge and gold border), Command ($99/$990)
+- Each card: name, price, 4 key feature bullets, cadence clearly stated as
+  "1 weekly sweep" / "1 daily sweep" / "1 hourly sweep + monitoring"
+- Sweep credit add-on section below tiers (separate from plan selection):
+  three credit bundles — 5 for $4, 15 for $10 (highlighted "best value"),
+  50 for $25. Optional add-on, not required to proceed.
+- Primary CTA: "Start free 7-day trial" — gold button
+- Skip link: "Skip for now — continue with trial only"
+- DISCLAIMER BOX at bottom (dark background, subtle border, small text):
+  "Meridian is an AI-powered intelligence tool, not a professional advisor.
+  Confidence scores and recommendations are analytical outputs only and do not
+  constitute financial, legal, career, or medical advice. Always verify
+  recommendations independently before acting on them. See our Terms of Service
+  and Privacy Policy for full details." — link Terms and Privacy to /legal/terms
+  and /legal/privacy (placeholder pages for now).
+- On CTA click: POST to /api/onboarding/plan with {tier, billing_cycle,
+  credits_bundle (optional)}. MVP: bypasses Stripe — sets tier='trial',
+  intended_tier=[selected], trial_ends_at=now()+7days, sweep_credits=1 (free
+  trial credit). Add comment: // TODO: activate Stripe checkout here when
+  payment processing is enabled.
+
+STEP 3 — /api/onboarding/plan/route.ts
+POST: verify auth, update profiles (tier, intended_tier, billing_cycle,
+trial_ends_at, sweep_credits=1), return {success:true}.
+
+STEP 4 — Update /onboarding/profile/page.tsx
+Add disclaimer box BELOW all input fields and ABOVE the Continue button:
+"How Meridian uses your information: The information you share is used solely
+to personalize Meridian's AI analysis of your objectives. Your data is never
+sold to third parties. Meridian's output is for informational purposes only and
+is not professional financial, legal, career, or medical advice. Always apply
+your own judgment before acting on any recommendation. By continuing you agree
+to our Terms of Service and Privacy Policy."
+Style: dark background box, muted text, small font, Terms and Privacy linked.
+
+STEP 5 — Update /onboarding/sweep/page.tsx
+Add disclaimer BELOW the confidence score count-up animation and ABOVE the
+"Go to Mission Control" button:
+"This score reflects Meridian's AI analysis of available signals. It is not a
+guarantee of outcome. Apply your own judgment before acting on any
+recommendation."
+Style: centered, small muted text, no box needed — just text.
+
+STEP 6 — Add persistent disclaimer to app layout
+In /app/(app)/layout.tsx, add a footer to every authenticated page:
+"Meridian · AI-powered intelligence · Not professional advice ·
+[Terms] · [Privacy]"
+Style: tiny, muted, same line, links to /legal/terms and /legal/privacy.
+
+STEP 7 — Tier enforcement in API routes
+In /api/objectives POST: check active count vs getTierLimit(tier, 'max_objectives'),
+return 403 {error:'TIER_LIMIT'} if exceeded.
+In /api/sweep POST: check sweep eligibility. For trial: check sweep_count < 1
+OR sweep_credits > 0 (if using credit, deduct 1). For paid tiers: check
+cadence timing OR sweep_credits > 0.
+
+STEP 8 — UpgradePrompt component
+components/ui/UpgradePrompt.tsx: modal shown when tier limit hit. Shows current
+tier, feature locked, and "Upgrade" button linking to /settings/billing.
+Props: {feature: string, currentTier: Tier, requiredTier: Tier}
+
+STEP 9 — /settings/billing page
+Tab in Settings showing: current tier badge, trial end date or renewal date,
+tier comparison table, "Buy sweep credits" section (3 bundles — disabled with
+"Coming soon" tooltip in MVP), "Manage subscription" button (disabled with
+"Payment processing coming soon" in MVP). For beta users: show special
+"Beta user — grandfathered Explorer pricing at launch" badge.
+
+STEP 10 — Placeholder legal pages
+/app/legal/terms/page.tsx: placeholder page with title "Terms of Service" and
+body "Coming soon — reviewing with legal counsel before launch."
+/app/legal/privacy/page.tsx: placeholder page with title "Privacy Policy" and
+body "Coming soon — reviewing with legal counsel before launch."
+Both pages accessible without authentication.
+
+STEP 11 — Trial expiry middleware
+In middleware.ts: if profiles.trial_ends_at < now() AND profiles.tier = 'trial',
+redirect /dashboard/* to /onboarding/plan?expired=true. On /onboarding/plan,
+if expired=true show banner: "Your 7-day trial has ended. Choose a plan to
+continue." styled in amber at top of screen.
+
+Work in branch feature/subscription-tiers. Checkpoint commit after each step.
+Never hardcode any keys or prices.
+</pre>
+
+<div class="footer">
+  MERIDIAN SUBSCRIPTION TIER ARCHITECTURE v1.1 · SOLVEGA LABS · JUNE 23, 2026 · CONFIDENTIAL<br>
+  solvega.ai · © 2026 Solvega Labs LLC · All rights reserved
+</div>
+
+</div></div>
+
+<script>
+const links = document.querySelectorAll('.nav-a');
+const obs = new IntersectionObserver(e=>{
+  e.forEach(en=>{
+    if(en.isIntersecting){
+      links.forEach(l=>l.classList.remove('active'));
+      const a=document.querySelector(`.nav-a[href="#${en.target.id}"]`);
+      if(a)a.classList.add('active');
+    }
+  });
+},{threshold:0.3,rootMargin:'-20% 0px -70% 0px'});
+document.querySelectorAll('h1[id],h2[id]').forEach(el=>obs.observe(el));
+</script>
+</body>
+</html>

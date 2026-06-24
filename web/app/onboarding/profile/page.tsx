@@ -34,7 +34,7 @@ export default function OnboardingProfilePage() {
           <div>
             <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-1.5">Your name</label>
             <input value={name} onChange={e => setName(e.target.value)}
-              placeholder="Jason"
+              placeholder="Your name"
               className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] focus:outline-none focus:border-[var(--blue)]" />
           </div>
 
