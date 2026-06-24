@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import MeridianBeacon from '@/components/brand/MeridianBeacon'
 import ConfidenceMeter from '@/components/objectives/ConfidenceMeter'
 import Tooltip from '@/components/ui/Tooltip'
+import DoNextActions from '@/components/dashboard/DoNextActions'
 import { DEFINITIONS } from '@/lib/utils/definitions'
 import Link from 'next/link'
 
@@ -177,18 +178,10 @@ export default async function DashboardPage() {
               <div className="px-4 py-3 bg-[#E6F1FB] border-b border-[var(--blue)]/20">
                 <p className="text-[11px] font-semibold text-[var(--blue)] uppercase tracking-wider">Do next</p>
               </div>
-              <ul className="p-4 space-y-2">
-                {sweepData?.top_priority_action && (
-                  <li className="text-[13px] text-[var(--text)] font-medium flex gap-2">
-                    <span className="text-[var(--blue)] flex-shrink-0">→</span>{sweepData.top_priority_action}
-                  </li>
-                )}
-                {sweepData?.objectives?.flatMap(o => o.actions ?? []).slice(0, 3).map((item, i) => (
-                  <li key={i} className="text-[13px] text-[var(--text2)] flex gap-2">
-                    <span className="text-[var(--blue)] flex-shrink-0">·</span>{item}
-                  </li>
-                ))}
-              </ul>
+              <DoNextActions
+                topAction={sweepData?.top_priority_action ?? null}
+                actions={sweepData?.objectives?.flatMap(o => o.actions ?? []).slice(0, 3) ?? []}
+              />
             </div>
           </div>
         </div>
