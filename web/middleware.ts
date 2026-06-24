@@ -25,30 +25,26 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session — keeps auth tokens fresh
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
-  // Redirect unauthenticated users away from protected routes
+  // Unauthenticated → redirect to login for protected routes
   const protectedPrefixes = ['/dashboard', '/objectives', '/signals', '/journal', '/predictions', '/rules', '/settings']
-  const isProtected = protectedPrefixes.some((p) => pathname.startsWith(p))
-
+  const isProtected = protectedPrefixes.some(p => pathname.startsWith(p))
   if (isProtected && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from auth pages
+  // Authenticated users away from auth pages → dashboard
   if ((pathname === '/login' || pathname === '/signup') && user) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
 
+  // Onboarding routes are public (no auth required)
   return supabaseResponse
 }
 

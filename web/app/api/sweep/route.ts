@@ -5,6 +5,7 @@ import { buildSystemPrompt } from '@/lib/anthropic/prompts/system'
 import { buildObjectiveState } from '@/lib/anthropic/prompts/objective'
 import { parseAnthropicResponse } from '@/lib/anthropic/prompts/output'
 import { fetchNewsSignals } from '@/lib/signals/newsapi'
+import { sendConfidenceAlert } from '@/lib/email/resend'
 
 export const dynamic = 'force-dynamic'
 
@@ -207,6 +208,18 @@ export async function POST(request: NextRequest) {
         confidence: result.confidence,
         updated_at: new Date().toISOString(),
       }).eq('id', obj.id)
+
+      // Email alert if confidence delta > 5 points
+      const delta = result.confidence - obj.confidence
+      if (Math.abs(delta) > 5 && user.email) {
+        sendConfidenceAlert({
+          toEmail: user.email,
+          objectiveTitle: obj.title,
+          prevScore: obj.confidence,
+          newScore: result.confidence,
+          delta,
+        }).catch(console.error)
+      }
 
       objResults.push({
         id: obj.id,
