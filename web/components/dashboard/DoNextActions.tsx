@@ -16,6 +16,7 @@ export default function DoNextActions({ topAction, actions }: DoNextActionsProps
   const [completed, setCompleted] = useState<Set<number>>(new Set())
   const [activeForm, setActiveForm] = useState<number | null>(null)
   const [notes, setNotes] = useState('')
+  const [completedDate, setCompletedDate] = useState(new Date().toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
 
   async function handleComplete(i: number) {
@@ -28,21 +29,25 @@ export default function DoNextActions({ topAction, actions }: DoNextActionsProps
     const getData = await getRes.json() as { entry: { section_d?: { action: string; completed: boolean }[] } | null }
     const existing = getData.entry?.section_d ?? []
 
+    const entryText = [
+      `[Dashboard] ${action}`,
+      completedDate ? `Completed: ${completedDate}` : '',
+      notes.trim() ? notes.trim() : '',
+    ].filter(Boolean).join(' — ')
+
     await fetch('/api/journal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         entry_number: weekNum,
-        section_d: [...existing, {
-          action: `[Dashboard] ${action}${notes ? ` — ${notes}` : ''}`,
-          completed: true,
-        }],
+        section_d: [...existing, { action: entryText, completed: true }],
       }),
     })
 
     setCompleted(prev => new Set(Array.from(prev).concat(i)))
     setActiveForm(null)
     setNotes('')
+    setCompletedDate(new Date().toISOString().split('T')[0])
     setSaving(false)
   }
 
@@ -56,34 +61,31 @@ export default function DoNextActions({ topAction, actions }: DoNextActionsProps
             completed.has(i) ? 'opacity-40' : 'hover:bg-[#E6F1FB]/60'
           }`}>
             <button
-              onClick={() => !completed.has(i) && setActiveForm(i)}
+              onClick={() => !completed.has(i) && setActiveForm(activeForm === i ? null : i)}
               disabled={completed.has(i)}
-              className={`flex-shrink-0 mt-0.5 transition-all ${
+              className={`flex-shrink-0 mt-0.5 font-medium text-[16px] leading-none transition-all ${
                 completed.has(i)
                   ? 'text-[var(--green)] cursor-default'
                   : 'text-[var(--blue)] animate-pulse hover:animate-none hover:scale-125 cursor-pointer'
               }`}
               title={completed.has(i) ? 'Completed' : 'Click to mark complete'}
             >
-              {completed.has(i)
-                ? <CheckCircle size={15} />
-                : <span className={`font-medium ${i === 0 ? 'text-[var(--text)]' : 'text-[var(--blue)]'}`}>
-                    {i === 0 ? '→' : '·'}
-                  </span>
-              }
+              {completed.has(i) ? <CheckCircle size={15} /> : '→'}
             </button>
-            <span className={`text-[13px] leading-snug ${
-              completed.has(i)
-                ? 'line-through text-[var(--text3)]'
-                : i === 0
-                ? 'text-[var(--text)] font-medium'
-                : 'text-[var(--text2)]'
-            }`}>
+            <span
+              onClick={() => !completed.has(i) && setActiveForm(activeForm === i ? null : i)}
+              className={`text-[13px] leading-snug cursor-pointer ${
+                completed.has(i)
+                  ? 'line-through text-[var(--text3)]'
+                  : i === 0
+                  ? 'text-[var(--text)] font-medium'
+                  : 'text-[var(--text2)]'
+              }`}
+            >
               {action}
             </span>
           </div>
 
-          {/* Completion form */}
           {activeForm === i && (
             <div className="mx-2 mt-2 bg-[#E6F1FB] border border-[var(--blue)]/20 rounded-xl p-3">
               <div className="flex items-center justify-between mb-2">
@@ -92,13 +94,28 @@ export default function DoNextActions({ topAction, actions }: DoNextActionsProps
                   <X size={13} />
                 </button>
               </div>
-              <textarea
-                rows={2}
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
-                placeholder="Optional: what did you do / what was the outcome?"
-                className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--border)] text-[12px] resize-none focus:outline-none focus:border-[var(--blue)] mb-2"
-              />
+
+              <div className="mb-2">
+                <label className="block text-[10px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-1">Date completed</label>
+                <input
+                  type="date"
+                  value={completedDate}
+                  onChange={e => setCompletedDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--border)] text-[12px] bg-white focus:outline-none focus:border-[var(--blue)]"
+                />
+              </div>
+
+              <div className="mb-2">
+                <label className="block text-[10px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-1">What did you do? What was the outcome?</label>
+                <textarea
+                  rows={2}
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Describe what you did and the result..."
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--border)] text-[12px] resize-none focus:outline-none focus:border-[var(--blue)]"
+                />
+              </div>
+
               <p className="text-[10px] text-[var(--text3)] mb-2">Saved to this week&apos;s journal → Section D.</p>
               <div className="flex gap-2">
                 <button onClick={() => setActiveForm(null)}
