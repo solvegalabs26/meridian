@@ -1,11 +1,21 @@
-export default function RulesPage() {
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import RulesClient from './RulesClient'
+
+export default async function RulesPage() {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const [{ data: objectives }, { data: rules }] = await Promise.all([
+    supabase.from('objectives').select('id, obj_id, title').eq('user_id', user.id).eq('status', 'active').order('sort_order'),
+    supabase.from('rules_filter').select('*').eq('user_id', user.id),
+  ])
+
   return (
-    <div className="max-w-4xl">
-      <h1 className="text-[22px] font-medium text-[var(--text)] mb-1">Rules Filter</h1>
-      <p className="text-[14px] text-[var(--text3)] mb-6">Keyword management per objective — built in Phase 5.</p>
-      <div className="bg-white rounded-2xl border border-[var(--border)] p-8 text-center text-[var(--text3)] text-[14px]">
-        Rules filter config — Phase 5
-      </div>
-    </div>
+    <RulesClient
+      objectives={objectives ?? []}
+      initialRules={rules ?? []}
+    />
   )
 }

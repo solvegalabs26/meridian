@@ -1,0 +1,85 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data, error } = await supabase
+    .from('predictions')
+    .select('*, objectives(obj_id, title)')
+    .eq('user_id', user.id)
+    .order('horizon_date', { ascending: true })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ predictions: data ?? [] })
+}
+
+export async function POST(request: NextRequest) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await request.json() as {
+    statement: string
+    confidence_pct: number
+    horizon_date: string
+    objective_id?: string
+    notes?: string
+  }
+
+  // Auto-generate pred_id
+  const { count } = await supabase
+    .from('predictions')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+
+  const pred_id = `PRED-${String((count ?? 0) + 1).padStart(3, '0')}`
+
+  const { data, error } = await supabase
+    .from('predictions')
+    .insert({
+      user_id: user.id,
+      pred_id,
+      statement: body.statement,
+      confidence_pct: body.confidence_pct,
+      horizon_date: body.horizon_date,
+      objective_id: body.objective_id ?? null,
+      notes: body.notes ?? null,
+    })
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ prediction: data })
+}
+
+export async function PATCH(request: NextRequest) {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await request.json() as {
+    id: string
+    outcome: string
+    accuracy_score: number
+  }
+
+  const { data, error } = await supabase
+    .from('predictions')
+    .update({
+      outcome: body.outcome,
+      accuracy_score: body.accuracy_score,
+      scored_at: new Date().toISOString(),
+    })
+    .eq('id', body.id)
+    .eq('user_id', user.id)
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ prediction: data })
+}

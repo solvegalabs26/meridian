@@ -1,11 +1,30 @@
-export default function PredictionsPage() {
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import PredictionsClient from './PredictionsClient'
+
+export default async function PredictionsPage() {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const [{ data: predictions }, { data: objectives }] = await Promise.all([
+    supabase
+      .from('predictions')
+      .select('*, objectives(obj_id, title)')
+      .eq('user_id', user.id)
+      .order('horizon_date', { ascending: true }),
+    supabase
+      .from('objectives')
+      .select('id, obj_id, title')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .order('sort_order'),
+  ])
+
   return (
-    <div className="max-w-4xl">
-      <h1 className="text-[22px] font-medium text-[var(--text)] mb-1">Prediction Log</h1>
-      <p className="text-[14px] text-[var(--text3)] mb-6">Track and score your predictions — built in Phase 5.</p>
-      <div className="bg-white rounded-2xl border border-[var(--border)] p-8 text-center text-[var(--text3)] text-[14px]">
-        Prediction log — Phase 5
-      </div>
-    </div>
+    <PredictionsClient
+      initialPredictions={predictions ?? []}
+      objectives={objectives ?? []}
+    />
   )
 }
