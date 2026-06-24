@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import MeridianBeacon from '@/components/brand/MeridianBeacon'
+import ConfidenceMeter from '@/components/objectives/ConfidenceMeter'
 import Link from 'next/link'
 
 export default async function DashboardPage() {
@@ -42,6 +43,22 @@ export default async function DashboardPage() {
           Mission Control — your Persistent Objective State at a glance.
         </p>
       </div>
+
+      {/* Confidence strip */}
+      {objectives && objectives.length > 0 && hasSweep && (
+        <div className="flex gap-3 overflow-x-auto pb-1 mb-5 scrollbar-hide">
+          {objectives.map(obj => (
+            <Link
+              key={obj.id}
+              href={`/objectives/${obj.id}`}
+              className="flex-shrink-0 bg-white rounded-xl border border-[var(--border)] px-4 py-3 min-w-[160px] hover:shadow-sm hover:border-[var(--blue-mid)] transition-all"
+            >
+              <p className="text-[11px] text-[var(--text3)] mb-2 truncate">{obj.title}</p>
+              <ConfidenceMeter score={obj.confidence} size="sm" />
+            </Link>
+          ))}
+        </div>
+      )}
 
       {!hasSweep ? (
         /* Empty state */
