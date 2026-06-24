@@ -14,9 +14,12 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
+  const [honeypot, setHoneypot] = useState('') // bot trap
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
+    // Honeypot check — bots fill hidden fields, humans don't
+    if (honeypot) return
     setLoading(true)
     setError(null)
 
@@ -93,6 +96,17 @@ export default function SignupPage() {
           )}
 
           <form onSubmit={handleSignup} className="space-y-3">
+            {/* Honeypot — hidden from humans, bots fill it */}
+            <input
+              type="text"
+              name="website"
+              value={honeypot}
+              onChange={e => setHoneypot(e.target.value)}
+              autoComplete="off"
+              tabIndex={-1}
+              aria-hidden="true"
+              style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, width: 0 }}
+            />
             <div>
               <label className="block text-[12px] font-medium text-[var(--text2)] mb-1">Full name</label>
               <input

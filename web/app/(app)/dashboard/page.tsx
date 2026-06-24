@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import MeridianBeacon from '@/components/brand/MeridianBeacon'
 import ConfidenceMeter from '@/components/objectives/ConfidenceMeter'
+import Tooltip from '@/components/ui/Tooltip'
+import { DEFINITIONS } from '@/lib/utils/definitions'
 import Link from 'next/link'
 
 export default async function DashboardPage() {
@@ -32,6 +34,10 @@ export default async function DashboardPage() {
     }>
   } | null
 
+  const lastSweepDate = lastSweep?.completed_at
+    ? new Date(lastSweep.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : null
+
   return (
     <div className="max-w-5xl">
       {/* Header */}
@@ -46,7 +52,7 @@ export default async function DashboardPage() {
 
       {/* Confidence strip */}
       {objectives && objectives.length > 0 && hasSweep && (
-        <div className="flex gap-3 overflow-x-auto pb-1 mb-5 scrollbar-hide">
+        <div className="flex gap-3 overflow-x-auto pb-1 mb-5">
           {objectives.map(obj => (
             <Link
               key={obj.id}
@@ -97,8 +103,9 @@ export default async function DashboardPage() {
           {/* Cross-dep alert */}
           {sweepData?.cross_objective_dependencies && sweepData.cross_objective_dependencies.length > 0 && (
             <div className="bg-[var(--amber-lt)] border border-[var(--amber-brand)]/30 rounded-xl p-4">
-              <p className="text-[11px] font-semibold text-[var(--amber-brand)] uppercase tracking-wider mb-1">
+              <p className="text-[11px] font-semibold text-[var(--amber-brand)] uppercase tracking-wider mb-1 flex items-center gap-1.5">
                 ⇄ Cross-objective connection detected
+                <Tooltip {...DEFINITIONS.cross_objective} iconSize={12} />
               </p>
               {sweepData.cross_objective_dependencies.map((dep, i) => (
                 <p key={i} className="text-[13px] text-[var(--text2)]">
@@ -111,7 +118,10 @@ export default async function DashboardPage() {
           {/* Sweep summary */}
           {sweepData?.sweep_summary && (
             <div className="bg-white rounded-xl border border-[var(--border)] p-5">
-              <p className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-2">Sweep summary</p>
+              <p className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                Sweep summary
+                <Tooltip {...DEFINITIONS.sweep} iconSize={12} />
+              </p>
               <p className="text-[14px] text-[var(--text2)] leading-relaxed">{sweepData.sweep_summary}</p>
             </div>
           )}
@@ -120,8 +130,9 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-2 gap-4">
             {/* Opportunities */}
             <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
-              <div className="px-4 py-3 bg-[var(--green-lt)] border-b border-[var(--green)]/20">
+              <div className="px-4 py-3 bg-[var(--green-lt)] border-b border-[var(--green)]/20 flex items-center gap-1.5">
                 <p className="text-[11px] font-semibold text-[var(--green)] uppercase tracking-wider">Opportunities</p>
+                <Tooltip {...DEFINITIONS.opportunities} iconSize={11} />
               </div>
               <ul className="p-4 space-y-2">
                 {sweepData?.objectives?.flatMap(o => o.opportunities ?? []).slice(0, 5).map((item, i) => (
@@ -134,8 +145,9 @@ export default async function DashboardPage() {
 
             {/* Risks */}
             <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
-              <div className="px-4 py-3 bg-[var(--red-lt)] border-b border-[var(--red)]/20">
+              <div className="px-4 py-3 bg-[var(--red-lt)] border-b border-[var(--red)]/20 flex items-center gap-1.5">
                 <p className="text-[11px] font-semibold text-[var(--red)] uppercase tracking-wider">Risks</p>
+                <Tooltip {...DEFINITIONS.risks} iconSize={11} />
               </div>
               <ul className="p-4 space-y-2">
                 {sweepData?.objectives?.flatMap(o => o.risks ?? []).slice(0, 5).map((item, i) => (
@@ -185,12 +197,21 @@ export default async function DashboardPage() {
       {/* Status tiles */}
       <div className="grid grid-cols-3 gap-4 mt-4">
         <div className="bg-white rounded-xl border border-[var(--border)] p-4">
-          <p className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider">Active objectives</p>
+          <p className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider flex items-center gap-1.5">
+            Active objectives
+            <Tooltip {...DEFINITIONS.objective} iconSize={11} />
+          </p>
           <p className="text-[28px] font-light text-[var(--text)] mt-1">{objectives?.length ?? 0}</p>
         </div>
         <div className="bg-white rounded-xl border border-[var(--border)] p-4">
-          <p className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider">Sweeps run</p>
+          <p className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider flex items-center gap-1.5">
+            Sweeps run
+            <Tooltip {...DEFINITIONS.sweep} iconSize={11} />
+          </p>
           <p className="text-[28px] font-light text-[var(--text)] mt-1">{profile?.sweep_count ?? 0}</p>
+          {lastSweepDate && (
+            <p className="text-[10px] text-[var(--text3)] mt-1">Last: {lastSweepDate}</p>
+          )}
         </div>
         <div className="bg-white rounded-xl border border-[var(--border)] p-4">
           <p className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider">Tier</p>

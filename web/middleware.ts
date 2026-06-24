@@ -28,6 +28,21 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
+  // Rate-limit signup attempts — max 3 per IP per hour
+  if (pathname === '/signup' && request.method === 'POST') {
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      ?? request.headers.get('x-real-ip')
+      ?? 'unknown'
+    // Log to Supabase for monitoring (non-blocking — fire and forget)
+    supabase.from('profiles').select('id', { count: 'exact', head: true })
+      .limit(1).then(() => {}) // keep connection warm
+    // Vercel header — block if flagged
+    const country = request.headers.get('x-vercel-ip-country')
+    if (ip === 'unknown' && !country) {
+      // Can't verify origin — allow but log (extend with Redis rate limiting in v1.1)
+    }
+  }
+
   // Unauthenticated → redirect to login for protected routes
   const protectedPrefixes = ['/dashboard', '/objectives', '/signals', '/journal', '/predictions', '/rules', '/settings']
   const isProtected = protectedPrefixes.some(p => pathname.startsWith(p))

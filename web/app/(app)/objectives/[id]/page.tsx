@@ -5,6 +5,9 @@ import { ArrowLeft, Calendar, Target } from 'lucide-react'
 import ConfidenceMeter from '@/components/objectives/ConfidenceMeter'
 import ConfidenceChart from '@/components/objectives/ConfidenceChart'
 import ObjectiveDetailClient from './ObjectiveDetailClient'
+import ActionsList from './ActionsList'
+import Tooltip from '@/components/ui/Tooltip'
+import { DEFINITIONS } from '@/lib/utils/definitions'
 
 const STATUS_STYLES: Record<string, string> = {
   active:   'bg-[var(--green-lt)] text-[var(--green)]',
@@ -93,7 +96,10 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
       {/* Factor breakdown */}
       {latestScore?.factors && (
         <div className="bg-white rounded-2xl border border-[var(--border)] p-5 mb-4">
-          <h2 className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-3">Score factors</h2>
+          <h2 className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-3 flex items-center gap-1.5">
+            Score factors
+            <Tooltip {...DEFINITIONS.score_factors} iconSize={11} />
+          </h2>
           <div className="grid grid-cols-2 gap-3">
             {Object.entries(latestScore.factors as Record<string, number>).map(([key, val]) => (
               <div key={key}>
@@ -144,15 +150,11 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
       {/* Recommended actions */}
       <div className="bg-white rounded-2xl border border-[var(--border)] p-5 mb-4">
         <h2 className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-3">Recommended actions</h2>
-        {latestScore?.recommended_actions && latestScore.recommended_actions.length > 0 ? (
-          <ul className="space-y-2">
-            {(latestScore.recommended_actions as string[]).map((action, i) => (
-              <li key={i} className="flex gap-2.5 text-[13px] text-[var(--text2)]">
-                <span className="text-[var(--blue)] flex-shrink-0 font-medium mt-0.5">→</span>
-                {action}
-              </li>
-            ))}
-          </ul>
+        {latestScore?.recommended_actions && (latestScore.recommended_actions as string[]).length > 0 ? (
+          <ActionsList
+            actions={latestScore.recommended_actions as string[]}
+            objId={obj.obj_id}
+          />
         ) : (
           <p className="text-[13px] text-[var(--text3)]">Run a sweep to generate recommended actions.</p>
         )}
