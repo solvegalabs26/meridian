@@ -4,14 +4,16 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { LogOut, User } from 'lucide-react'
 import { useState } from 'react'
+import SweepButton from '@/components/dashboard/SweepButton'
 
 interface TopBarProps {
   title?: string
   subtitle?: string
   userEmail?: string
+  lastSweepAt?: string | null
 }
 
-export default function TopBar({ title = 'Mission Control', subtitle, userEmail }: TopBarProps) {
+export default function TopBar({ title = 'Mission Control', subtitle, userEmail, lastSweepAt }: TopBarProps) {
   const router = useRouter()
   const supabase = createClient()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -30,14 +32,7 @@ export default function TopBar({ title = 'Mission Control', subtitle, userEmail 
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Sweep button placeholder — wired in Phase 3 */}
-        <button
-          disabled
-          className="text-[12px] font-medium px-4 py-1.5 rounded-lg bg-navy text-white/50 cursor-not-allowed"
-          title="Available after Phase 3"
-        >
-          Run Sweep
-        </button>
+        <SweepButton lastSweepAt={lastSweepAt} />
 
         {/* User menu */}
         <div className="relative">

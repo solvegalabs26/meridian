@@ -1,22 +1,35 @@
 import { createClient } from '@/lib/supabase/server'
 import MeridianBeacon from '@/components/brand/MeridianBeacon'
+import Link from 'next/link'
 
 export default async function DashboardPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name, sweep_count, tier')
-    .eq('id', user!.id)
-    .single()
+  const [{ data: profile }, { data: objectives }, { data: lastSweep }] = await Promise.all([
+    supabase.from('profiles').select('full_name, sweep_count, tier').eq('id', user!.id).single(),
+    supabase.from('objectives').select('id, title, confidence, status').eq('user_id', user!.id).eq('status', 'active').order('sort_order'),
+    supabase.from('sweeps').select('*').eq('user_id', user!.id).eq('status', 'complete').order('completed_at', { ascending: false }).limit(1).single(),
+  ])
 
-  const { data: objectives } = await supabase
-    .from('objectives')
-    .select('id, title, confidence, status')
-    .eq('user_id', user!.id)
-    .eq('status', 'active')
-    .order('sort_order')
+  const hasSweep = !!lastSweep
+  const sweepData = lastSweep?.raw_response as {
+    sweep_summary?: string
+    top_priority_action?: string
+    objectives?: Array<{
+      obj_id: string
+      opportunities?: string[]
+      risks?: string[]
+      changed_since_last_sweep?: string
+      actions?: string[]
+    }>
+    cross_objective_dependencies?: Array<{
+      from_obj: string
+      to_obj: string
+      description: string
+      urgency: string
+    }>
+  } | null
 
   return (
     <div className="max-w-5xl">
@@ -30,42 +43,127 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      {/* Empty state — no sweep yet */}
-      <div className="bg-white rounded-2xl border border-[var(--border)] p-12 text-center">
-        <div className="flex justify-center mb-5">
-          <MeridianBeacon size={64} variant="gold" animate={true} />
-        </div>
-        <h2 className="text-[18px] font-medium text-[var(--text)] mb-2">
-          Run your first sweep to see Mission Control
-        </h2>
-        <p className="text-[14px] text-[var(--text2)] max-w-md mx-auto mb-6">
-          Meridian will scan your objectives against current signals, synthesize confidence scores,
-          and surface the actions that matter most today.
-        </p>
-        <button
-          disabled
-          className="px-6 py-3 rounded-xl bg-navy text-white text-[14px] font-medium opacity-40 cursor-not-allowed"
-          title="Sweep engine available in Phase 3"
-        >
-          Run Sweep — Available in Phase 3
-        </button>
+      {!hasSweep ? (
+        /* Empty state */
+        <div className="bg-white rounded-2xl border border-[var(--border)] p-12 text-center">
+          <div className="flex justify-center mb-5">
+            <MeridianBeacon size={64} variant="gold" animate={true} />
+          </div>
+          <h2 className="text-[18px] font-medium text-[var(--text)] mb-2">
+            Run your first sweep to see Mission Control
+          </h2>
+          <p className="text-[14px] text-[var(--text2)] max-w-md mx-auto mb-6">
+            Meridian will scan your objectives against current signals, synthesize confidence scores,
+            and surface the actions that matter most today.
+          </p>
+          <p className="text-[12px] text-[var(--text3)]">Click <strong>Run Sweep</strong> in the top right to begin.</p>
 
-        {/* Objectives preview */}
-        {objectives && objectives.length > 0 && (
-          <div className="mt-8 pt-6 border-t border-[var(--border)]">
-            <p className="text-[12px] font-medium text-[var(--text3)] uppercase tracking-wider mb-3">
-              Active objectives ({objectives.length})
-            </p>
-            <div className="flex flex-wrap gap-2 justify-center">
-              {objectives.map((obj) => (
-                <div key={obj.id} className="px-3 py-1.5 rounded-lg bg-[var(--gray-lt)] text-[12.5px] text-[var(--text2)]">
-                  {obj.title}
-                </div>
+          {objectives && objectives.length > 0 && (
+            <div className="mt-8 pt-6 border-t border-[var(--border)]">
+              <p className="text-[12px] font-medium text-[var(--text3)] uppercase tracking-wider mb-3">
+                Active objectives ({objectives.length})
+              </p>
+              <div className="flex flex-wrap gap-2 justify-center">
+                {objectives.map((obj) => (
+                  <Link key={obj.id} href={`/objectives/${obj.id}`}
+                    className="px-3 py-1.5 rounded-lg bg-[var(--gray-lt)] text-[12.5px] text-[var(--text2)] hover:bg-[var(--border)] transition-colors">
+                    {obj.title}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        /* Mission Control — sweep results */
+        <div className="space-y-4">
+          {/* Cross-dep alert */}
+          {sweepData?.cross_objective_dependencies && sweepData.cross_objective_dependencies.length > 0 && (
+            <div className="bg-[var(--amber-lt)] border border-[var(--amber-brand)]/30 rounded-xl p-4">
+              <p className="text-[11px] font-semibold text-[var(--amber-brand)] uppercase tracking-wider mb-1">
+                ⇄ Cross-objective connection detected
+              </p>
+              {sweepData.cross_objective_dependencies.map((dep, i) => (
+                <p key={i} className="text-[13px] text-[var(--text2)]">
+                  <strong>{dep.from_obj}</strong> → <strong>{dep.to_obj}</strong>: {dep.description}
+                </p>
               ))}
             </div>
+          )}
+
+          {/* Sweep summary */}
+          {sweepData?.sweep_summary && (
+            <div className="bg-white rounded-xl border border-[var(--border)] p-5">
+              <p className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-2">Sweep summary</p>
+              <p className="text-[14px] text-[var(--text2)] leading-relaxed">{sweepData.sweep_summary}</p>
+            </div>
+          )}
+
+          {/* Four quadrants */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Opportunities */}
+            <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
+              <div className="px-4 py-3 bg-[var(--green-lt)] border-b border-[var(--green)]/20">
+                <p className="text-[11px] font-semibold text-[var(--green)] uppercase tracking-wider">Opportunities</p>
+              </div>
+              <ul className="p-4 space-y-2">
+                {sweepData?.objectives?.flatMap(o => o.opportunities ?? []).slice(0, 5).map((item, i) => (
+                  <li key={i} className="text-[13px] text-[var(--text2)] flex gap-2">
+                    <span className="text-[var(--green)] mt-0.5 flex-shrink-0">↑</span>{item}
+                  </li>
+                )) ?? <li className="text-[12px] text-[var(--text3)]">Run a sweep to see opportunities</li>}
+              </ul>
+            </div>
+
+            {/* Risks */}
+            <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
+              <div className="px-4 py-3 bg-[var(--red-lt)] border-b border-[var(--red)]/20">
+                <p className="text-[11px] font-semibold text-[var(--red)] uppercase tracking-wider">Risks</p>
+              </div>
+              <ul className="p-4 space-y-2">
+                {sweepData?.objectives?.flatMap(o => o.risks ?? []).slice(0, 5).map((item, i) => (
+                  <li key={i} className="text-[13px] text-[var(--text2)] flex gap-2">
+                    <span className="text-[var(--red)] mt-0.5 flex-shrink-0">↓</span>{item}
+                  </li>
+                )) ?? <li className="text-[12px] text-[var(--text3)]">Run a sweep to see risks</li>}
+              </ul>
+            </div>
+
+            {/* Changed since last sweep */}
+            <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
+              <div className="px-4 py-3 bg-[var(--amber-lt)] border-b border-[var(--amber-brand)]/20">
+                <p className="text-[11px] font-semibold text-[var(--amber-brand)] uppercase tracking-wider">Changed since last sweep</p>
+              </div>
+              <ul className="p-4 space-y-2">
+                {sweepData?.objectives?.filter(o => o.changed_since_last_sweep).map((o, i) => (
+                  <li key={i} className="text-[13px] text-[var(--text2)]">
+                    <span className="font-medium">{o.obj_id}:</span> {o.changed_since_last_sweep}
+                  </li>
+                )) ?? <li className="text-[12px] text-[var(--text3)]">No changes detected</li>}
+              </ul>
+            </div>
+
+            {/* Do next */}
+            <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
+              <div className="px-4 py-3 bg-[#E6F1FB] border-b border-[var(--blue)]/20">
+                <p className="text-[11px] font-semibold text-[var(--blue)] uppercase tracking-wider">Do next</p>
+              </div>
+              <ul className="p-4 space-y-2">
+                {sweepData?.top_priority_action && (
+                  <li className="text-[13px] text-[var(--text)] font-medium flex gap-2">
+                    <span className="text-[var(--blue)] flex-shrink-0">→</span>{sweepData.top_priority_action}
+                  </li>
+                )}
+                {sweepData?.objectives?.flatMap(o => o.actions ?? []).slice(0, 3).map((item, i) => (
+                  <li key={i} className="text-[13px] text-[var(--text2)] flex gap-2">
+                    <span className="text-[var(--blue)] flex-shrink-0">·</span>{item}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Status tiles */}
       <div className="grid grid-cols-3 gap-4 mt-4">
