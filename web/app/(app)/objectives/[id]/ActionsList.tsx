@@ -10,6 +10,7 @@ interface ActionsListProps {
 
 export default function ActionsList({ actions, objId }: ActionsListProps) {
   const [completed, setCompleted] = useState<Set<number>>(new Set())
+  const [hovering, setHovering] = useState<number | null>(null)
   const [activeForm, setActiveForm] = useState<number | null>(null)
   const [notes, setNotes] = useState('')
   const [completedDate, setCompletedDate] = useState(new Date().toISOString().split('T')[0])
@@ -59,19 +60,34 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
         {actions.map((action, i) => (
           <li key={i}>
             <div className={`flex gap-2.5 items-start rounded-lg p-2 transition-all ${
-              completed.has(i) ? 'opacity-40' : 'hover:bg-[var(--gray-lt)]'
+              completed.has(i)
+                ? hovering === i ? 'opacity-70 bg-[var(--amber-lt)]' : 'opacity-40'
+                : 'hover:bg-[var(--gray-lt)]'
             }`}>
               <button
-                onClick={() => !completed.has(i) && setActiveForm(activeForm === i ? null : i)}
-                disabled={completed.has(i)}
+                onClick={() => {
+                  if (completed.has(i)) {
+                    setCompleted(prev => new Set(Array.from(prev).filter(n => n !== i)))
+                    setHovering(null)
+                  } else {
+                    setActiveForm(activeForm === i ? null : i)
+                  }
+                }}
+                onMouseEnter={() => completed.has(i) && setHovering(i)}
+                onMouseLeave={() => setHovering(null)}
                 className={`flex-shrink-0 mt-0.5 font-medium text-[16px] leading-none transition-all ${
                   completed.has(i)
-                    ? 'text-[var(--green)] cursor-default'
+                    ? 'cursor-pointer'
                     : 'text-[var(--blue)] animate-pulse hover:animate-none hover:scale-125 cursor-pointer'
                 }`}
-                title={completed.has(i) ? 'Completed' : 'Click to mark complete'}
+                title={completed.has(i) ? 'Click to undo' : 'Click to mark complete'}
               >
-                {completed.has(i) ? <CheckCircle size={16} /> : '→'}
+                {completed.has(i)
+                  ? hovering === i
+                    ? <span className="text-[10px] font-semibold text-[var(--amber-brand)] whitespace-nowrap">Undo</span>
+                    : <CheckCircle size={16} className="text-[var(--green)]" />
+                  : '→'
+                }
               </button>
               <span
                 onClick={() => !completed.has(i) && setActiveForm(activeForm === i ? null : i)}
