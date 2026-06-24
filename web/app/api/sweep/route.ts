@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { anthropic } from '@/lib/anthropic/client'
+import { getAnthropicClient } from '@/lib/anthropic/client'
 import { buildSystemPrompt } from '@/lib/anthropic/prompts/system'
 import { buildObjectiveState } from '@/lib/anthropic/prompts/objective'
 import { parseAnthropicResponse } from '@/lib/anthropic/prompts/output'
 import { fetchNewsSignals } from '@/lib/signals/newsapi'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   const supabase = createClient()
@@ -73,7 +72,7 @@ export async function POST(request: NextRequest) {
     for (const obj of objectives) {
       const keywords = obj.signal_keywords ?? []
       if (keywords.length > 0) {
-        newsSignalsMap[obj.id] = await fetchNewsSignals(keywords, 5)
+        newsSignalsMap[obj.id] = await fetchNewsSignals(keywords, 3)
       } else {
         newsSignalsMap[obj.id] = []
       }
@@ -113,7 +112,7 @@ export async function POST(request: NextRequest) {
       currentDate,
     })
 
-    const message = await anthropic.messages.create({
+    const message = await getAnthropicClient().messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       system: systemPrompt,
