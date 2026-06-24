@@ -8,7 +8,7 @@ const MESSAGES = [
   'Scanning signals...',
   'Synthesizing...',
   'Calculating confidence...',
-  'Done.',
+  'Compiling confidence score...',
 ]
 
 export default function OnboardingSweepPage() {
@@ -33,14 +33,15 @@ export default function OnboardingSweepPage() {
       .then(r => r.json())
       .then((data: { objectives?: Array<{ confidence_new: number }> }) => {
         clearInterval(interval)
-        setMsgIdx(3)
+        setMsgIdx(3) // "Compiling confidence score..."
         const avgScore = data.objectives
           ? Math.round(data.objectives.reduce((acc, o) => acc + o.confidence_new, 0) / data.objectives.length)
           : 50
+        // Brief pause so user sees the "Compiling..." message before score reveal
         setTimeout(() => {
           setScore(avgScore)
           setDone(true)
-        }, 600)
+        }, 1200)
       })
       .catch(() => {
         clearInterval(interval)
