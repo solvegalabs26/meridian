@@ -61,7 +61,7 @@ export default function SettingsClient({ email, profile }: Props) {
   }
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <div className="mb-6">
         <h1 className="text-[22px] font-medium text-[var(--text)]">Settings</h1>
         <p className="text-[13px] text-[var(--text3)] mt-0.5">Profile and intelligence preferences</p>

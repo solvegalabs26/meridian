@@ -6,6 +6,7 @@ import { buildObjectiveState } from '@/lib/anthropic/prompts/objective'
 import { parseAnthropicResponse } from '@/lib/anthropic/prompts/output'
 import { fetchNewsSignals } from '@/lib/signals/newsapi'
 import { sendConfidenceAlert } from '@/lib/email/resend'
+import { fetchCalendarEvents, formatEventsForPrompt } from '@/lib/calendar/ical'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,10 +22,10 @@ export async function POST(request: NextRequest) {
     manual_signals?: string
   }
 
-  // 2. Load user profile
+  // 2. Load user profile (including calendar URL)
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, tone_pref, depth_pref')
+    .select('full_name, tone_pref, depth_pref, calendar_ical_url, sweep_count')
     .eq('id', user.id)
     .single()
 
@@ -97,11 +98,20 @@ export async function POST(request: NextRequest) {
       return { objective: obj, confidenceHistory: history, recentSignals }
     })
 
+    // Fetch calendar events if user has connected a calendar
+    let calendarContext = ''
+    const calUrl = (profile as { calendar_ical_url?: string } | null)?.calendar_ical_url
+    if (calUrl) {
+      const calEvents = await fetchCalendarEvents(calUrl, 90)
+      calendarContext = formatEventsForPrompt(calEvents)
+    }
+
     const objectiveState = buildObjectiveState(objectiveInputs)
     const userMessage = {
       ...objectiveState,
       manual_signals: body.manual_signals ?? '',
-      sweep_instructions: 'Focus on cross-dependencies. Flag any signal that changes urgency on open actions.',
+      calendar_context: calendarContext || undefined,
+      sweep_instructions: 'Focus on cross-dependencies. Flag any signal that changes urgency on open actions. If calendar events are provided, factor upcoming events into recommendations — identify which objectives have relevant events approaching and surface time-sensitive actions.',
     }
 
     // 7. Call Anthropic API

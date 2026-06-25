@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import SettingsClient from './SettingsClient'
+import CalendarConnect from '@/components/settings/CalendarConnect'
 
 export default async function SettingsPage() {
   const supabase = createClient()
@@ -14,9 +15,14 @@ export default async function SettingsPage() {
     .single()
 
   return (
-    <SettingsClient
-      email={user.email ?? ''}
-      profile={profile}
-    />
+    <div className="max-w-2xl space-y-4">
+      <SettingsClient
+        email={user.email ?? ''}
+        profile={profile}
+      />
+      <CalendarConnect
+        initialUrl={(profile as { calendar_ical_url?: string } | null)?.calendar_ical_url ?? null}
+      />
+    </div>
   )
 }
