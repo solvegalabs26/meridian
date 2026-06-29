@@ -5,23 +5,14 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-
-const CATEGORIES = [
-  'Career/Aviation',
-  'Finance',
-  'Health',
-  'Business',
-  'Travel',
-  'Home',
-  'Lifestyle',
-]
+import { getCategoriesForAccount } from '@/lib/utils/categories'
 
 const schema = z.object({
   title:             z.string().min(3, 'Title must be at least 3 characters'),
-  category:          z.enum(['Career/Aviation','Finance','Health','Business','Travel','Home','Lifestyle']),
+  category:          z.string().min(1),
   outcome:           z.string().min(10, 'Describe the outcome in at least 10 characters'),
   success_condition: z.string().optional(),
   target_date:       z.string().optional(),
@@ -35,10 +26,21 @@ export default function NewObjectivePage() {
   const supabase = createClient()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [accountType, setAccountType] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('profiles').select('account_type').eq('id', user.id).single()
+        .then(({ data }) => setAccountType(data?.account_type ?? 'personal'))
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const categories = getCategoriesForAccount(accountType)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { category: 'Career/Aviation' },
+    defaultValues: { category: categories[0] },
   })
 
   async function onSubmit(data: FormData) {
@@ -48,7 +50,6 @@ export default function NewObjectivePage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
 
-    // Generate next obj_id
     const { count } = await supabase
       .from('objectives')
       .select('*', { count: 'exact', head: true })
@@ -109,14 +110,14 @@ export default function NewObjectivePage() {
           {errors.title && <p className="text-[11px] text-[var(--red)] mt-1">{errors.title.message}</p>}
         </div>
 
-        {/* Category */}
+        {/* Category — conditional on account_type */}
         <div>
           <label className="block text-[12px] font-semibold text-[var(--text2)] mb-1.5 uppercase tracking-wide">Category</label>
           <select
             {...register('category')}
             className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] bg-white focus:outline-none focus:border-[var(--blue)] transition-colors"
           >
-            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            {categories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
 

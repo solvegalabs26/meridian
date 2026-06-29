@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import MeridianBeacon from '@/components/brand/MeridianBeacon'
 import { Check, Pencil, X } from 'lucide-react'
+import { getCategoriesForAccount, CATEGORY_COLORS } from '@/lib/utils/categories'
+import { createClient } from '@/lib/supabase/client'
 
 interface ExtractedGoal {
   title: string
@@ -12,25 +14,26 @@ interface ExtractedGoal {
   target_date: string | null
 }
 
-const CATEGORIES = ['Career/Aviation','Finance','Health','Business','Travel','Home','Lifestyle']
-
-const CATEGORY_COLORS: Record<string, string> = {
-  'Career/Aviation': '#2E7CB8',
-  'Finance':         '#0F6E56',
-  'Health':          '#C9A227',
-  'Business':        '#534AB7',
-  'Travel':          '#BA7517',
-  'Home':            '#5090C0',
-  'Lifestyle':       '#8098B4',
-}
-
 export default function OnboardingObjectivePage() {
   const router = useRouter()
+  const supabase = createClient()
 
   // Step A — free text input
   const [bio, setBio] = useState('')
   const [extracting, setExtracting] = useState(false)
   const [extractError, setExtractError] = useState<string | null>(null)
+  const [accountType, setAccountType] = useState<string | null>(null)
+
+  // Load account_type on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('profiles').select('account_type').eq('id', user.id).single()
+        .then(({ data }) => setAccountType(data?.account_type ?? 'personal'))
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const CATEGORIES = getCategoriesForAccount(accountType)
 
   // Step B — review extracted goals
   const [goals, setGoals] = useState<ExtractedGoal[] | null>(null)

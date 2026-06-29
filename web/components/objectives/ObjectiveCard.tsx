@@ -4,15 +4,12 @@ import Link from 'next/link'
 import { Objective } from '@/lib/utils/types'
 import ConfidenceMeter from './ConfidenceMeter'
 import { Calendar, ChevronRight } from 'lucide-react'
+import { CATEGORY_COLORS as CAT_COLORS } from '@/lib/utils/categories'
 
 const CATEGORY_COLORS: Record<string, string> = {
-  'Career/Aviation': '#2E7CB8',
-  'Finance':         '#0F6E56',
-  'Health':          '#C9A227',
-  'Business':        '#534AB7',
-  'Travel':          '#BA7517',
-  'Home':            '#5090C0',
-  'Lifestyle':       '#8098B4',
+  ...CAT_COLORS,
+  // legacy alias kept for any existing data
+  'Home': '#5090C0',
 }
 
 const STATUS_STYLES: Record<string, string> = {
