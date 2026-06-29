@@ -101,7 +101,7 @@ export default function OnboardingObjectivePage() {
         <div className="w-full max-w-lg">
           <div className="text-center mb-8">
             <MeridianBeacon size={40} variant="gold" animate={false} />
-            <p className="text-[11px] text-white/30 mt-3 tracking-widest uppercase">Step 3 of 4</p>
+            <p className="text-[11px] text-white/30 mt-3 tracking-widest uppercase">Step 4 of 5</p>
             <h1 className="text-[24px] font-light text-white mt-1">Tell us about yourself</h1>
             <p className="text-[13px] text-white/40 mt-1 max-w-sm mx-auto">
               Share your life, goals, and what you&apos;re working toward. Meridian will extract your objectives automatically.
@@ -157,7 +157,7 @@ export default function OnboardingObjectivePage() {
       <div className="w-full max-w-lg">
         <div className="text-center mb-6">
           <MeridianBeacon size={40} variant="gold" animate={false} />
-          <p className="text-[11px] text-white/30 mt-3 tracking-widest uppercase">Step 3 of 4</p>
+          <p className="text-[11px] text-white/30 mt-3 tracking-widest uppercase">Step 4 of 5</p>
           <h1 className="text-[24px] font-light text-white mt-1">Here are your objectives</h1>
           <p className="text-[13px] text-white/40 mt-1">
             Select the ones you want to track. You can edit any of them.

@@ -62,7 +62,7 @@ export default function OnboardingSweepPage() {
 
       {!done ? (
         <>
-          <p className="text-[11px] text-white/30 tracking-widest uppercase mb-3">Step 4 of 4</p>
+          <p className="text-[11px] text-white/30 tracking-widest uppercase mb-3">Step 5 of 5</p>
           <h2 className="text-[22px] font-light text-white mb-2">Running your first sweep</h2>
           <p className="text-[15px] text-white/50 transition-all duration-500">{MESSAGES[msgIdx]}</p>
         </>

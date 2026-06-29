@@ -10,14 +10,24 @@ export default function OnboardingProfilePage() {
   const [tone, setTone] = useState('balanced')
   const [depth, setDepth] = useState('standard')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleNext() {
     setSaving(true)
-    await fetch('/api/profile', {
+    setError(null)
+
+    const res = await fetch('/api/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ full_name: name, tone_pref: tone, depth_pref: depth }),
     })
+
+    if (!res.ok) {
+      setError('Could not save profile — please try again.')
+      setSaving(false)
+      return
+    }
+
     router.push('/onboarding/objective')
   }
 
@@ -26,11 +36,15 @@ export default function OnboardingProfilePage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <MeridianBeacon size={40} variant="gold" animate={false} />
-          <p className="text-[11px] text-white/30 mt-3 tracking-widest uppercase">Step 2 of 4</p>
+          <p className="text-[11px] text-white/30 mt-3 tracking-widest uppercase">Step 3 of 5</p>
           <h1 className="text-[24px] font-light text-white mt-1">Set up your profile</h1>
         </div>
 
         <div className="bg-white rounded-2xl p-6 space-y-5">
+          {error && (
+            <div className="p-3 rounded-lg bg-[var(--red-lt)] text-[var(--red)] text-[13px]">{error}</div>
+          )}
+
           <div>
             <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-1.5">Your name</label>
             <input value={name} onChange={e => setName(e.target.value)}
