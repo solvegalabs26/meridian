@@ -119,7 +119,7 @@ export default function SettingsClient({ email, profile }: Props) {
             {/* Tone preference */}
             <div>
               <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-2">
-                Tone preference — how Meridian speaks to you
+                Tone preference — how Meridian Arc speaks to you
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {[
@@ -148,7 +148,7 @@ export default function SettingsClient({ email, profile }: Props) {
             {/* Depth preference */}
             <div>
               <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-2">
-                Depth preference — how detailed Meridian&apos;s analysis is
+                Depth preference — how detailed Meridian Arc&apos;s analysis is
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {[

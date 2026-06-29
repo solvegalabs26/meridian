@@ -77,7 +77,7 @@ export default async function DashboardPage() {
             Run your first sweep to see Mission Control
           </h2>
           <p className="text-[14px] text-[var(--text2)] max-w-md mx-auto mb-6">
-            Meridian will scan your objectives against current signals, synthesize confidence scores,
+            Meridian Arc will scan your objectives against current signals, synthesize confidence scores,
             and surface the actions that matter most today.
           </p>
           <p className="text-[12px] text-[var(--text3)]">Click <strong>Run Sweep</strong> in the top right to begin.</p>

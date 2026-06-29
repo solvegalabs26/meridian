@@ -33,7 +33,7 @@ export default function Sidebar() {
         <div className="flex items-center gap-2.5">
           <MeridianBeacon size={28} variant="gold" animate={true} />
           <div>
-            <div className="text-[13px] font-medium text-white tracking-wide italic">meridian</div>
+            <div className="text-[13px] font-medium text-white tracking-wide italic">meridian arc</div>
             <div className="text-[9px] text-blue-mid tracking-widest uppercase mt-0.5">Solvega Labs</div>
           </div>
         </div>

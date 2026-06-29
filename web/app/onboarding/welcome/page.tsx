@@ -16,7 +16,7 @@ export default function OnboardingWelcomePage() {
         The home screen of your life.
       </h1>
       <p className="text-[16px] text-white/50 max-w-md mb-10 leading-relaxed">
-        Meridian monitors your most important objectives — tracking signals, synthesizing intelligence, and surfacing what matters most today.
+        Meridian Arc monitors your most important objectives — tracking signals, synthesizing intelligence, and surfacing what matters most today.
       </p>
       <button
         onClick={() => router.push('/onboarding/profile')}

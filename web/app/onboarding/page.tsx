@@ -52,7 +52,7 @@ export default function OnboardingCreateAccountPage() {
         {/* Brand */}
         <div className="text-center mb-8">
           <MeridianBeacon size={48} variant="gold" animate={false} />
-          <h1 className="text-[28px] font-light text-white mt-4 tracking-tight italic">meridian</h1>
+          <h1 className="text-[28px] font-light text-white mt-4 tracking-tight italic">meridian arc</h1>
           <p className="text-[13px] text-white/40 mt-1">The home screen of your life</p>
         </div>
 

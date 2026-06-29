@@ -52,7 +52,7 @@ export default function LoginPage() {
           <div className="w-12 h-12 rounded-full bg-gold/20 border border-gold/40 flex items-center justify-center mx-auto mb-4">
             <div className="w-3 h-3 rounded-full bg-gold" />
           </div>
-          <h1 className="text-[22px] font-medium text-white italic">meridian</h1>
+          <h1 className="text-[22px] font-medium text-white italic">meridian arc</h1>
           <p className="text-[12px] text-white/40 mt-1">The home screen of your life</p>
         </div>
 

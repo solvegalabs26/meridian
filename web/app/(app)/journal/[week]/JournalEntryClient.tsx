@@ -120,7 +120,7 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
 
       {/* Section A */}
       <Section letter="A" label="Manual search notes">
-        <p className="text-[12px] text-[var(--text3)] mb-2">What did you find searching manually this week that Meridian didn&apos;t surface?</p>
+        <p className="text-[12px] text-[var(--text3)] mb-2">What did you find searching manually this week that Meridian Arc didn&apos;t surface?</p>
         <textarea
           rows={4}
           defaultValue={entry.section_a ?? ''}
@@ -133,15 +133,15 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
       </Section>
 
       {/* Section B */}
-      <Section letter="B" label="Meridian vs manual comparison">
-        <p className="text-[12px] text-[var(--text3)] mb-2">How did Meridian&apos;s signals compare to what you found manually? What did each miss?</p>
+      <Section letter="B" label="Meridian Arc vs manual comparison">
+        <p className="text-[12px] text-[var(--text3)] mb-2">How did Meridian Arc&apos;s signals compare to what you found manually? What did each miss?</p>
         <textarea
           rows={4}
           defaultValue={entry.section_b ?? ''}
           onBlur={e => handleBlur('section_b', e.target.value)}
           onChange={e => updateField('section_b', e.target.value)}
           disabled={isComplete}
-          placeholder="Meridian found X but missed Y. I found Z manually that wasn't in the signal feed..."
+          placeholder="Meridian Arc found X but missed Y. I found Z manually that wasn't in the signal feed..."
           className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] resize-none disabled:opacity-60"
         />
       </Section>
@@ -156,7 +156,7 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
               <div key={obj.id} className="p-3 rounded-lg border border-[var(--border)] bg-[var(--gray-lt)/30]">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[12px] font-medium text-[var(--text)]">{obj.obj_id} — {obj.title}</span>
-                  <span className="text-[11px] text-[var(--text3)]">Meridian: {obj.confidence}%</span>
+                  <span className="text-[11px] text-[var(--text3)]">Meridian Arc: {obj.confidence}%</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 mb-2">
                   <div>
@@ -201,7 +201,7 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
 
       {/* Section D — Actions */}
       <Section letter="D" label="Actions taken this week">
-        <p className="text-[12px] text-[var(--text3)] mb-3">What did you actually do this week based on Meridian&apos;s recommendations?</p>
+        <p className="text-[12px] text-[var(--text3)] mb-3">What did you actually do this week based on Meridian Arc&apos;s recommendations?</p>
         <div className="space-y-2">
           {sectionD.map((item, i) => (
             <div key={i} className="flex items-center gap-2">
@@ -270,14 +270,14 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
           onBlur={e => handleBlur('section_g', e.target.value)}
           onChange={e => updateField('section_g', e.target.value)}
           disabled={isComplete}
-          placeholder="Notes on the Meridian system itself — what's working, what needs improvement..."
+          placeholder="Notes on the Meridian Arc system itself — what's working, what needs improvement..."
           className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] resize-none disabled:opacity-60"
         />
       </Section>
 
       {/* Section H — Rating */}
       <Section letter="H" label="POS value rating">
-        <p className="text-[12px] text-[var(--text3)] mb-3">How much value did Meridian provide this week? (1 = none, 5 = exceptional)</p>
+        <p className="text-[12px] text-[var(--text3)] mb-3">How much value did Meridian Arc provide this week? (1 = none, 5 = exceptional)</p>
         <div className="flex gap-2 mb-4">
           {[1,2,3,4,5].map(star => (
             <button
@@ -298,7 +298,7 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
           onBlur={e => handleBlur('section_h_notes', e.target.value)}
           onChange={e => updateField('section_h_notes', e.target.value)}
           disabled={isComplete}
-          placeholder="What made Meridian valuable or not valuable this week?"
+          placeholder="What made Meridian Arc valuable or not valuable this week?"
           className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] resize-none disabled:opacity-60"
         />
       </Section>

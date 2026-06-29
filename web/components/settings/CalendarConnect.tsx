@@ -90,7 +90,7 @@ export default function CalendarConnect({ initialUrl }: Props) {
   }
 
   async function handleDisconnect() {
-    if (!confirm('Disconnect your calendar? Meridian will no longer include calendar events in sweeps.')) return
+    if (!confirm('Disconnect your calendar? Meridian Arc will no longer include calendar events in sweeps.')) return
     setSaving(true)
     await fetch('/api/calendar', {
       method: 'POST',
@@ -119,7 +119,7 @@ export default function CalendarConnect({ initialUrl }: Props) {
       </div>
 
       <p className="text-[13px] text-[var(--text2)] mb-4 leading-relaxed">
-        Connect your calendar so Meridian can factor upcoming events into your sweep — surfacing time-sensitive actions and flagging conflicts with your objectives.
+        Connect your calendar so Meridian Arc can factor upcoming events into your sweep — surfacing time-sensitive actions and flagging conflicts with your objectives.
       </p>
 
       {/* URL input */}

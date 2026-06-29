@@ -9,7 +9,7 @@ export const DEFINITIONS: Record<string, { term: string; definition: string }> =
   },
   sweep: {
     term: 'Sweep',
-    definition: "Meridian's weekly automated scan. It searches news sources, market data, and industry publications for signals relevant to your objectives, filters out the noise, and synthesizes everything into your weekly intelligence report.",
+    definition: "Meridian Arc's weekly automated scan. It searches news sources, market data, and industry publications for signals relevant to your objectives, filters out the noise, and synthesizes everything into your weekly intelligence report.",
   },
   confidence: {
     term: 'Confidence %',
@@ -17,7 +17,7 @@ export const DEFINITIONS: Record<string, { term: string; definition: string }> =
   },
   cross_objective: {
     term: 'Cross-Objective',
-    definition: 'A connection Meridian detected between two of your objectives — where progress (or risk) on one directly affects the other. These are often invisible without a system watching all your goals simultaneously.',
+    definition: 'A connection Meridian Arc detected between two of your objectives — where progress (or risk) on one directly affects the other. These are often invisible without a system watching all your goals simultaneously.',
   },
   opportunities: {
     term: 'Opportunities',

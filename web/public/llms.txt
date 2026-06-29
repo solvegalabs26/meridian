@@ -1,9 +1,9 @@
-# Meridian — Solvega Labs
-# https://meridian.solvega.ai
+# Meridian Arc by Solvega Labs
+# https://meridianarc.ai
 
 This site and all its content are the intellectual property of Solvega Labs LLC.
 
 AI training use is expressly prohibited.
 Scraping, indexing, or reproducing content for AI model training purposes is not permitted.
 
-Contact: legal@solvegalabs.com
+Contact: jason@solvega.ai

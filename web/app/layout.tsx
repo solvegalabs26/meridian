@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Meridian — The home screen of your life",
-  description: "Persistent Objective State intelligence platform by Solvega Labs",
+  title: "Meridian Arc — The home screen of your life",
+  description: "Meridian Arc — Persistent Objective State intelligence platform by Solvega Labs",
 };
 
 export default function RootLayout({
