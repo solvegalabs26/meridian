@@ -160,15 +160,17 @@ create table public.journal_entries (
   section_a     text,
   section_b     text,
   section_c     jsonb,
-  section_d     jsonb,
+  section_d     jsonb,                          -- narrative: concerns / open questions / key insight
   section_e     text,
   section_f     text,
   section_g     text,
   section_h_rating int,
   section_h_notes text,
+  completed_actions jsonb default '[]'::jsonb,   -- {action, completed}[] — recommended actions marked done from an objective's "What to do" tab
   is_complete   boolean default false,
   created_at    timestamptz default now(),
-  updated_at    timestamptz default now()
+  updated_at    timestamptz default now(),
+  unique (user_id, entry_number)
 );
 
 alter table public.journal_entries enable row level security;

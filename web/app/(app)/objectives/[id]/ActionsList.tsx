@@ -14,21 +14,20 @@ function currentWeekNum() {
   ))
 }
 
-interface SectionDEntry {
+interface CompletedAction {
   action: string
   completed: boolean
 }
 
-// journal_entries.section_d is an untyped jsonb column. Some existing rows
-// hold a single {concerns, questions, key_insight}-shaped object rather
-// than the {action, completed}[] shape this feature expects — written
-// outside this app's own code paths, so `?? []` (which only guards
-// null/undefined) doesn't catch it. Validate the actual shape before
-// trusting it.
-function asSectionDArray(value: unknown): SectionDEntry[] {
+// journal_entries.completed_actions is a jsonb column dedicated to this
+// feature — nothing else writes to it, unlike section_d (narrative
+// concerns/questions/key insight) or section_c (a separate manual action
+// log). Still validate the shape defensively, since jsonb is untyped at
+// the DB level.
+function asCompletedActionsArray(value: unknown): CompletedAction[] {
   if (!Array.isArray(value)) return []
-  return value.filter((e): e is SectionDEntry =>
-    typeof e === 'object' && e !== null && typeof (e as SectionDEntry).action === 'string'
+  return value.filter((e): e is CompletedAction =>
+    typeof e === 'object' && e !== null && typeof (e as CompletedAction).action === 'string'
   )
 }
 
@@ -51,8 +50,8 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
       try {
         const res = await fetch(`/api/journal?week=${currentWeekNum()}`)
         if (!res.ok) return
-        const data = await res.json() as { entry: { section_d?: unknown } | null }
-        const entries = asSectionDArray(data.entry?.section_d)
+        const data = await res.json() as { entry: { completed_actions?: unknown } | null }
+        const entries = asCompletedActionsArray(data.entry?.completed_actions)
         const doneIndices = new Set<number>()
         actions.forEach((action, i) => {
           const prefix = `[${objId}] ${action}`
@@ -82,19 +81,8 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
 
       const getRes = await fetch(`/api/journal?week=${weekNum}`)
       if (!getRes.ok) throw new Error('Could not load your journal — please try again.')
-      const getData = await getRes.json() as { entry: { section_d?: unknown } | null }
-      const rawSectionD = getData.entry?.section_d
-
-      // If section_d holds something real but not our expected shape, don't
-      // silently overwrite it — treating it as "empty" here would discard
-      // that content on save, not just skip it.
-      if (rawSectionD != null && !Array.isArray(rawSectionD)) {
-        throw new Error(
-          `This week's journal entry has other content saved in a format this feature doesn't recognize — ` +
-          `saving here could overwrite it, so it's blocked. Check Week ${weekNum}'s journal entry before retrying.`
-        )
-      }
-      const existingD = asSectionDArray(rawSectionD)
+      const getData = await getRes.json() as { entry: { completed_actions?: unknown } | null }
+      const existingActions = asCompletedActionsArray(getData.entry?.completed_actions)
 
       const entryText = [
         `[${objId}] ${action}`,
@@ -107,7 +95,7 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           entry_number: weekNum,
-          section_d: [...existingD, { action: entryText, completed: true }],
+          completed_actions: [...existingActions, { action: entryText, completed: true }],
         }),
       })
       if (!postRes.ok) {
@@ -221,7 +209,7 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
                   </div>
 
                   <p className="text-[10px] mb-3" style={{ color: 'var(--ov-text-dim)' }}>
-                    Saved to Week {currentWeekNum()} journal → Section D.
+                    Logged to your Week {currentWeekNum()} completed actions.
                   </p>
                   <div className="flex gap-2">
                     <button onClick={() => { setActiveForm(null); setSaveError(null) }}
