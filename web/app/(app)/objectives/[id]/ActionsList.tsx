@@ -1,11 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCircle, X } from 'lucide-react'
 
 interface ActionsListProps {
   actions: string[]
   objId: string
+}
+
+function currentWeekNum() {
+  return Math.max(1, Math.ceil(
+    (Date.now() - new Date('2026-06-23').getTime()) / (7 * 24 * 60 * 60 * 1000)
+  ))
 }
 
 export default function ActionsList({ actions, objId }: ActionsListProps) {
@@ -15,38 +21,80 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
   const [notes, setNotes] = useState('')
   const [completedDate, setCompletedDate] = useState(new Date().toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  // Hydrate completed state from this week's journal entry — otherwise a
+  // genuinely successful save looks unpersisted after navigating away and
+  // back, since `completed` would otherwise only ever reflect this mount.
+  useEffect(() => {
+    let cancelled = false
+
+    async function hydrate() {
+      try {
+        const res = await fetch(`/api/journal?week=${currentWeekNum()}`)
+        if (!res.ok) return
+        const data = await res.json() as { entry: { section_d?: { action: string; completed: boolean }[] } | null }
+        const entries = data.entry?.section_d ?? []
+        const doneIndices = new Set<number>()
+        actions.forEach((action, i) => {
+          const prefix = `[${objId}] ${action}`
+          if (entries.some(e => e.completed && e.action.startsWith(prefix))) {
+            doneIndices.add(i)
+          }
+        })
+        if (!cancelled) setCompleted(doneIndices)
+      } catch {
+        // Hydration failing just means we fall back to "not done" locally —
+        // not worth surfacing as an error, nothing was lost.
+      }
+    }
+
+    hydrate()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function handleComplete(i: number) {
     setSaving(true)
-    const action = actions[i]
-    const weekNum = Math.max(1, Math.ceil(
-      (Date.now() - new Date('2026-06-23').getTime()) / (7 * 24 * 60 * 60 * 1000)
-    ))
+    setSaveError(null)
 
-    const getRes = await fetch(`/api/journal?week=${weekNum}`)
-    const getData = await getRes.json() as { entry: { section_d?: { action: string; completed: boolean }[] } | null }
-    const existingD = getData.entry?.section_d ?? []
+    try {
+      const action = actions[i]
+      const weekNum = currentWeekNum()
 
-    const entryText = [
-      `[${objId}] ${action}`,
-      completedDate ? `Completed: ${completedDate}` : '',
-      notes.trim() ? notes.trim() : '',
-    ].filter(Boolean).join(' — ')
+      const getRes = await fetch(`/api/journal?week=${weekNum}`)
+      if (!getRes.ok) throw new Error('Could not load your journal — please try again.')
+      const getData = await getRes.json() as { entry: { section_d?: { action: string; completed: boolean }[] } | null }
+      const existingD = getData.entry?.section_d ?? []
 
-    await fetch('/api/journal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        entry_number: weekNum,
-        section_d: [...existingD, { action: entryText, completed: true }],
-      }),
-    })
+      const entryText = [
+        `[${objId}] ${action}`,
+        completedDate ? `Completed: ${completedDate}` : '',
+        notes.trim() ? notes.trim() : '',
+      ].filter(Boolean).join(' — ')
 
-    setCompleted(prev => new Set(Array.from(prev).concat(i)))
-    setActiveForm(null)
-    setNotes('')
-    setCompletedDate(new Date().toISOString().split('T')[0])
-    setSaving(false)
+      const postRes = await fetch('/api/journal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entry_number: weekNum,
+          section_d: [...existingD, { action: entryText, completed: true }],
+        }),
+      })
+      if (!postRes.ok) {
+        const errBody = await postRes.json().catch(() => null) as { error?: string } | null
+        throw new Error(errBody?.error ?? 'Could not save — please try again.')
+      }
+
+      setCompleted(prev => new Set(Array.from(prev).concat(i)))
+      setActiveForm(null)
+      setNotes('')
+      setCompletedDate(new Date().toISOString().split('T')[0])
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Something went wrong — please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (actions.length === 0) return null
@@ -93,7 +141,7 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
                   </button>
                 ) : (
                   <button
-                    onClick={() => setActiveForm(activeForm === i ? null : i)}
+                    onClick={() => { setActiveForm(activeForm === i ? null : i); setSaveError(null) }}
                     className="flex-shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-lg"
                     style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}
                   >
@@ -106,10 +154,19 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
                 <div className="ml-2 mt-2 rounded-xl p-4" style={{ backgroundColor: 'rgba(46,124,184,0.08)', border: '1px solid rgba(46,124,184,0.2)' }}>
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-[12px] font-semibold" style={{ color: 'var(--blue-mid)' }}>Log completion</p>
-                    <button onClick={() => setActiveForm(null)} style={{ color: 'var(--ov-text-dim)' }}>
+                    <button onClick={() => { setActiveForm(null); setSaveError(null) }} style={{ color: 'var(--ov-text-dim)' }}>
                       <X size={14} />
                     </button>
                   </div>
+
+                  {saveError && (
+                    <div
+                      className="mb-3 px-3 py-2 rounded-lg text-[11px]"
+                      style={{ backgroundColor: 'rgba(192,64,42,0.14)', color: 'var(--ov-red)' }}
+                    >
+                      {saveError}
+                    </div>
+                  )}
 
                   <div className="mb-3">
                     <label className="block text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--ov-text-mid)' }}>Date completed</label>
@@ -135,10 +192,10 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
                   </div>
 
                   <p className="text-[10px] mb-3" style={{ color: 'var(--ov-text-dim)' }}>
-                    Saved to Week {Math.max(1, Math.ceil((Date.now() - new Date('2026-06-23').getTime()) / (7 * 24 * 60 * 60 * 1000)))} journal → Section D.
+                    Saved to Week {currentWeekNum()} journal → Section D.
                   </p>
                   <div className="flex gap-2">
-                    <button onClick={() => setActiveForm(null)}
+                    <button onClick={() => { setActiveForm(null); setSaveError(null) }}
                       className="flex-1 py-1.5 rounded-lg text-[12px]"
                       style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}>
                       Cancel
@@ -150,7 +207,7 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
                       style={{ backgroundColor: 'var(--blue)' }}
                     >
                       <CheckCircle size={12} />
-                      {saving ? 'Saving...' : 'Mark complete'}
+                      {saving ? 'Saving...' : saveError ? 'Retry' : 'Mark complete'}
                     </button>
                   </div>
                 </div>
