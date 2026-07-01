@@ -1,29 +1,28 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, Target } from 'lucide-react'
-import ConfidenceMeter from '@/components/objectives/ConfidenceMeter'
-import ConfidenceChart from '@/components/objectives/ConfidenceChart'
+import { ChevronLeft } from 'lucide-react'
+import ConfidenceRing from '@/components/objectives/ConfidenceRing'
+import SparklineBar from '@/components/objectives/SparklineBar'
 import ObjectiveDetailClient from './ObjectiveDetailClient'
-import ActionsList from './ActionsList'
-import Tooltip from '@/components/ui/Tooltip'
-import { DEFINITIONS } from '@/lib/utils/definitions'
+import ObjectiveTabs from './ObjectiveTabs'
+import { getConfidenceStatus } from '@/lib/utils/confidenceStatus'
 
-const STATUS_STYLES: Record<string, string> = {
-  active:   'bg-[var(--green-lt)] text-[var(--green)]',
-  paused:   'bg-[var(--amber-lt)] text-[var(--amber-brand)]',
-  achieved: 'bg-[var(--purple-lt)] text-[var(--purple-brand)]',
-  closed:   'bg-[var(--gray-lt)] text-[var(--text3)]',
+const EXPERIMENT_START = new Date('2026-06-23')
+
+interface SweepObjectiveResult {
+  obj_id: string
+  confidence_reasoning?: string
+  opportunities?: string[]
+  risks?: string[]
+  changed_since_last_sweep?: string
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  'Career/Aviation': '#2E7CB8',
-  'Finance':         '#0F6E56',
-  'Health':          '#C9A227',
-  'Business':        '#534AB7',
-  'Travel':          '#BA7517',
-  'Home':            '#5090C0',
-  'Lifestyle':       '#8098B4',
+export interface Factor {
+  color: 'red' | 'amber' | 'green' | 'blue'
+  title: string
+  description: string
+  impact: string
 }
 
 export default async function ObjectiveDetailPage({ params }: { params: { id: string } }) {
@@ -31,150 +30,75 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [{ data: obj }, { data: scores }] = await Promise.all([
-    supabase.from('objectives').select('*').eq('id', params.id).eq('user_id', user.id).single(),
-    supabase.from('confidence_scores').select('score, created_at').eq('objective_id', params.id).order('created_at', { ascending: true }).limit(20),
-  ])
-
+  const { data: obj } = await supabase.from('objectives').select('*').eq('id', params.id).eq('user_id', user.id).single()
   if (!obj) notFound()
 
-  const history = (scores ?? []).map(s => s.score)
-  const catColor = CATEGORY_COLORS[obj.category] ?? '#8098B4'
+  const [{ data: scores }, { data: signals }] = await Promise.all([
+    supabase.from('confidence_scores').select('id, score, created_at, sweep_id, recommended_actions').eq('objective_id', obj.id).order('created_at', { ascending: false }).limit(7),
+    supabase.from('signals').select('*').contains('objective_ids', [obj.id]).order('created_at', { ascending: false }),
+  ])
 
-  // Get latest recommended actions from last confidence score
-  const { data: latestScore } = await supabase
-    .from('confidence_scores')
-    .select('recommended_actions, signal_gap, factors')
-    .eq('objective_id', obj.id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
+  const latestScoreEntry = scores?.[0] ?? null
+  const sparklineScores = [...(scores ?? [])].reverse() // chronological order
+
+  // Pull this objective's narrative from its most recent sweep, for the factor list
+  let factors: Factor[] = []
+  if (latestScoreEntry?.sweep_id) {
+    const { data: sweep } = await supabase.from('sweeps').select('raw_response').eq('id', latestScoreEntry.sweep_id).single()
+    const raw = sweep?.raw_response as { objectives?: SweepObjectiveResult[] } | null
+    const thisObj = raw?.objectives?.find(o => o.obj_id === obj.obj_id)
+    if (thisObj) {
+      factors = [
+        ...(thisObj.risks ?? []).map(r => ({ color: 'red' as const, title: 'Risk', description: r, impact: 'Action required' })),
+        ...(thisObj.opportunities ?? []).map(o => ({ color: 'green' as const, title: 'Opportunity', description: o, impact: 'High impact' })),
+        ...(thisObj.changed_since_last_sweep ? [{ color: 'blue' as const, title: 'Recent change', description: thisObj.changed_since_last_sweep, impact: 'Neutral' }] : []),
+      ]
+    }
+  }
+
+  const status = getConfidenceStatus(obj.confidence)
+  const delta = obj.confidence_prev !== null ? obj.confidence - obj.confidence_prev : undefined
+  const startWeek = Math.max(1, Math.ceil((new Date(obj.created_at).getTime() - EXPERIMENT_START.getTime()) / (7 * 24 * 60 * 60 * 1000)))
 
   return (
-    <div className="max-w-3xl">
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/objectives" className="text-[var(--text3)] hover:text-[var(--text)] transition-colors">
-          <ArrowLeft size={18} />
+    <div className="-m-6 p-6 min-h-[calc(100vh-3.5rem)]" style={{ backgroundColor: 'var(--navy)' }}>
+      <div className="max-w-2xl mx-auto">
+        <Link href="/objectives" className="inline-flex items-center gap-1.5 text-[12px] mb-5" style={{ color: 'var(--ov-text-mid)' }}>
+          <ChevronLeft size={14} /> Back to goals
         </Link>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-            style={{ color: catColor, backgroundColor: `${catColor}18` }}>
-            {obj.category}
-          </span>
-          <span className="text-[11px] font-mono text-[var(--text3)]">{obj.obj_id}</span>
+
+        <div className="flex items-start justify-between gap-4 mb-1">
+          <h1 style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: 26, color: '#fff', lineHeight: 1.2 }}>
+            {obj.title}
+          </h1>
+          <ObjectiveDetailClient obj={obj} />
         </div>
-      </div>
+        <p className="text-[12px] mb-6" style={{ color: 'var(--ov-text-dim)' }}>
+          {obj.target_date
+            ? `Target: ${new Date(obj.target_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · `
+            : ''}
+          Started: Week {startWeek}
+        </p>
 
-      {/* Header card */}
-      <div className="bg-white rounded-2xl border border-[var(--border)] p-6 mb-4">
-        <div className="flex items-start justify-between gap-4 mb-5">
-          <h1 className="text-[20px] font-medium text-[var(--text)] leading-snug flex-1">{obj.title}</h1>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_STYLES[obj.status] ?? STATUS_STYLES.active}`}>
-              {obj.status}
-            </span>
-            <ObjectiveDetailClient obj={obj} />
-          </div>
-        </div>
-
-        <ConfidenceMeter
-          score={obj.confidence}
-          prev={obj.confidence_prev ?? undefined}
-          history={history.length > 1 ? history : undefined}
-          size="lg"
-        />
-
-        {/* Trajectory chart */}
-        {scores && scores.length > 0 && (
-          <div className="mt-5 pt-4 border-t border-[var(--border)]">
-            <p className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-3">Confidence trajectory</p>
-            <ConfidenceChart scores={scores} />
-          </div>
-        )}
-      </div>
-
-      {/* Factor breakdown */}
-      {latestScore?.factors && (
-        <div className="bg-white rounded-2xl border border-[var(--border)] p-5 mb-4">
-          <h2 className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            Score factors
-            <Tooltip {...DEFINITIONS.score_factors} iconSize={11} />
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
-            {Object.entries(latestScore.factors as Record<string, number>).map(([key, val]) => (
-              <div key={key}>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-[11px] text-[var(--text3)] capitalize">{key.replace(/_/g, ' ')}</span>
-                  <span className="text-[12px] font-medium text-[var(--text)]">{val}%</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-[var(--gray-lt)] overflow-hidden">
-                  <div className="h-full rounded-full bg-[var(--blue)] transition-all" style={{ width: `${val}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Outcome */}
-      <div className="bg-white rounded-2xl border border-[var(--border)] p-5 mb-4">
-        <h2 className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-2">Outcome</h2>
-        <p className="text-[14px] text-[var(--text2)] leading-relaxed">{obj.outcome}</p>
-      </div>
-
-      {/* Success condition + target date */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        {obj.success_condition && (
-          <div className="bg-white rounded-2xl border border-[var(--border)] p-5">
-            <h2 className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Target size={12} /> Success condition
-            </h2>
-            <p className="text-[13px] text-[var(--text2)] leading-relaxed">{obj.success_condition}</p>
-          </div>
-        )}
-        {obj.target_date && (
-          <div className="bg-white rounded-2xl border border-[var(--border)] p-5">
-            <h2 className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Calendar size={12} /> Target date
-            </h2>
-            <p className="text-[20px] font-light text-[var(--text)]">
-              {new Date(obj.target_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-            </p>
-            <p className="text-[11px] text-[var(--text3)] mt-1">
-              {Math.ceil((new Date(obj.target_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))} days remaining
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Recommended actions */}
-      <div className="bg-white rounded-2xl border border-[var(--border)] p-5 mb-4">
-        <h2 className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-3">Recommended actions</h2>
-        {latestScore?.recommended_actions && (latestScore.recommended_actions as string[]).length > 0 ? (
-          <ActionsList
-            actions={latestScore.recommended_actions as string[]}
-            objId={obj.obj_id}
+        <div className="flex items-center gap-6 mb-6 flex-wrap">
+          <ConfidenceRing
+            confidence={obj.confidence}
+            status={status}
+            delta={delta}
+            previousScore={obj.confidence_prev ?? undefined}
           />
-        ) : (
-          <p className="text-[13px] text-[var(--text3)]">Run a sweep to generate recommended actions.</p>
-        )}
+          <div className="flex-1 min-w-[180px]">
+            <SparklineBar scores={sparklineScores} />
+          </div>
+        </div>
+
+        <ObjectiveTabs
+          factors={factors}
+          actions={(latestScoreEntry?.recommended_actions as string[] | null) ?? []}
+          objId={obj.obj_id}
+          signals={signals ?? []}
+        />
       </div>
-
-      {/* Signal gap */}
-      {latestScore?.signal_gap && (
-        <div className="bg-[var(--amber-lt)] rounded-2xl border border-[var(--amber-brand)]/20 p-5 mb-4">
-          <h2 className="text-[11px] font-semibold text-[var(--amber-brand)] uppercase tracking-wider mb-2">Signal gap</h2>
-          <p className="text-[13px] text-[var(--text2)]">{latestScore.signal_gap}</p>
-        </div>
-      )}
-
-      {/* Notes */}
-      {obj.notes && (
-        <div className="bg-white rounded-2xl border border-[var(--border)] p-5">
-          <h2 className="text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider mb-2">Notes</h2>
-          <p className="text-[13px] text-[var(--text2)] leading-relaxed whitespace-pre-wrap">{obj.notes}</p>
-        </div>
-      )}
     </div>
   )
 }
