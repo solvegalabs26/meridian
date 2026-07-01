@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import MeridianArcWordmark from '@/components/brand/MeridianArcWordmark'
 
 export default function SignupPage() {
   const supabase = createClient()
@@ -78,12 +79,9 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen bg-navy flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-full bg-gold/20 border border-gold/40 flex items-center justify-center mx-auto mb-4">
-            <div className="w-3 h-3 rounded-full bg-gold" />
-          </div>
-          <h1 className="text-[22px] font-medium text-white italic">meridian arc</h1>
-          <p className="text-[12px] text-white/40 mt-1">The home screen of your life</p>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <MeridianArcWordmark size="md" showSub={true} orientation="stacked" />
+          <p className="text-[12px] text-white/40 mt-2">The home screen of your life</p>
         </div>
 
         <div className="bg-white rounded-2xl p-6 shadow-xl">

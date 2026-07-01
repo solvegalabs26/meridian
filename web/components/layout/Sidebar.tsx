@@ -12,7 +12,7 @@ import {
   Settings,
   ChevronRight,
 } from 'lucide-react'
-import MeridianBeacon from '@/components/brand/MeridianBeacon'
+import MeridianArcWordmark from '@/components/brand/MeridianArcWordmark'
 
 const navItems = [
   { href: '/dashboard', label: 'Mission Control', icon: LayoutDashboard },
@@ -30,13 +30,7 @@ export default function Sidebar() {
     <aside className="fixed top-0 left-0 w-60 h-screen bg-navy overflow-y-auto z-50 flex flex-col">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-white/8">
-        <div className="flex items-center gap-2.5">
-          <MeridianBeacon size={28} variant="gold" animate={true} />
-          <div>
-            <div className="text-[13px] font-medium text-white tracking-wide italic">meridian arc</div>
-            <div className="text-[9px] text-blue-mid tracking-widest uppercase mt-0.5">Solvega Labs</div>
-          </div>
-        </div>
+        <MeridianArcWordmark size="sm" animate={true} />
       </div>
 
       {/* Nav */}

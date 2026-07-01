@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import MeridianBeacon from '@/components/brand/MeridianBeacon'
+import MeridianArcWordmark from '@/components/brand/MeridianArcWordmark'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
 
@@ -58,10 +58,9 @@ export default function OnboardingCreateAccountPage() {
     <div className="min-h-screen bg-navy flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
         {/* Brand */}
-        <div className="text-center mb-8">
-          <MeridianBeacon size={48} variant="gold" animate={false} />
-          <h1 className="text-[28px] font-light text-white mt-4 tracking-tight italic">meridian arc</h1>
-          <p className="text-[13px] text-white/40 mt-1">The home screen of your life</p>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <MeridianArcWordmark size="lg" showSub={true} animate={true} launchSequence={true} orientation="stacked" />
+          <p className="text-[13px] text-white/40 mt-2">The home screen of your life</p>
         </div>
 
         <div className="bg-white rounded-2xl p-6 shadow-xl">

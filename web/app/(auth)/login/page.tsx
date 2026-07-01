@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
-import MeridianBeacon from '@/components/brand/MeridianBeacon'
+import MeridianArcWordmark from '@/components/brand/MeridianArcWordmark'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -51,10 +51,9 @@ export default function LoginPage() {
     <div className="min-h-screen bg-navy flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <MeridianBeacon size={40} variant="gold" animate={true} arrowTip={true} />
-          <h1 className="text-[22px] font-medium text-white italic mt-4">meridian arc</h1>
-          <p className="text-[12px] text-white/40 mt-1">The home screen of your life</p>
+        <div className="text-center mb-8 flex flex-col items-center">
+          <MeridianArcWordmark size="md" showSub={true} orientation="stacked" />
+          <p className="text-[12px] text-white/40 mt-2">The home screen of your life</p>
         </div>
 
         {/* Card */}
