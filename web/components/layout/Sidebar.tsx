@@ -3,24 +3,24 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard,
+  Home,
+  Newspaper,
   Target,
-  Radio,
   BookOpen,
   TrendingUp,
-  Filter,
+  MessageCircle,
   Settings,
   ChevronRight,
 } from 'lucide-react'
 import MeridianArcWordmark from '@/components/brand/MeridianArcWordmark'
 
 const navItems = [
-  { href: '/dashboard', label: 'Mission Control', icon: LayoutDashboard },
-  { href: '/objectives', label: 'Objectives', icon: Target },
-  { href: '/signals', label: 'Signal Feed', icon: Radio },
-  { href: '/journal', label: 'Journal', icon: BookOpen },
+  { href: '/dashboard', label: 'Home', icon: Home },
+  { href: '/sweep/latest', label: "This week's brief", icon: Newspaper, activeMatch: '/sweep' },
+  { href: '/objectives', label: 'Your goals', icon: Target },
   { href: '/predictions', label: 'Predictions', icon: TrendingUp },
-  { href: '/rules', label: 'Rules Filter', icon: Filter },
+  { href: '/journal', label: 'Journal', icon: BookOpen },
+  { href: '/ask', label: 'Ask Meridian Arc', icon: MessageCircle },
 ]
 
 export default function Sidebar() {
@@ -38,8 +38,9 @@ export default function Sidebar() {
         <div className="px-5 py-2 text-[8.5px] font-semibold tracking-widest uppercase text-white/28">
           Navigation
         </div>
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + '/')
+        {navItems.map(({ href, label, icon: Icon, activeMatch }) => {
+          const matchPath = activeMatch ?? href
+          const active = pathname === matchPath || pathname.startsWith(matchPath + '/')
           return (
             <Link
               key={href}
