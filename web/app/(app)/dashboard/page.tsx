@@ -49,17 +49,23 @@ export default async function DashboardPage() {
     }
   }
 
-  // Cross-dependencies, resolved to plain objective names
-  const crossDeps: CrossDep[] = (sweepData?.cross_objective_dependencies ?? []).map(dep => {
+  // Cross-dependencies, resolved to plain objective names.
+  // Deduped by id — the sweep's raw AI output can list the same
+  // dependency more than once.
+  const crossDepsById = new Map<string, CrossDep>()
+  for (const dep of sweepData?.cross_objective_dependencies ?? []) {
+    const id = `${dep.from_obj}-${dep.to_obj}`
+    if (crossDepsById.has(id)) continue
     const fromObj = objectiveList.find(o => o.obj_id === dep.from_obj)
     const toObj = objectiveList.find(o => o.obj_id === dep.to_obj)
-    return {
-      id: `${dep.from_obj}-${dep.to_obj}`,
+    crossDepsById.set(id, {
+      id,
       fromObjective: fromObj?.title ?? dep.from_obj,
       toObjective: toObj?.title ?? dep.to_obj,
       description: dep.description,
-    }
-  })
+    })
+  }
+  const crossDeps: CrossDep[] = Array.from(crossDepsById.values())
 
   const topAction = sweepData?.top_priority_action ?? null
   const moreActions = (sweepData?.objectives?.flatMap(o => o.actions ?? []) ?? [])

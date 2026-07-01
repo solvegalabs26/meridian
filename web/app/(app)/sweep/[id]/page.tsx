@@ -118,12 +118,21 @@ export default async function SweepResultPage({ params }: { params: { id: string
       source: sig.source ?? undefined,
     }))
 
-  const crossDepCards: StoryCard[] = (raw?.cross_objective_dependencies ?? []).map(dep => ({
-    type: 'insight',
-    title: `${titleByObjId.get(dep.from_obj) ?? dep.from_obj} → ${titleByObjId.get(dep.to_obj) ?? dep.to_obj}`,
-    body: dep.description,
-    objectiveName: titleByObjId.get(dep.from_obj) ?? dep.from_obj,
-  }))
+  // Dedupe — the sweep's raw AI output can list the same dependency more than once.
+  const seenDeps = new Set<string>()
+  const crossDepCards: StoryCard[] = (raw?.cross_objective_dependencies ?? [])
+    .filter(dep => {
+      const key = `${dep.from_obj}-${dep.to_obj}`
+      if (seenDeps.has(key)) return false
+      seenDeps.add(key)
+      return true
+    })
+    .map(dep => ({
+      type: 'insight' as const,
+      title: `${titleByObjId.get(dep.from_obj) ?? dep.from_obj} → ${titleByObjId.get(dep.to_obj) ?? dep.to_obj}`,
+      body: dep.description,
+      objectiveName: titleByObjId.get(dep.from_obj) ?? dep.from_obj,
+    }))
 
   const risks = signalCards.filter(c => c.type === 'risk')
   const opportunities = signalCards.filter(c => c.type === 'opportunity')

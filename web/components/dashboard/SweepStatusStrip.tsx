@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import MeridianBeacon from '@/components/brand/MeridianBeacon'
 import { timeAgo } from '@/lib/utils/timeAgo'
 
 interface SweepStatusStripProps {
@@ -45,7 +46,8 @@ export default function SweepStatusStrip({ lastSweepAt }: SweepStatusStripProps)
       className="rounded-xl px-4 py-3 flex items-center justify-between gap-3"
       style={{ backgroundColor: 'rgba(46,124,184,0.08)', border: '1px solid rgba(46,124,184,0.18)' }}
     >
-      <span className="text-[12px]" style={{ color: 'var(--ov-text-mid)' }}>
+      <span className="text-[12px] flex items-center gap-2" style={{ color: 'var(--ov-text-mid)' }}>
+        {running && <MeridianBeacon size={16} variant="gold" animate={true} />}
         {running ? SCANNING_MESSAGES[msgIdx] : lastSweepAt ? `Last update ${timeAgo(lastSweepAt)}` : 'No scan yet'}
       </span>
       <button
