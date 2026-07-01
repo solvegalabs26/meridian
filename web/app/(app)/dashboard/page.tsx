@@ -4,6 +4,7 @@ import GoalCard from '@/components/dashboard/GoalCard'
 import DoNextCard from '@/components/dashboard/DoNextCard'
 import CrossDepBanner, { type CrossDep } from '@/components/dashboard/CrossDepBanner'
 import SweepStatusStrip from '@/components/dashboard/SweepStatusStrip'
+import AskMeridianBar from '@/components/ask/AskMeridianBar'
 import { getConfidenceStatus } from '@/lib/utils/confidenceStatus'
 
 const STATUS_RANK = { risk: 0, watch: 1, on_track: 2 }
@@ -103,6 +104,12 @@ export default async function DashboardPage() {
         Meridian Arc surfaces AI-generated insights — always use your own judgment for major decisions.
       </p>
     </div>
+
+    <AskMeridianBar
+      showChips={true}
+      topObjectiveName={sortedObjectives[0]?.title}
+      context={sweepData?.sweep_summary}
+    />
     </div>
   )
 }
