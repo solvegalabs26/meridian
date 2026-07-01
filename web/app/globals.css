@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -42,4 +42,29 @@
   .text-balance {
     text-wrap: balance;
   }
+}
+
+@keyframes beaconRing1 {
+  0%   { r: 0; opacity: 0.35; }
+  65%  { r: 28; opacity: 0.08; }
+  100% { r: 34; opacity: 0; }
+}
+@keyframes beaconRing2 {
+  0%   { r: 0; opacity: 0.22; }
+  65%  { r: 40; opacity: 0.04; }
+  100% { r: 50; opacity: 0; }
+}
+@keyframes beaconCorePop {
+  0%   { opacity: 0; transform: scale(0.1); }
+  55%  { opacity: 1; transform: scale(1.14); }
+  80%  { transform: scale(0.97); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes beaconNeedleDraw {
+  from { stroke-dashoffset: 42; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes beaconTipBreath {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 1; }
 }

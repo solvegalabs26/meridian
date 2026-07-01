@@ -8,13 +8,17 @@ interface MeridianBeaconProps {
   animate?: boolean
   launchSequence?: boolean
   arrowTip?: boolean
+  className?: string
 }
 
-const COLORS = {
-  gold:  '#C9A227',
-  blue:  '#2E7CB8',
-  light: '#C9A227',
-}
+const VARIANTS = {
+  gold:  { core: '#C9A227', needle: 'rgba(255,255,255,0.44)', tip: '#C9A227', ring: '#C9A227' },
+  blue:  { core: '#2E7CB8', needle: 'rgba(255,255,255,0.44)', tip: '#C9A227', ring: '#2E7CB8' },
+  light: { core: '#C9A227', needle: 'rgba(11,24,41,0.25)',    tip: '#C9A227', ring: '#C9A227' },
+} as const
+
+// Needle spans y1=52 to y2=10 in the 60x75 viewBox
+const NEEDLE_LEN = 42
 
 export default function MeridianBeacon({
   size = 40,
@@ -22,166 +26,92 @@ export default function MeridianBeacon({
   animate = true,
   launchSequence = false,
   arrowTip = true,
+  className,
 }: MeridianBeaconProps) {
-  const [phase, setPhase] = useState<'idle' | 'core' | 'needle' | 'rings' | 'sparkles' | 'pulse'>('idle')
-
-  const color      = COLORS[variant]
-  const cx         = size / 2
-  const cy         = size / 2
-  const coreR      = size * 0.12
-  const needleLen  = size * 0.26
-  const arrowSize  = size * 0.065
-  const needleY1   = cy - coreR - 1
-  const needleY2   = cy - coreR - needleLen
-  const ring1R     = size * 0.30
-  const ring2R     = size * 0.44
-  const uid        = `mb${size}${variant}`
+  const [phase, setPhase] = useState<'idle' | 'core' | 'needle' | 'settled'>(
+    launchSequence ? 'idle' : 'settled'
+  )
+  const colors = VARIANTS[variant]
 
   useEffect(() => {
-    if (!launchSequence) { setPhase('pulse'); return }
-    setPhase('core')
-    const t1 = setTimeout(() => setPhase('needle'),   420)
-    const t2 = setTimeout(() => setPhase('rings'),    850)
-    const t3 = setTimeout(() => setPhase('sparkles'), 1150)
-    const t4 = setTimeout(() => setPhase('pulse'),    1700)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
+    if (!launchSequence) { setPhase('settled'); return }
+    setPhase('idle')
+    const t1 = setTimeout(() => setPhase('core'), 20)
+    const t2 = setTimeout(() => setPhase('needle'), 440)
+    const t3 = setTimeout(() => setPhase('settled'), 900)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [launchSequence])
 
-  const shouldAnimate  = animate && (phase === 'pulse' || !launchSequence)
-  const showCore       = !launchSequence || phase !== 'idle'
-  const showNeedle     = !launchSequence || ['needle','rings','sparkles','pulse'].includes(phase)
-  const showRings      = !launchSequence || ['rings','sparkles','pulse'].includes(phase)
-  const showSparkles   = phase === 'sparkles'
+  const showCore      = phase !== 'idle'
+  const showNeedle     = phase === 'needle' || phase === 'settled'
+  const showRings      = phase === 'settled'
+  const corePopping    = launchSequence && phase === 'core'
+  const needleDrawing  = launchSequence && phase === 'needle'
 
   return (
     <svg
       width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
+      height={size * 1.25}
+      viewBox="0 0 60 75"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      className={className}
       style={{ overflow: 'visible' }}
-      aria-label="Meridian beacon"
+      aria-label="Meridian Arc beacon"
     >
-      <style>{`
-        @keyframes ${uid}-r1 {
-          0%,100% { transform: scale(0.88); opacity: 0.55; }
-          55%      { transform: scale(1.18); opacity: 0.10; }
-        }
-        @keyframes ${uid}-r2 {
-          0%,100% { transform: scale(0.88); opacity: 0.28; }
-          55%      { transform: scale(1.18); opacity: 0.05; }
-        }
-        @keyframes ${uid}-pop {
-          0%   { transform: scale(0); opacity: 0; }
-          65%  { transform: scale(1.28); opacity: 1; }
-          82%  { transform: scale(0.88); }
-          100% { transform: scale(1);   opacity: 1; }
-        }
-        @keyframes ${uid}-draw {
-          0%   { stroke-dashoffset: ${needleLen}; opacity: 0; }
-          25%  { opacity: 1; }
-          100% { stroke-dashoffset: 0; opacity: 1; }
-        }
-        @keyframes ${uid}-burst {
-          0%   { transform: scale(0.3); opacity: 0.9; }
-          100% { transform: scale(2.8); opacity: 0; }
-        }
-        @keyframes ${uid}-spark {
-          0%   { opacity: 1; }
-          100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.2); }
-        }
-      `}</style>
-
-      {/* Pulse ring 1 */}
+      {/* Pulse rings */}
       {showRings && (
-        <circle
-          cx={cx} cy={cy} r={ring1R}
-          stroke={color} strokeWidth={size * 0.028} fill="none"
-          style={shouldAnimate ? {
-            transformOrigin: `${cx}px ${cy}px`,
-            animation: `${uid}-r1 2.4s ease-in-out infinite`,
-          } : { opacity: 0.45 }}
-        />
+        <>
+          <circle
+            cx="30" cy="52" r="0" fill={colors.ring}
+            style={{ animation: animate ? 'beaconRing1 2.5s ease-out 0.6s infinite' : 'none' }}
+          />
+          <circle
+            cx="30" cy="52" r="0" fill={colors.ring}
+            style={{ animation: animate ? 'beaconRing2 2.5s ease-out 1.2s infinite' : 'none' }}
+          />
+        </>
       )}
 
-      {/* Pulse ring 2 */}
-      {showRings && (
-        <circle
-          cx={cx} cy={cy} r={ring2R}
-          stroke={color} strokeWidth={size * 0.018} fill="none"
-          style={shouldAnimate ? {
-            transformOrigin: `${cx}px ${cy}px`,
-            animation: `${uid}-r2 2.4s ease-in-out 0.55s infinite`,
-          } : { opacity: 0.20 }}
-        />
-      )}
-
-      {/* Launch burst rings */}
-      {phase === 'rings' && [0, 0.14].map((delay, i) => (
-        <circle key={i}
-          cx={cx} cy={cy} r={coreR}
-          stroke={color} strokeWidth={size * 0.03} fill="none"
-          style={{
-            transformOrigin: `${cx}px ${cy}px`,
-            animation: `${uid}-burst 0.55s ease-out ${delay}s forwards`,
-          }}
-        />
-      ))}
-
-      {/* Sparkles */}
-      {showSparkles && [
-        { tx:  size * 0.24, ty: -size * 0.24 },
-        { tx: -size * 0.24, ty: -size * 0.24 },
-        { tx:  size * 0.24, ty:  size * 0.24 },
-        { tx: -size * 0.24, ty:  size * 0.24 },
-      ].map((d, i) => (
-        <circle key={i}
-          cx={cx} cy={cy} r={size * 0.042} fill={color}
-          style={{
-            ['--tx' as string]: `${d.tx}px`,
-            ['--ty' as string]: `${d.ty}px`,
-            animation: `${uid}-spark 0.55s ease-out ${i * 0.06}s forwards`,
-          }}
-        />
-      ))}
-
-      {/* Needle line */}
-      {showNeedle && (
-        <line
-          x1={cx} y1={needleY1} x2={cx} y2={needleY2}
-          stroke={color}
-          strokeWidth={size * 0.048}
-          strokeLinecap="round"
-          strokeDasharray={needleLen}
-          strokeDashoffset={launchSequence && phase === 'needle' ? needleLen : 0}
-          style={launchSequence && phase === 'needle' ? {
-            animation: `${uid}-draw 0.45s ease-out forwards`,
-          } : {}}
-        />
-      )}
-
-      {/* Arrow tip at north point */}
-      {showNeedle && arrowTip && (
-        <polygon
-          points={`
-            ${cx},${needleY2 - arrowSize}
-            ${cx - arrowSize * 0.72},${needleY2 + arrowSize * 0.55}
-            ${cx + arrowSize * 0.72},${needleY2 + arrowSize * 0.55}
-          `}
-          fill={color}
-        />
-      )}
+      {/* Glow halos */}
+      <circle cx="30" cy="52" r="20" fill={colors.core} opacity="0.06" />
+      <circle cx="30" cy="52" r="13" fill={colors.core} opacity="0.10" />
 
       {/* Core */}
       {showCore && (
         <circle
-          cx={cx} cy={cy} r={coreR} fill={color}
-          style={launchSequence && phase === 'core' ? {
-            transformOrigin: `${cx}px ${cy}px`,
-            animation: `${uid}-pop 0.42s cubic-bezier(0.34,1.56,0.64,1) forwards`,
-          } : {}}
+          cx="30" cy="52" r="8.5" fill={colors.core}
+          style={corePopping ? {
+            transformOrigin: '30px 52px',
+            animation: 'beaconCorePop 0.42s cubic-bezier(0.34,1.56,0.64,1) forwards',
+          } : undefined}
         />
+      )}
+
+      {/* North needle */}
+      {showNeedle && (
+        <line
+          x1="30" y1="52" x2="30" y2="10"
+          stroke={colors.needle} strokeWidth="1.8" strokeLinecap="round"
+          strokeDasharray={NEEDLE_LEN}
+          strokeDashoffset={needleDrawing ? NEEDLE_LEN : 0}
+          style={needleDrawing ? { animation: 'beaconNeedleDraw 0.43s ease-out forwards' } : undefined}
+        />
+      )}
+
+      {/* Arrow tip — chevron point, or dot when arrowTip is false */}
+      {showNeedle && (
+        arrowTip ? (
+          <g style={{ animation: animate ? 'beaconTipBreath 2.4s ease-in-out infinite' : 'none' }}>
+            <line x1="30" y1="8" x2="24" y2="16" stroke={colors.tip} strokeWidth="2.2" strokeLinecap="round" />
+            <line x1="30" y1="8" x2="36" y2="16" stroke={colors.tip} strokeWidth="2.2" strokeLinecap="round" />
+          </g>
+        ) : (
+          <circle
+            cx="30" cy="10" r="3.5" fill={colors.tip}
+            style={{ animation: animate ? 'beaconTipBreath 2.4s ease-in-out infinite' : 'none' }}
+          />
+        )
       )}
     </svg>
   )
