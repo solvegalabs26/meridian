@@ -24,6 +24,13 @@ export default function OnboardingSweepPage() {
       setMsgIdx(prev => Math.min(prev + 1, MESSAGES.length - 1))
     }, 1800)
 
+    // Mark onboarding complete — fire-and-forget, doesn't block the sweep
+    fetch('/api/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ onboarded_at: new Date().toISOString() }),
+    }).catch(() => {})
+
     // Run first sweep
     fetch('/api/sweep', {
       method: 'POST',

@@ -23,11 +23,13 @@ export default function OnboardingObjectivePage() {
   const [extracting, setExtracting] = useState(false)
   const [extractError, setExtractError] = useState<string | null>(null)
   const [accountType, setAccountType] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
 
   // Load account_type on mount
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
+      setUserId(user.id)
       supabase.from('profiles').select('account_type').eq('id', user.id).single()
         .then(({ data }) => setAccountType(data?.account_type ?? 'personal'))
     })
@@ -39,7 +41,9 @@ export default function OnboardingObjectivePage() {
   const [goals, setGoals] = useState<ExtractedGoal[] | null>(null)
   const [selected, setSelected] = useState<boolean[]>([])
   const [editing, setEditing] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
+  // Supabase row id for each goal once it's been persisted, or null if not yet saved
+  const [savedIds, setSavedIds] = useState<(string | null)[]>([])
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   async function handleExtract() {
     if (!bio.trim()) return
@@ -61,40 +65,115 @@ export default function OnboardingObjectivePage() {
     const data = await res.json() as { goals: ExtractedGoal[] }
     setGoals(data.goals)
     setSelected(data.goals.map(() => true))
+    setSavedIds(data.goals.map(() => null))
     setExtracting(false)
+
+    // All goals start selected — persist each immediately rather than
+    // waiting for the final button, so nothing is lost if the user leaves.
+    // Sequential (not parallel) — /api/objectives derives obj_id from a
+    // row count, so concurrent creates would race and collide.
+    for (let i = 0; i < data.goals.length; i++) {
+      await createGoal(i, data.goals[i])
+    }
   }
 
   function updateGoal(i: number, updates: Partial<ExtractedGoal>) {
     setGoals(prev => prev ? prev.map((g, idx) => idx === i ? { ...g, ...updates } : g) : prev)
   }
 
-  async function handleConfirm() {
-    if (!goals) return
-    const toSave = goals.filter((_, i) => selected[i])
-    if (toSave.length === 0) return
-
-    setSaving(true)
-
-    for (const goal of toSave.slice(0, 5)) { // max 5 on trial tier
-      await fetch('/api/objectives', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: goal.title,
-          category: goal.category,
-          outcome: goal.outcome,
-          target_date: goal.target_date || undefined,
-        }),
-      })
-    }
-
-    await fetch('/api/profile', {
-      method: 'PATCH',
+  // Create a new objective row and record its id against this goal's index.
+  async function createGoal(i: number, goal: ExtractedGoal) {
+    const res = await fetch('/api/objectives', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ onboarded_at: new Date().toISOString() }),
+      body: JSON.stringify({
+        title: goal.title,
+        category: goal.category,
+        outcome: goal.outcome,
+        target_date: goal.target_date || undefined,
+      }),
     })
 
-    router.push('/onboarding/sweep')
+    if (!res.ok) {
+      setSyncError('Could not save an objective — please try re-checking it.')
+      return
+    }
+
+    const data = await res.json() as { objective: { id: string } }
+    setSavedIds(prev => prev.map((id, idx) => idx === i ? data.objective.id : id))
+  }
+
+  // Update an already-persisted objective row in place.
+  async function updateSavedGoal(id: string, goal: ExtractedGoal) {
+    if (!userId) return
+    const { error } = await supabase
+      .from('objectives')
+      .update({
+        title: goal.title,
+        category: goal.category,
+        outcome: goal.outcome,
+        target_date: goal.target_date || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+
+    if (error) setSyncError('Could not save your edit — please try again.')
+  }
+
+  // Remove a persisted objective row (unchecked, deleted, or abandoned).
+  async function deleteSavedGoal(id: string) {
+    if (!userId) return
+    const { error } = await supabase
+      .from('objectives')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId)
+
+    if (error) setSyncError('Could not remove that objective — please try again.')
+  }
+
+  function toggleSelected(i: number) {
+    const goal = goals?.[i]
+    if (!goal) return
+    const nowSelected = !selected[i]
+    setSelected(prev => prev.map((s, idx) => idx === i ? nowSelected : s))
+
+    if (nowSelected) {
+      void createGoal(i, goal)
+    } else {
+      const id = savedIds[i]
+      if (id) {
+        void deleteSavedGoal(id)
+        setSavedIds(prev => prev.map((sid, idx) => idx === i ? null : sid))
+      }
+    }
+  }
+
+  function finishEditing(i: number) {
+    setEditing(null)
+    const goal = goals?.[i]
+    const id = savedIds[i]
+    if (goal && selected[i] && id) {
+      void updateSavedGoal(id, goal)
+    }
+  }
+
+  function removeGoal(i: number) {
+    const id = savedIds[i]
+    if (id) void deleteSavedGoal(id)
+    setGoals(prev => prev ? prev.filter((_, idx) => idx !== i) : prev)
+    setSelected(prev => prev.filter((_, idx) => idx !== i))
+    setSavedIds(prev => prev.filter((_, idx) => idx !== i))
+  }
+
+  function startOver() {
+    // Clean up anything already persisted from this extraction pass
+    savedIds.forEach(id => { if (id) void deleteSavedGoal(id) })
+    setGoals(null)
+    setBio('')
+    setSelected([])
+    setSavedIds([])
   }
 
   // ── Step A — Tell us about yourself ──────────────────────────
@@ -167,6 +246,10 @@ export default function OnboardingObjectivePage() {
           </p>
         </div>
 
+        {syncError && (
+          <div className="mb-4 p-3 rounded-lg bg-[var(--red-lt)] text-[var(--red)] text-[13px]">{syncError}</div>
+        )}
+
         <div className="space-y-3 mb-5">
           {goals.map((goal, i) => {
             const catColor = CATEGORY_COLORS[goal.category] ?? '#8098B4'
@@ -207,7 +290,7 @@ export default function OnboardingObjectivePage() {
                       className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-[12px] bg-white focus:outline-none"
                     />
                     <button
-                      onClick={() => setEditing(null)}
+                      onClick={() => finishEditing(i)}
                       className="text-[12px] font-medium text-[var(--blue)] hover:text-[var(--night)]"
                     >
                       Done editing
@@ -217,7 +300,7 @@ export default function OnboardingObjectivePage() {
                   <div className="p-4 flex items-start gap-3">
                     {/* Checkbox */}
                     <button
-                      onClick={() => setSelected(prev => prev.map((s, idx) => idx === i ? !s : s))}
+                      onClick={() => toggleSelected(i)}
                       className={`w-5 h-5 rounded flex-shrink-0 mt-0.5 flex items-center justify-center border-2 transition-all ${
                         isSelected ? 'bg-[var(--blue)] border-[var(--blue)]' : 'border-[var(--border)]'
                       }`}
@@ -251,10 +334,7 @@ export default function OnboardingObjectivePage() {
                         <Pencil size={12} />
                       </button>
                       <button
-                        onClick={() => {
-                          setGoals(prev => prev ? prev.filter((_, idx) => idx !== i) : prev)
-                          setSelected(prev => prev.filter((_, idx) => idx !== i))
-                        }}
+                        onClick={() => removeGoal(i)}
                         className="p-1.5 rounded-lg text-[var(--text3)] hover:text-[var(--red)] hover:bg-[var(--red-lt)] transition-colors"
                       >
                         <X size={12} />
@@ -269,16 +349,14 @@ export default function OnboardingObjectivePage() {
 
         <div className="space-y-2">
           <button
-            onClick={handleConfirm}
-            disabled={saving || selectedCount === 0}
+            onClick={() => router.push('/onboarding/sweep')}
+            disabled={selectedCount === 0}
             className="w-full py-3 rounded-xl bg-gold text-navy text-[14px] font-semibold hover:bg-gold/90 disabled:opacity-50 transition-colors"
           >
-            {saving
-              ? 'Saving objectives...'
-              : `Add ${selectedCount} objective${selectedCount !== 1 ? 's' : ''} and run first sweep →`}
+            {`Add ${selectedCount} objective${selectedCount !== 1 ? 's' : ''} and run first sweep →`}
           </button>
           <button
-            onClick={() => { setGoals(null); setBio('') }}
+            onClick={startOver}
             className="w-full py-2 text-[12px] text-white/30 hover:text-white/60 transition-colors"
           >
             ← Start over
