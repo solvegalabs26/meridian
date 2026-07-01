@@ -81,9 +81,9 @@ export default async function DashboardPage() {
     <div className="max-w-2xl space-y-4">
       <SweepStatusStrip lastSweepAt={lastSweep?.completed_at ?? null} />
 
-      <CrossDepBanner crossDeps={crossDeps} />
-
       <HeadlineCard objectives={objectiveList} hasSweep={hasSweep} userName={profile?.full_name} />
+
+      <DoNextCard topAction={topAction} moreActions={moreActions} hasSweep={hasSweep} />
 
       <div>
         <p className="text-[9px] uppercase tracking-widest font-semibold mb-2" style={{ color: 'var(--blue-mid)' }}>
@@ -104,7 +104,7 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      <DoNextCard topAction={topAction} moreActions={moreActions} hasSweep={hasSweep} />
+      <CrossDepBanner crossDeps={crossDeps} />
 
       <p className="text-[10px] text-center pt-2" style={{ color: 'var(--ov-text-dim)' }}>
         Meridian Arc surfaces AI-generated insights — always use your own judgment for major decisions.
