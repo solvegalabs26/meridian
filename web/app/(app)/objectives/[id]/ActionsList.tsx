@@ -14,6 +14,24 @@ function currentWeekNum() {
   ))
 }
 
+interface SectionDEntry {
+  action: string
+  completed: boolean
+}
+
+// journal_entries.section_d is an untyped jsonb column. Some existing rows
+// hold a single {concerns, questions, key_insight}-shaped object rather
+// than the {action, completed}[] shape this feature expects — written
+// outside this app's own code paths, so `?? []` (which only guards
+// null/undefined) doesn't catch it. Validate the actual shape before
+// trusting it.
+function asSectionDArray(value: unknown): SectionDEntry[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((e): e is SectionDEntry =>
+    typeof e === 'object' && e !== null && typeof (e as SectionDEntry).action === 'string'
+  )
+}
+
 export default function ActionsList({ actions, objId }: ActionsListProps) {
   const [completed, setCompleted] = useState<Set<number>>(new Set())
   const [hovering, setHovering] = useState<number | null>(null)
@@ -33,8 +51,8 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
       try {
         const res = await fetch(`/api/journal?week=${currentWeekNum()}`)
         if (!res.ok) return
-        const data = await res.json() as { entry: { section_d?: { action: string; completed: boolean }[] } | null }
-        const entries = data.entry?.section_d ?? []
+        const data = await res.json() as { entry: { section_d?: unknown } | null }
+        const entries = asSectionDArray(data.entry?.section_d)
         const doneIndices = new Set<number>()
         actions.forEach((action, i) => {
           const prefix = `[${objId}] ${action}`
@@ -64,8 +82,19 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
 
       const getRes = await fetch(`/api/journal?week=${weekNum}`)
       if (!getRes.ok) throw new Error('Could not load your journal — please try again.')
-      const getData = await getRes.json() as { entry: { section_d?: { action: string; completed: boolean }[] } | null }
-      const existingD = getData.entry?.section_d ?? []
+      const getData = await getRes.json() as { entry: { section_d?: unknown } | null }
+      const rawSectionD = getData.entry?.section_d
+
+      // If section_d holds something real but not our expected shape, don't
+      // silently overwrite it — treating it as "empty" here would discard
+      // that content on save, not just skip it.
+      if (rawSectionD != null && !Array.isArray(rawSectionD)) {
+        throw new Error(
+          `This week's journal entry has other content saved in a format this feature doesn't recognize — ` +
+          `saving here could overwrite it, so it's blocked. Check Week ${weekNum}'s journal entry before retrying.`
+        )
+      }
+      const existingD = asSectionDArray(rawSectionD)
 
       const entryText = [
         `[${objId}] ${action}`,
