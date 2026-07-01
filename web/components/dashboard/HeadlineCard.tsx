@@ -8,9 +8,10 @@ interface HeadlineObjective {
 interface HeadlineCardProps {
   objectives: HeadlineObjective[]
   hasSweep: boolean
+  userName?: string | null
 }
 
-export default function HeadlineCard({ objectives, hasSweep }: HeadlineCardProps) {
+export default function HeadlineCard({ objectives, hasSweep, userName }: HeadlineCardProps) {
   const deltas = objectives
     .filter(o => o.confidence_prev !== null)
     .map(o => ({ ...o, delta: o.confidence - (o.confidence_prev as number) }))
@@ -19,11 +20,17 @@ export default function HeadlineCard({ objectives, hasSweep }: HeadlineCardProps
     .filter(o => o.delta < -5)
     .sort((a, b) => a.delta - b.delta)[0]
 
-  const headline = !hasSweep
+  const body = !hasSweep
     ? 'Meridian Arc is ready to scan your goals.'
     : needsAttention
       ? `${needsAttention.title} needs attention.`
       : 'Your goals are on track.'
+
+  // Prefix with the name rather than splicing it into the sentence — the
+  // sentence may start with "Meridian Arc" or an objective title, and
+  // lowercasing either would break their capitalization.
+  const firstName = userName?.trim().split(' ')[0]
+  const headline = firstName ? `${firstName} — ${body}` : body
 
   return (
     <div

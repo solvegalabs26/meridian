@@ -83,7 +83,7 @@ export default async function DashboardPage() {
 
       <CrossDepBanner crossDeps={crossDeps} />
 
-      <HeadlineCard objectives={objectiveList} hasSweep={hasSweep} />
+      <HeadlineCard objectives={objectiveList} hasSweep={hasSweep} userName={profile?.full_name} />
 
       <div>
         <p className="text-[9px] uppercase tracking-widest font-semibold mb-2" style={{ color: 'var(--blue-mid)' }}>
