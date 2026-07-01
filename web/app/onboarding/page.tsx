@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import MeridianBeacon from '@/components/brand/MeridianBeacon'
 import Link from 'next/link'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function OnboardingCreateAccountPage() {
   const router = useRouter()
@@ -12,7 +13,9 @@ export default function OnboardingCreateAccountPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [accountExists, setAccountExists] = useState(false)
   const [loading, setLoading] = useState(false)
   // Honeypot — bots fill hidden fields, humans don't
   const [honeypot, setHoneypot] = useState('')
@@ -27,6 +30,7 @@ export default function OnboardingCreateAccountPage() {
 
     setLoading(true)
     setError(null)
+    setAccountExists(false)
 
     const { error: signUpError } = await supabase.auth.signUp({
       email,
@@ -37,7 +41,11 @@ export default function OnboardingCreateAccountPage() {
     })
 
     if (signUpError) {
-      setError(signUpError.message)
+      if (signUpError.message.toLowerCase().includes('already registered')) {
+        setAccountExists(true)
+      } else {
+        setError(signUpError.message)
+      }
       setLoading(false)
       return
     }
@@ -59,6 +67,15 @@ export default function OnboardingCreateAccountPage() {
         <div className="bg-white rounded-2xl p-6 shadow-xl">
           <p className="text-[11px] text-[var(--text3)] uppercase tracking-widest font-semibold mb-1">Step 1 of 5</p>
           <h2 className="text-[18px] font-medium text-[var(--text)] mb-5">Create your account</h2>
+
+          {accountExists && (
+            <div className="mb-4 p-3 rounded-lg bg-[var(--red-lt)] text-[var(--red)] text-[13px]">
+              Account exists —{' '}
+              <Link href="/login" className="underline font-medium">
+                sign in instead
+              </Link>
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-[var(--red-lt)] text-[var(--red)] text-[13px]">
@@ -98,16 +115,26 @@ export default function OnboardingCreateAccountPage() {
               <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-1.5">
                 Password
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-                placeholder="Min. 8 characters"
-                className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  placeholder="Min. 8 characters"
+                  className="w-full px-3 py-2.5 pr-10 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--blue)]"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button
