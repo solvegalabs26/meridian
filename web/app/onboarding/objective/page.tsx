@@ -45,6 +45,12 @@ export default function OnboardingObjectivePage() {
   const [savedIds, setSavedIds] = useState<(string | null)[]>([])
   const [syncError, setSyncError] = useState<string | null>(null)
 
+  // AI clarifying questions, assessed per-goal after it's persisted.
+  // undefined = not yet assessed, [] = assessed and none needed.
+  const [clarifyQuestions, setClarifyQuestions] = useState<(string[] | undefined)[]>([])
+  const [clarifyAnswers, setClarifyAnswers] = useState<string[][]>([])
+  const [clarifyDone, setClarifyDone] = useState<boolean[]>([])
+
   async function handleExtract() {
     if (!bio.trim()) return
     setExtracting(true)
@@ -66,6 +72,9 @@ export default function OnboardingObjectivePage() {
     setGoals(data.goals)
     setSelected(data.goals.map(() => true))
     setSavedIds(data.goals.map(() => null))
+    setClarifyQuestions(data.goals.map(() => undefined))
+    setClarifyAnswers(data.goals.map(() => []))
+    setClarifyDone(data.goals.map(() => false))
     setExtracting(false)
 
     // All goals start selected — persist each immediately rather than
@@ -74,7 +83,53 @@ export default function OnboardingObjectivePage() {
     // row count, so concurrent creates would race and collide.
     for (let i = 0; i < data.goals.length; i++) {
       await createGoal(i, data.goals[i])
+      void assessGoal(i, data.goals[i])
     }
+  }
+
+  // Ask the AI whether this goal needs clarifying questions — fire-and-forget
+  // once the goal is persisted, so it doesn't slow down extraction.
+  async function assessGoal(i: number, goal: ExtractedGoal) {
+    const res = await fetch('/api/assess-objective', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: goal.title,
+        category: goal.category,
+        outcome: goal.outcome,
+        target_date: goal.target_date,
+      }),
+    })
+    if (!res.ok) return
+    const data = await res.json() as { questions: string[] }
+    setClarifyQuestions(prev => prev.map((q, idx) => idx === i ? data.questions : q))
+    setClarifyAnswers(prev => prev.map((a, idx) => idx === i ? data.questions.map(() => '') : a))
+  }
+
+  function updateClarifyAnswer(i: number, qi: number, value: string) {
+    setClarifyAnswers(prev => prev.map((answers, idx) => idx === i ? answers.map((a, aqi) => aqi === qi ? value : a) : answers))
+  }
+
+  // Persist any non-blank answers to goal_context, joined as Q&A text.
+  async function saveClarifyAnswers(i: number) {
+    const id = savedIds[i]
+    const questions = clarifyQuestions[i]
+    const answers = clarifyAnswers[i]
+    if (id && questions) {
+      const answered = questions
+        .map((q, qi) => ({ q, a: answers[qi]?.trim() }))
+        .filter(({ a }) => !!a)
+      if (answered.length > 0) {
+        const goal_context = answered.map(({ q, a }) => `Q: ${q}\nA: ${a}`).join('\n\n')
+        const { error } = await supabase.from('objectives').update({ goal_context }).eq('id', id).eq('user_id', userId)
+        if (error) setSyncError('Could not save your answers — please try again.')
+      }
+    }
+    setClarifyDone(prev => prev.map((d, idx) => idx === i ? true : d))
+  }
+
+  function skipClarify(i: number) {
+    setClarifyDone(prev => prev.map((d, idx) => idx === i ? true : d))
   }
 
   function updateGoal(i: number, updates: Partial<ExtractedGoal>) {
@@ -169,6 +224,9 @@ export default function OnboardingObjectivePage() {
     setGoals(prev => prev ? prev.filter((_, idx) => idx !== i) : prev)
     setSelected(prev => prev.filter((_, idx) => idx !== i))
     setSavedIds(prev => prev.filter((_, idx) => idx !== i))
+    setClarifyQuestions(prev => prev.filter((_, idx) => idx !== i))
+    setClarifyAnswers(prev => prev.filter((_, idx) => idx !== i))
+    setClarifyDone(prev => prev.filter((_, idx) => idx !== i))
   }
 
   function startOver() {
@@ -178,6 +236,9 @@ export default function OnboardingObjectivePage() {
     setBio('')
     setSelected([])
     setSavedIds([])
+    setClarifyQuestions([])
+    setClarifyAnswers([])
+    setClarifyDone([])
   }
 
   // ── Step A — Tell us about yourself ──────────────────────────
@@ -343,6 +404,40 @@ export default function OnboardingObjectivePage() {
                       >
                         <X size={12} />
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {isSelected && !isEditing && !clarifyDone[i] && (clarifyQuestions[i]?.length ?? 0) > 0 && (
+                  <div className="px-4 pb-4 -mt-1 space-y-2.5">
+                    <div className="pt-3 space-y-2.5" style={{ borderTop: '1px solid var(--border)' }}>
+                      <p className="text-[11px] font-medium text-[var(--text2)]">
+                        A couple quick questions to sharpen this goal (optional):
+                      </p>
+                      {clarifyQuestions[i]!.map((q, qi) => (
+                        <div key={qi}>
+                          <label className="block text-[11px] text-[var(--text3)] mb-1">{q}</label>
+                          <input
+                            value={clarifyAnswers[i]?.[qi] ?? ''}
+                            onChange={e => updateClarifyAnswer(i, qi, e.target.value)}
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--border)] text-[12px] focus:outline-none focus:border-[var(--blue)]"
+                          />
+                        </div>
+                      ))}
+                      <div className="flex gap-3 pt-0.5">
+                        <button
+                          onClick={() => saveClarifyAnswers(i)}
+                          className="text-[11px] font-medium text-[var(--blue)] hover:text-[var(--night)]"
+                        >
+                          Save answers
+                        </button>
+                        <button
+                          onClick={() => skipClarify(i)}
+                          className="text-[11px] text-[var(--text3)] hover:text-[var(--text2)]"
+                        >
+                          Skip
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
