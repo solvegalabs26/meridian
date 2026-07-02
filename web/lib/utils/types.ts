@@ -106,13 +106,15 @@ export interface JournalEntry {
   week_of: string | null
   section_a: string | null
   section_b: string | null
-  section_c: Record<string, { prev: number; new: number; reason: string }> | null
-  section_d: { action: string; completed: boolean }[] | null
+  section_c: { obj: string; action: string; status: string }[] | null
+  section_d: { concerns: string; questions: string; key_insight: string } | null
   section_e: string | null
   section_f: string | null
   section_g: string | null
   section_h_rating: number | null
   section_h_notes: string | null
+  completed_actions: { action: string; completed: boolean }[] | null
+  confidence_updates: Record<string, { prev: number; new: number; reason: string }> | null
   is_complete: boolean
   created_at: string
   updated_at: string

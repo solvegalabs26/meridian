@@ -11,18 +11,43 @@ interface Objective {
   confidence_prev: number | null
 }
 
+interface ActionStatusEntry {
+  obj: string
+  action: string
+  status: string
+}
+
+interface JournalNarrative {
+  concerns: string
+  questions: string
+  key_insight: string
+}
+
+interface ConfidenceUpdate {
+  prev: number
+  new: number
+  reason: string
+}
+
+interface CompletedAction {
+  action: string
+  completed: boolean
+}
+
 interface JournalEntry {
   entry_number: number
   week_of: string | null
   section_a: string | null
   section_b: string | null
-  section_c: Record<string, { prev: number; new: number; reason: string }> | null
-  section_d: { action: string; completed: boolean }[] | null
+  section_c: ActionStatusEntry[] | null
+  section_d: JournalNarrative | null
   section_e: string | null
   section_f: string | null
   section_g: string | null
   section_h_rating: number | null
   section_h_notes: string | null
+  completed_actions: CompletedAction[] | null
+  confidence_updates: Record<string, ConfidenceUpdate> | null
   is_complete: boolean
 }
 
@@ -33,11 +58,48 @@ interface Props {
   objectives: Objective[]
 }
 
-function Section({ label, letter, children }: { label: string; letter: string; children: React.ReactNode }) {
+// journal_entries' section_c/section_d/completed_actions/confidence_updates
+// columns are untyped jsonb. Real production rows (weeks 1-3) hold genuine
+// historical content in shapes earlier versions of this page didn't expect
+// — validate the actual shape before trusting it, rather than casting.
+function asActionStatusArray(value: unknown): ActionStatusEntry[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((e): e is ActionStatusEntry =>
+    typeof e === 'object' && e !== null && typeof (e as ActionStatusEntry).action === 'string'
+  )
+}
+
+function asNarrative(value: unknown): JournalNarrative {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { concerns: '', questions: '', key_insight: '' }
+  }
+  const v = value as Partial<JournalNarrative>
+  return {
+    concerns: v.concerns ?? '',
+    questions: v.questions ?? '',
+    key_insight: v.key_insight ?? '',
+  }
+}
+
+function asConfidenceUpdates(value: unknown): Record<string, ConfidenceUpdate> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  return value as Record<string, ConfidenceUpdate>
+}
+
+function asCompletedActions(value: unknown): CompletedAction[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((e): e is CompletedAction =>
+    typeof e === 'object' && e !== null && typeof (e as CompletedAction).action === 'string'
+  )
+}
+
+function Section({ label, letter, children }: { label: string; letter?: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-xl border border-[var(--border)] overflow-hidden">
       <div className="px-5 py-3 bg-[var(--gray-lt)] border-b border-[var(--border)] flex items-center gap-2">
-        <span className="text-[11px] font-mono font-semibold text-[var(--blue)] bg-[#E6F1FB] px-2 py-0.5 rounded">{letter}</span>
+        {letter && (
+          <span className="text-[11px] font-mono font-semibold text-[var(--blue)] bg-[#E6F1FB] px-2 py-0.5 rounded">{letter}</span>
+        )}
         <span className="text-[12px] font-semibold text-[var(--text2)] uppercase tracking-wide">{label}</span>
       </div>
       <div className="p-5">{children}</div>
@@ -86,8 +148,12 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
     await save({}, true)
   }
 
-  const sectionC = (entry.section_c as Record<string, { prev: number; new: number; reason: string }>) ?? {}
-  const sectionD = (entry.section_d as { action: string; completed: boolean }[]) ?? [{ action: '', completed: false }]
+  const sectionCRaw = asActionStatusArray(entry.section_c)
+  const sectionC = sectionCRaw.length > 0 ? sectionCRaw : [{ obj: '', action: '', status: '' }]
+  const narrative = asNarrative(entry.section_d)
+  const confidenceUpdates = asConfidenceUpdates(entry.confidence_updates)
+  const completedActionsRaw = asCompletedActions(entry.completed_actions)
+  const completedActions = completedActionsRaw.length > 0 ? completedActionsRaw : [{ action: '', completed: false }]
 
   return (
     <div className="space-y-4">
@@ -146,12 +212,62 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
         />
       </Section>
 
-      {/* Section C — Confidence updates */}
-      <Section letter="C" label="Confidence updates">
+      {/* Section C — Actions & status by objective */}
+      <Section letter="C" label="Actions & status by objective">
+        <p className="text-[12px] text-[var(--text3)] mb-3">What did you do this week, per objective, and where does it stand?</p>
+        <div className="space-y-2">
+          {sectionC.map((item, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <input type="text" placeholder="OBJ-01"
+                defaultValue={item.obj}
+                disabled={isComplete}
+                className="w-20 flex-shrink-0 px-2 py-1.5 rounded-lg border border-[var(--border)] text-[13px] focus:outline-none focus:border-[var(--blue)] disabled:opacity-60"
+                onBlur={e => {
+                  const updated = sectionC.map((d, idx) => idx === i ? { ...d, obj: e.target.value } : d)
+                  handleBlur('section_c', updated)
+                }}
+              />
+              <input type="text" placeholder="What happened"
+                defaultValue={item.action}
+                disabled={isComplete}
+                className="flex-1 px-3 py-1.5 rounded-lg border border-[var(--border)] text-[13px] focus:outline-none focus:border-[var(--blue)] disabled:opacity-60"
+                onBlur={e => {
+                  const updated = sectionC.map((d, idx) => idx === i ? { ...d, action: e.target.value } : d)
+                  handleBlur('section_c', updated)
+                }}
+              />
+              <input type="text" placeholder="Status"
+                defaultValue={item.status}
+                disabled={isComplete}
+                className="w-32 flex-shrink-0 px-2 py-1.5 rounded-lg border border-[var(--border)] text-[13px] focus:outline-none focus:border-[var(--blue)] disabled:opacity-60"
+                onBlur={e => {
+                  const updated = sectionC.map((d, idx) => idx === i ? { ...d, status: e.target.value } : d)
+                  handleBlur('section_c', updated)
+                }}
+              />
+            </div>
+          ))}
+          {!isComplete && (
+            <button
+              onClick={() => {
+                const updated = [...sectionC, { obj: '', action: '', status: '' }]
+                updateField('section_c', updated)
+              }}
+              className="text-[12px] text-[var(--blue)] hover:text-[var(--night)] transition-colors mt-1"
+            >
+              + Add entry
+            </button>
+          )}
+        </div>
+      </Section>
+
+      {/* Confidence updates — relocated off section_c, which real data confirmed
+          holds the actions/status log above, not this shape. */}
+      <Section label="Confidence updates (your assessment)">
         <p className="text-[12px] text-[var(--text3)] mb-3">Record your manual confidence assessment vs Meridian&apos;s score for each objective.</p>
         <div className="space-y-3">
           {objectives.map(obj => {
-            const update = sectionC[obj.obj_id] ?? { prev: obj.confidence_prev ?? obj.confidence, new: obj.confidence, reason: '' }
+            const update = confidenceUpdates[obj.obj_id] ?? { prev: obj.confidence_prev ?? obj.confidence, new: obj.confidence, reason: '' }
             return (
               <div key={obj.id} className="p-3 rounded-lg border border-[var(--border)] bg-[var(--gray-lt)/30]">
                 <div className="flex items-center justify-between mb-2">
@@ -166,8 +282,8 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
                       disabled={isComplete}
                       className="w-full mt-0.5 px-2 py-1.5 rounded border border-[var(--border)] text-[13px] focus:outline-none focus:border-[var(--blue)] disabled:opacity-60"
                       onBlur={e => {
-                        const updated = { ...sectionC, [obj.obj_id]: { ...update, prev: parseInt(e.target.value) } }
-                        handleBlur('section_c', updated)
+                        const updated = { ...confidenceUpdates, [obj.obj_id]: { ...update, prev: parseInt(e.target.value) } }
+                        handleBlur('confidence_updates', updated)
                       }}
                     />
                   </div>
@@ -178,8 +294,8 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
                       disabled={isComplete}
                       className="w-full mt-0.5 px-2 py-1.5 rounded border border-[var(--border)] text-[13px] focus:outline-none focus:border-[var(--blue)] disabled:opacity-60"
                       onBlur={e => {
-                        const updated = { ...sectionC, [obj.obj_id]: { ...update, new: parseInt(e.target.value) } }
-                        handleBlur('section_c', updated)
+                        const updated = { ...confidenceUpdates, [obj.obj_id]: { ...update, new: parseInt(e.target.value) } }
+                        handleBlur('confidence_updates', updated)
                       }}
                     />
                   </div>
@@ -189,8 +305,8 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
                   disabled={isComplete}
                   className="w-full px-2 py-1.5 rounded border border-[var(--border)] text-[13px] focus:outline-none focus:border-[var(--blue)] disabled:opacity-60"
                   onBlur={e => {
-                    const updated = { ...sectionC, [obj.obj_id]: { ...update, reason: e.target.value } }
-                    handleBlur('section_c', updated)
+                    const updated = { ...confidenceUpdates, [obj.obj_id]: { ...update, reason: e.target.value } }
+                    handleBlur('confidence_updates', updated)
                   }}
                 />
               </div>
@@ -199,19 +315,60 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
         </div>
       </Section>
 
-      {/* Section D — Actions */}
-      <Section letter="D" label="Actions taken this week">
+      {/* Section D — narrative: concerns, open questions, key insight */}
+      <Section letter="D" label="Concerns, questions & key insight">
+        <div className="space-y-3">
+          <div>
+            <label className="text-[11px] text-[var(--text3)] uppercase tracking-wide">Concerns</label>
+            <textarea rows={3}
+              defaultValue={narrative.concerns}
+              onBlur={e => handleBlur('section_d', { ...narrative, concerns: e.target.value })}
+              onChange={e => updateField('section_d', { ...narrative, concerns: e.target.value })}
+              disabled={isComplete}
+              placeholder="What's worrying you about how things are trending?"
+              className="w-full mt-1 px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] resize-none disabled:opacity-60"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-[var(--text3)] uppercase tracking-wide">Open questions</label>
+            <textarea rows={3}
+              defaultValue={narrative.questions}
+              onBlur={e => handleBlur('section_d', { ...narrative, questions: e.target.value })}
+              onChange={e => updateField('section_d', { ...narrative, questions: e.target.value })}
+              disabled={isComplete}
+              placeholder="What don't you know yet that you need to figure out?"
+              className="w-full mt-1 px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] resize-none disabled:opacity-60"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-[var(--text3)] uppercase tracking-wide">Key insight</label>
+            <textarea rows={3}
+              defaultValue={narrative.key_insight}
+              onBlur={e => handleBlur('section_d', { ...narrative, key_insight: e.target.value })}
+              onChange={e => updateField('section_d', { ...narrative, key_insight: e.target.value })}
+              disabled={isComplete}
+              placeholder="What's the single most important thing you learned this week?"
+              className="w-full mt-1 px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] resize-none disabled:opacity-60"
+            />
+          </div>
+        </div>
+      </Section>
+
+      {/* Actions completed this week — relocated off section_d, which real
+          data confirmed holds the narrative fields above, not this shape.
+          Same field ActionsList.tsx's "Log completion" flow now uses. */}
+      <Section label="Actions completed this week">
         <p className="text-[12px] text-[var(--text3)] mb-3">What did you actually do this week based on Meridian Arc&apos;s recommendations?</p>
         <div className="space-y-2">
-          {sectionD.map((item, i) => (
+          {completedActions.map((item, i) => (
             <div key={i} className="flex items-center gap-2">
               <input type="checkbox"
                 defaultChecked={item.completed}
                 disabled={isComplete}
                 className="w-4 h-4 rounded"
                 onChange={e => {
-                  const updated = sectionD.map((d, idx) => idx === i ? { ...d, completed: e.target.checked } : d)
-                  handleBlur('section_d', updated)
+                  const updated = completedActions.map((d, idx) => idx === i ? { ...d, completed: e.target.checked } : d)
+                  handleBlur('completed_actions', updated)
                 }}
               />
               <input type="text" placeholder={`Action ${i + 1}`}
@@ -219,8 +376,8 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
                 disabled={isComplete}
                 className="flex-1 px-3 py-1.5 rounded-lg border border-[var(--border)] text-[13px] focus:outline-none focus:border-[var(--blue)] disabled:opacity-60"
                 onBlur={e => {
-                  const updated = sectionD.map((d, idx) => idx === i ? { ...d, action: e.target.value } : d)
-                  handleBlur('section_d', updated)
+                  const updated = completedActions.map((d, idx) => idx === i ? { ...d, action: e.target.value } : d)
+                  handleBlur('completed_actions', updated)
                 }}
               />
             </div>
@@ -228,8 +385,8 @@ export default function JournalEntryClient({ week, weekOf, initialEntry, objecti
           {!isComplete && (
             <button
               onClick={() => {
-                const updated = [...sectionD, { action: '', completed: false }]
-                updateField('section_d', updated)
+                const updated = [...completedActions, { action: '', completed: false }]
+                updateField('completed_actions', updated)
               }}
               className="text-[12px] text-[var(--blue)] hover:text-[var(--night)] transition-colors mt-1"
             >

@@ -161,7 +161,7 @@ create table public.journal_entries (
   week_of       date,
   section_a     text,
   section_b     text,
-  section_c     jsonb,
+  section_c     jsonb,                          -- {obj, action, status}[] — per-objective actions/status log
   section_d     jsonb,                          -- narrative: concerns / open questions / key insight
   section_e     text,
   section_f     text,
@@ -169,6 +169,7 @@ create table public.journal_entries (
   section_h_rating int,
   section_h_notes text,
   completed_actions jsonb default '[]'::jsonb,   -- {action, completed}[] — recommended actions marked done from an objective's "What to do" tab
+  confidence_updates jsonb default '{}'::jsonb,  -- per-objective manual confidence assessment {prev, new, reason}, keyed by obj_id
   is_complete   boolean default false,
   created_at    timestamptz default now(),
   updated_at    timestamptz default now(),
