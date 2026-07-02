@@ -185,7 +185,7 @@ export default function RulesClient({ objectives, initialRules }: Props) {
               keywords={rule.keywords_high}
               onAdd={kw => addKeyword('keywords_high', kw)}
               onRemove={i => removeKeyword('keywords_high', i)}
-              placeholder="e.g. Alaska Airlines"
+              placeholder="Add a keyword..."
             />
             <KeywordSection
               label="Medium priority — pass if 2+ present"
@@ -193,7 +193,7 @@ export default function RulesClient({ objectives, initialRules }: Props) {
               keywords={rule.keywords_med}
               onAdd={kw => addKeyword('keywords_med', kw)}
               onRemove={i => removeKeyword('keywords_med', i)}
-              placeholder="e.g. pilot hiring"
+              placeholder="Add a keyword..."
             />
             <KeywordSection
               label="Context only — enrich but don't gate"
@@ -201,7 +201,7 @@ export default function RulesClient({ objectives, initialRules }: Props) {
               keywords={rule.keywords_low}
               onAdd={kw => addKeyword('keywords_low', kw)}
               onRemove={i => removeKeyword('keywords_low', i)}
-              placeholder="e.g. aviation news"
+              placeholder="Add a keyword..."
             />
             <KeywordSection
               label="Block — never pass to AI"
@@ -209,7 +209,7 @@ export default function RulesClient({ objectives, initialRules }: Props) {
               keywords={rule.keywords_block}
               onAdd={kw => addKeyword('keywords_block', kw)}
               onRemove={i => removeKeyword('keywords_block', i)}
-              placeholder="e.g. cargo airline"
+              placeholder="Add a keyword..."
             />
           </div>
         </div>
