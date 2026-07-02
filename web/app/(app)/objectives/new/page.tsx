@@ -67,6 +67,10 @@ export default function NewObjectivePage() {
       success_condition: data.success_condition || null,
       target_date:       data.target_date || null,
       notes:             data.notes || null,
+      // No separate freeform-description step on this form — the outcome
+      // field is the closest analog to "what the user typed in their own
+      // words" for the Goal tab.
+      goal_description:  data.outcome,
       status:            'active',
       confidence:        50,
       sort_order:        (count ?? 0) + 1,

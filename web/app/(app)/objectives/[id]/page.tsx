@@ -111,6 +111,8 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
           actions={(latestScoreEntry?.recommended_actions as string[] | null) ?? []}
           objId={obj.obj_id}
           signals={displaySignals}
+          goalDescription={obj.goal_description}
+          goalContext={obj.goal_context}
         />
       </div>
     </div>

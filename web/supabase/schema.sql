@@ -62,6 +62,8 @@ create table public.objectives (
   signal_keywords text[],
   notes         text,
   sort_order    int  default 0,
+  goal_description text,                      -- original freeform description, verbatim as typed at creation
+  goal_context  text,                          -- answers to AI clarifying questions asked at creation (Q&A text)
   created_at    timestamptz default now(),
   updated_at    timestamptz default now()
 );

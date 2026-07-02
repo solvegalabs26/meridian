@@ -91,6 +91,10 @@ export default function OnboardingObjectivePage() {
         category: goal.category,
         outcome: goal.outcome,
         target_date: goal.target_date || undefined,
+        // The shared freeform bio this goal was extracted from — the
+        // closest thing to "what the user originally typed" for a goal
+        // that came out of a multi-goal extraction rather than its own form.
+        goal_description: bio,
       }),
     })
 

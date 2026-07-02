@@ -29,6 +29,8 @@ export interface Objective {
   signal_keywords: string[] | null
   notes: string | null
   sort_order: number
+  goal_description: string | null
+  goal_context: string | null
   created_at: string
   updated_at: string
 }

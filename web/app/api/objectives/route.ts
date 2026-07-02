@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
     success_condition?: string
     target_date?: string
     notes?: string
+    goal_description?: string
   }
 
   const { count } = await supabase
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
       success_condition: body.success_condition ?? null,
       target_date: body.target_date ?? null,
       notes: body.notes ?? null,
+      goal_description: body.goal_description ?? null,
       status: 'active',
       confidence: 50,
       sort_order: (count ?? 0) + 1,

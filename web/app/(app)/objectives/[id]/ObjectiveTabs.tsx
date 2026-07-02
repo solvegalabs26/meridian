@@ -17,6 +17,8 @@ interface ObjectiveTabsProps {
   actions: string[]
   objId: string
   signals: TabSignal[]
+  goalDescription: string | null
+  goalContext: string | null
 }
 
 const DOT_COLORS: Record<Factor['color'], string> = {
@@ -33,9 +35,9 @@ const SOURCE_BADGES: Record<string, { label: string; color: string }> = {
   manual: { label: 'Manual', color: 'var(--ov-text-dim)' },
 }
 
-const TABS = ["What's affecting it", 'What to do', 'Signals'] as const
+const TABS = ["What's affecting it", 'What to do', 'Signals', 'Goal'] as const
 
-export default function ObjectiveTabs({ factors, actions, objId, signals }: ObjectiveTabsProps) {
+export default function ObjectiveTabs({ factors, actions, objId, signals, goalDescription, goalContext }: ObjectiveTabsProps) {
   const [active, setActive] = useState<typeof TABS[number]>(TABS[0])
 
   return (
@@ -109,6 +111,30 @@ export default function ObjectiveTabs({ factors, actions, objId, signals }: Obje
                 )
               })}
             </ul>
+          )
+        )}
+
+        {active === 'Goal' && (
+          goalDescription ? (
+            <div className="space-y-4">
+              <p className="text-[12px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--ov-text-hi)' }}>
+                {goalDescription}
+              </p>
+              {goalContext && (
+                <div className="pt-3" style={{ borderTop: '1px solid var(--ov-border)' }}>
+                  <p className="text-[10px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>
+                    Additional context
+                  </p>
+                  <p className="text-[12px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--ov-text-mid)' }}>
+                    {goalContext}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>
+              No original description saved for this goal — it was likely created before this feature existed.
+            </p>
           )
         )}
       </div>
