@@ -35,13 +35,13 @@ export default function ObjectivesClient({ objectives, error }: Props) {
   return (
     <div className="max-w-4xl">
       <div className="flex items-center justify-between mb-5">
-        <h1 className="text-[22px] font-medium text-[var(--text)]">Objectives</h1>
+        <h1 className="text-[22px] font-medium text-[var(--text)]">Goals</h1>
         <Link
           href="/objectives/new"
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-navy text-white text-[13px] font-medium hover:bg-[var(--night)] transition-colors"
         >
           <Plus size={14} />
-          Add objective
+          Add goal
         </Link>
       </div>
 
@@ -71,7 +71,7 @@ export default function ObjectivesClient({ objectives, error }: Props) {
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-[var(--red-lt)] text-[var(--red)] text-[13px]">
-          Error loading objectives: {error}
+          Error loading goals: {error}
         </div>
       )}
 
@@ -82,23 +82,23 @@ export default function ObjectivesClient({ objectives, error }: Props) {
           </div>
           {tab === 'active' ? (
             <>
-              <h2 className="text-[16px] font-medium text-[var(--text)] mb-2">No active objectives</h2>
-              <p className="text-[13px] text-[var(--text2)] mb-5">Add your first objective to start tracking your progress.</p>
+              <h2 className="text-[16px] font-medium text-[var(--text)] mb-2">No active goals</h2>
+              <p className="text-[13px] text-[var(--text2)] mb-5">Add your first goal to start tracking your progress.</p>
               <Link
                 href="/objectives/new"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-navy text-white text-[13px] font-medium hover:bg-[var(--night)] transition-colors"
               >
                 <Plus size={14} />
-                Add first objective
+                Add first goal
               </Link>
             </>
           ) : (
             <>
               <h2 className="text-[16px] font-medium text-[var(--text)] mb-2">
-                {tab === 'archived' ? 'No archived objectives' : 'No objectives yet'}
+                {tab === 'archived' ? 'No archived goals' : 'No goals yet'}
               </h2>
               <p className="text-[13px] text-[var(--text2)]">
-                {tab === 'archived' ? 'Archived objectives will appear here.' : 'Add your first objective to get started.'}
+                {tab === 'archived' ? 'Archived goals will appear here.' : 'Add your first goal to get started.'}
               </p>
             </>
           )}

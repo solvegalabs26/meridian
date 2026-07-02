@@ -151,7 +151,7 @@ export default function NewObjectivePage() {
           <ArrowLeft size={18} />
         </Link>
         <div>
-          <h1 className="text-[22px] font-medium text-[var(--text)]">New objective</h1>
+          <h1 className="text-[22px] font-medium text-[var(--text)]">New goal</h1>
           <p className="text-[13px] text-[var(--text3)]">Define what you want to achieve</p>
         </div>
       </div>
@@ -190,7 +190,7 @@ export default function NewObjectivePage() {
               disabled={saving}
               className="flex-1 py-2.5 rounded-lg bg-navy text-white text-[14px] font-medium hover:bg-[var(--night)] transition-colors disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Create objective'}
+              {saving ? 'Saving...' : 'Create goal'}
             </button>
           </div>
         </div>
@@ -282,7 +282,7 @@ export default function NewObjectivePage() {
             disabled={saving || assessing}
             className="flex-1 py-2.5 rounded-lg bg-navy text-white text-[14px] font-medium hover:bg-[var(--night)] transition-colors disabled:opacity-50"
           >
-            {assessing ? 'Checking...' : saving ? 'Saving...' : 'Create objective'}
+            {assessing ? 'Checking...' : saving ? 'Saving...' : 'Create goal'}
           </button>
         </div>
       </form>
