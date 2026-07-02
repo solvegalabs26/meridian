@@ -196,3 +196,28 @@ create table public.rules_filter (
 alter table public.rules_filter enable row level security;
 create policy "Users can CRUD own rules filter" on public.rules_filter
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ── invite_codes ───────────────────────────────────────────
+create table public.invite_codes (
+  id uuid primary key default gen_random_uuid(),
+  code text unique not null,
+  cohort text not null check (cohort in ('alpha','beta','veteran','other')),
+  intended_for text,                    -- internal note, e.g. "Braeden - Stackably"
+  account_type_grant text not null,     -- value written to profiles.account_type on redemption
+  pricing_tier_grant text,              -- e.g. 'lifetime_explorer'
+  requires_idme boolean not null default false,
+  status text not null default 'unused' check (status in ('unused','redeemed','revoked','expired')),
+  redeemed_by uuid references auth.users(id),
+  redeemed_at timestamptz,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index on public.invite_codes (code);
+create index on public.invite_codes (status);
+
+alter table public.invite_codes enable row level security;
+
+-- No public select/insert/update/delete policies.
+-- All access goes through the SECURITY DEFINER RPC in Step 2,
+-- or through Jason's service-role admin session.
