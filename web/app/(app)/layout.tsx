@@ -11,6 +11,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login')
 
+  // Defense-in-depth: catch accounts that reach an authenticated app route
+  // without having finished onboarding (e.g. a signup/OAuth path that
+  // doesn't explicitly route into /onboarding). onboarded_at is only ever
+  // set at the end of the onboarding sweep step.
+  const { data: profile } = await supabase.from('profiles').select('onboarded_at').eq('id', user.id).single()
+  if (!profile?.onboarded_at) redirect('/onboarding/welcome')
+
   // Get last sweep time
   const { data: lastSweep } = await supabase
     .from('sweeps')

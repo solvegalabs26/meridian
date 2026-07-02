@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Rate-limit signup attempts — max 3 per IP per hour
-  if (pathname === '/signup' && request.method === 'POST') {
+  if (pathname === '/onboarding' && request.method === 'POST') {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       ?? request.headers.get('x-real-ip')
       ?? 'unknown'
@@ -52,8 +52,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Authenticated users away from auth pages → dashboard
-  if ((pathname === '/login' || pathname === '/signup') && user) {
+  // Authenticated users away from the login page → dashboard
+  if (pathname === '/login' && user) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
