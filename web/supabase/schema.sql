@@ -13,6 +13,7 @@ create table public.profiles (
   depth_pref    text default 'standard',     -- brief | standard | detailed
   trial_ends_at timestamptz,
   stripe_customer_id text,
+  pricing_tier  text,                          -- set by invite-code redemption, e.g. 'lifetime_explorer'
   onboarded_at  timestamptz,
   sweep_count   int default 0,
   created_at    timestamptz default now(),
@@ -219,5 +220,66 @@ create index on public.invite_codes (status);
 alter table public.invite_codes enable row level security;
 
 -- No public select/insert/update/delete policies.
--- All access goes through the SECURITY DEFINER RPC in Step 2,
+-- All access goes through the redeem_invite_code() RPC below,
 -- or through Jason's service-role admin session.
+
+-- Atomic, race-safe redemption — locks the row (`for update`) so two
+-- concurrent redemptions of the same code can't both succeed. Veteran
+-- cohort (requires_idme) codes are parked at account_type =
+-- 'veteran_pending' rather than granted immediately, since ID.me
+-- verification isn't built yet.
+create or replace function public.redeem_invite_code(
+  p_code text,
+  p_user_id uuid
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row invite_codes%rowtype;
+  v_account_type text;
+begin
+  select * into v_row
+  from invite_codes
+  where code = p_code
+  for update;
+
+  if not found then
+    return jsonb_build_object('success', false, 'error', 'invalid_code');
+  end if;
+
+  if v_row.status != 'unused' then
+    return jsonb_build_object('success', false, 'error', 'code_already_used');
+  end if;
+
+  if v_row.expires_at is not null and v_row.expires_at < now() then
+    update invite_codes set status = 'expired' where id = v_row.id;
+    return jsonb_build_object('success', false, 'error', 'code_expired');
+  end if;
+
+  update invite_codes
+  set status = 'redeemed',
+      redeemed_by = p_user_id,
+      redeemed_at = now()
+  where id = v_row.id;
+
+  v_account_type := case when v_row.requires_idme then 'veteran_pending' else v_row.account_type_grant end;
+
+  update profiles
+  set account_type = v_account_type,
+      pricing_tier = v_row.pricing_tier_grant
+  where id = p_user_id;
+
+  return jsonb_build_object(
+    'success', true,
+    'cohort', v_row.cohort,
+    'account_type', v_row.account_type_grant,
+    'pricing_tier', v_row.pricing_tier_grant,
+    'requires_idme', v_row.requires_idme
+  );
+end;
+$$;
+
+revoke all on function public.redeem_invite_code(text, uuid) from public;
+grant execute on function public.redeem_invite_code(text, uuid) to authenticated;
