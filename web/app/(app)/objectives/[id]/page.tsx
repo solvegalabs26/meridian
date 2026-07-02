@@ -33,10 +33,24 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
   const { data: obj } = await supabase.from('objectives').select('*').eq('id', params.id).eq('user_id', user.id).single()
   if (!obj) notFound()
 
-  const [{ data: scores }, { data: signals }] = await Promise.all([
+  const [{ data: scores }, { data: signals }, { data: allObjectives }] = await Promise.all([
     supabase.from('confidence_scores').select('id, score, created_at, sweep_id, recommended_actions').eq('objective_id', obj.id).order('created_at', { ascending: false }).limit(7),
     supabase.from('signals').select('*').contains('objective_ids', [obj.id]).order('created_at', { ascending: false }),
+    supabase.from('objectives').select('id, title').eq('user_id', user.id),
   ])
+
+  // Cross-dependency signals are stored with a title like
+  // "Cross-dependency: OBJ-02 → OBJ-03" (obj_id codes) at sweep time —
+  // resolve to real objective names for display instead.
+  const titleById = new Map((allObjectives ?? []).map(o => [o.id, o.title]))
+  const displaySignals = (signals ?? []).map(sig => {
+    if (sig.signal_type !== 'cross_dep' || (sig.objective_ids ?? []).length < 2) return sig
+    const [fromId, toId] = sig.objective_ids as string[]
+    const fromTitle = titleById.get(fromId)
+    const toTitle = titleById.get(toId)
+    if (!fromTitle || !toTitle) return sig
+    return { ...sig, title: `${fromTitle} → ${toTitle}` }
+  })
 
   const latestScoreEntry = scores?.[0] ?? null
   const sparklineScores = [...(scores ?? [])].reverse() // chronological order
@@ -96,7 +110,7 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
           factors={factors}
           actions={(latestScoreEntry?.recommended_actions as string[] | null) ?? []}
           objId={obj.obj_id}
-          signals={signals ?? []}
+          signals={displaySignals}
         />
       </div>
     </div>
