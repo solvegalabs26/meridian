@@ -205,7 +205,7 @@ export default function NewObjectivePage() {
           <label className="block text-[12px] font-semibold text-[var(--text2)] mb-1.5 uppercase tracking-wide">Title</label>
           <input
             {...register('title')}
-            placeholder="Alaska Airlines First Officer Hire"
+            placeholder="What do you want to achieve?"
             className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors"
           />
           {errors.title && <p className="text-[11px] text-[var(--red)] mt-1">{errors.title.message}</p>}
@@ -230,7 +230,7 @@ export default function NewObjectivePage() {
           <textarea
             {...register('outcome')}
             rows={3}
-            placeholder="I will have received and accepted a Conditional Job Offer from Alaska Airlines..."
+            placeholder="Describe the specific result you're working toward..."
             className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors resize-none"
           />
           {errors.outcome && <p className="text-[11px] text-[var(--red)] mt-1">{errors.outcome.message}</p>}
@@ -244,7 +244,7 @@ export default function NewObjectivePage() {
           <textarea
             {...register('success_condition')}
             rows={2}
-            placeholder="Signed offer letter with confirmed training class date."
+            placeholder="What does done look like?"
             className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors resize-none"
           />
         </div>
