@@ -6,7 +6,7 @@ import {
   Home,
   Newspaper,
   Target,
-  BookOpen,
+  // BookOpen, — Journal icon, pair with the commented-out nav item below
   TrendingUp,
   MessageCircle,
   Settings,
@@ -15,11 +15,12 @@ import {
 import MeridianArcWordmark from '@/components/brand/MeridianArcWordmark'
 
 const navItems = [
-  { href: '/dashboard', label: 'Home', icon: Home },
+  { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/sweep/latest', label: "This week's brief", icon: Newspaper, activeMatch: '/sweep' },
   { href: '/objectives', label: 'Your goals', icon: Target },
   { href: '/predictions', label: 'Predictions', icon: TrendingUp },
-  { href: '/journal', label: 'Journal', icon: BookOpen },
+  // Hidden pending alpha-readiness — route and page still work if visited directly.
+  // { href: '/journal', label: 'Journal', icon: BookOpen },
   { href: '/ask', label: 'Ask Meridian Arc', icon: MessageCircle },
 ]
 

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { Home, Newspaper, Target, MessageCircle } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Home', icon: Home },
+  { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/sweep/latest', label: 'Brief', icon: Newspaper, activeMatch: '/sweep' },
   { href: '/objectives', label: 'Goals', icon: Target },
   { href: '/ask', label: 'Ask', icon: MessageCircle },
