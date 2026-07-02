@@ -63,7 +63,7 @@ export default function OnboardingObjectivePage() {
     })
 
     if (!res.ok) {
-      setExtractError('Could not extract goals — please try rephrasing or add objectives manually.')
+      setExtractError('Could not extract goals — please try rephrasing or add goals manually.')
       setExtracting(false)
       return
     }
@@ -154,7 +154,7 @@ export default function OnboardingObjectivePage() {
     })
 
     if (!res.ok) {
-      setSyncError('Could not save an objective — please try re-checking it.')
+      setSyncError('Could not save a goal — please try re-checking it.')
       return
     }
 
@@ -189,7 +189,7 @@ export default function OnboardingObjectivePage() {
       .eq('id', id)
       .eq('user_id', userId)
 
-    if (error) setSyncError('Could not remove that objective — please try again.')
+    if (error) setSyncError('Could not remove that goal — please try again.')
   }
 
   function toggleSelected(i: number) {
@@ -251,7 +251,7 @@ export default function OnboardingObjectivePage() {
             <p className="text-[11px] text-white/30 mt-3 tracking-widest uppercase">Step 4 of 5</p>
             <h1 className="text-[24px] font-light text-white mt-1">Tell us about yourself</h1>
             <p className="text-[13px] text-white/40 mt-1 max-w-sm mx-auto">
-              Share your life, goals, and what you&apos;re working toward. Meridian will extract your objectives automatically.
+              Share your life, goals, and what you&apos;re working toward. Meridian will extract your goals automatically.
             </p>
           </div>
 
@@ -272,7 +272,7 @@ export default function OnboardingObjectivePage() {
                 className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] resize-none leading-relaxed"
               />
               <p className="text-[11px] text-[var(--text3)] mt-1.5">
-                Be as detailed or brief as you like. Meridian will identify up to 5 objectives from your description.
+                Be as detailed or brief as you like. Meridian will identify up to 5 goals from your description.
               </p>
             </div>
 
@@ -284,10 +284,10 @@ export default function OnboardingObjectivePage() {
               {extracting ? (
                 <>
                   <MeridianBeacon size={16} variant="gold" animate={true} />
-                  Extracting your objectives...
+                  Extracting your goals...
                 </>
               ) : (
-                'Extract my objectives →'
+                'Extract my goals →'
               )}
             </button>
           </div>
@@ -305,7 +305,7 @@ export default function OnboardingObjectivePage() {
         <div className="text-center mb-6">
           <MeridianBeacon size={40} variant="gold" animate={false} />
           <p className="text-[11px] text-white/30 mt-3 tracking-widest uppercase">Step 4 of 5</p>
-          <h1 className="text-[24px] font-light text-white mt-1">Here are your objectives</h1>
+          <h1 className="text-[24px] font-light text-white mt-1">Here are your goals</h1>
           <p className="text-[13px] text-white/40 mt-1">
             Select the ones you want to track. You can edit any of them.
           </p>
@@ -452,7 +452,7 @@ export default function OnboardingObjectivePage() {
             disabled={selectedCount === 0}
             className="w-full py-3 rounded-xl bg-gold text-navy text-[14px] font-semibold hover:bg-gold/90 disabled:opacity-50 transition-colors"
           >
-            {`Add ${selectedCount} objective${selectedCount !== 1 ? 's' : ''} and run first sweep →`}
+            {`Add ${selectedCount} goal${selectedCount !== 1 ? 's' : ''} and run first sweep →`}
           </button>
           <button
             onClick={startOver}
