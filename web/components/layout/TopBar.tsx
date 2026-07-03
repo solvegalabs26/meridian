@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { LogOut, User } from 'lucide-react'
+import { LogOut, User, Menu } from 'lucide-react'
 import { useState } from 'react'
 import SweepButton from '@/components/dashboard/SweepButton'
 
@@ -12,9 +12,10 @@ interface TopBarProps {
   userEmail?: string
   lastSweepAt?: string | null
   nextSweepAt?: string | null
+  onMenuClick?: () => void
 }
 
-export default function TopBar({ title = 'Mission Control', subtitle, userEmail, lastSweepAt, nextSweepAt }: TopBarProps) {
+export default function TopBar({ title = 'Mission Control', subtitle, userEmail, lastSweepAt, nextSweepAt, onMenuClick }: TopBarProps) {
   const router = useRouter()
   const supabase = createClient()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -26,17 +27,28 @@ export default function TopBar({ title = 'Mission Control', subtitle, userEmail,
   }
 
   return (
-    <header className="h-14 border-b border-[var(--border)] bg-white flex items-center justify-between px-6 sticky top-0 z-40">
-      <div>
-        <h1 className="text-[15px] font-medium text-[var(--text)]">{title}</h1>
-        {subtitle && <p className="text-[11px] text-[var(--text3)]">{subtitle}</p>}
+    <header className="min-h-14 border-b border-[var(--border)] bg-white flex items-center justify-between px-4 md:px-6 sticky top-0 z-40 gap-3">
+      <div className="flex items-center gap-3 min-w-0">
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={onMenuClick}
+          className="md:hidden flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-[var(--text2)] hover:bg-[var(--gray-lt)] transition-colors"
+          aria-label="Open menu"
+        >
+          <Menu size={20} />
+        </button>
+
+        <div className="min-w-0">
+          <h1 className="text-[15px] font-medium text-[var(--text)] truncate">{title}</h1>
+          {subtitle && <p className="text-[11px] text-[var(--text3)] truncate">{subtitle}</p>}
+        </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-shrink-0">
         <SweepButton lastSweepAt={lastSweepAt} nextSweepAt={nextSweepAt} />
 
-        {/* User menu */}
-        <div className="relative">
+        {/* User menu — hidden on smallest screens to save space */}
+        <div className="relative hidden sm:block">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="w-8 h-8 rounded-full bg-[var(--code-bg)] border border-[var(--border)] flex items-center justify-center hover:bg-[var(--gray-lt)] transition-colors"

@@ -2,8 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import Sidebar from '@/components/layout/Sidebar'
-import TopBar from '@/components/layout/TopBar'
+import AppShell from '@/components/layout/AppShell'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
@@ -11,10 +10,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login')
 
-  // Defense-in-depth: catch accounts that reach an authenticated app route
-  // without having finished onboarding (e.g. a signup/OAuth path that
-  // doesn't explicitly route into /onboarding). onboarded_at is only ever
-  // set at the end of the onboarding sweep step.
   const { data: profile } = await supabase
     .from('profiles')
     .select('onboarded_at, account_type, last_sweep_at')
@@ -22,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .single()
   if (!profile?.onboarded_at) redirect('/onboarding/welcome')
 
-  // Get last sweep time for display
+  // Last sweep time for display in TopBar
   const { data: lastSweep } = await supabase
     .from('sweeps')
     .select('completed_at')
@@ -42,18 +37,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen bg-[var(--gray-lt)]">
-      <Sidebar />
-      <div className="ml-60">
-        <TopBar
-          userEmail={user.email}
-          lastSweepAt={lastSweep?.completed_at ?? null}
-          nextSweepAt={nextSweepAt}
-        />
-        <main className="p-6">
-          {children}
-        </main>
-      </div>
-    </div>
+    <AppShell
+      userEmail={user.email}
+      lastSweepAt={lastSweep?.completed_at ?? null}
+      nextSweepAt={nextSweepAt}
+    >
+      {children}
+    </AppShell>
   )
 }
