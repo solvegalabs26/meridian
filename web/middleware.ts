@@ -59,6 +59,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Authenticated users landing on /alpha → dashboard (already signed up)
+  if (pathname === '/alpha' && user) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
+  }
+
   // Onboarding routes are public (no auth required)
   return supabaseResponse
 }

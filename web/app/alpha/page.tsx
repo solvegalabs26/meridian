@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import MeridianArcWordmark from '@/components/brand/MeridianArcWordmark'
@@ -10,6 +10,13 @@ import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
 
 type Phase = 'code' | 'account' | 'redeem_error'
+type CodeStatus = 'valid' | 'invalid' | 'already_used' | 'expired'
+
+const CODE_ERRORS: Record<Exclude<CodeStatus, 'valid'>, string> = {
+  invalid: "That code isn't valid. Check your invitation email and try again.",
+  already_used: 'That code has already been used.',
+  expired: 'That code has expired. Please contact support.',
+}
 
 const REDEMPTION_ERRORS: Record<string, string> = {
   invalid_code: "That invite code isn't valid. Double-check it and try again.",
@@ -24,6 +31,11 @@ export default function AlphaEntryPage() {
   const [phase, setPhase] = useState<Phase>('code')
   const [code, setCode] = useState('')
 
+  // Stage 1 state
+  const [codeError, setCodeError] = useState<string | null>(null)
+  const [validating, setValidating] = useState(false)
+
+  // Stage 2 / account creation state
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -34,17 +46,44 @@ export default function AlphaEntryPage() {
   // Honeypot — bots fill hidden fields, humans don't
   const [honeypot, setHoneypot] = useState('')
 
-  function handleCodeSubmit(e: React.FormEvent) {
+  // Redirect already-authenticated users straight to dashboard
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) router.replace('/dashboard')
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stage 1 — lightweight pre-validation before account creation.
+  // Uses a server route (service role) because invite_codes has no
+  // public RLS policies and cannot be read by anon/authenticated clients.
+  async function handleCodeSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!code.trim()) return
-    setPhase('account')
+    const normalized = code.trim().toUpperCase()
+    if (!normalized) return
+
+    setValidating(true)
+    setCodeError(null)
+
+    const res = await fetch('/api/invites/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: normalized }),
+    })
+    const data = await res.json() as { status: CodeStatus }
+    setValidating(false)
+
+    if (data.status === 'valid') {
+      setCode(normalized)
+      setPhase('account')
+    } else {
+      setCodeError(CODE_ERRORS[data.status] ?? CODE_ERRORS.invalid)
+    }
   }
 
-  // Validate the code against an already-authenticated account. Called
-  // right after signup succeeds, and again from the retry form if a code
-  // was wrong — reusing the same (now-authenticated) account rather than
-  // signing up again, so a typo doesn't leave behind multiple orphaned
-  // auth accounts for the same person.
+  // Stage 2b — atomic redemption via SECURITY DEFINER RPC. Called right
+  // after signup succeeds, and again from the retry form if a code was
+  // wrong — reusing the same (now-authenticated) account rather than
+  // signing up again, so a typo doesn't leave behind orphaned auth accounts.
   async function redeemCode() {
     setLoading(true)
     setLoadingLabel('Checking your code...')
@@ -79,6 +118,7 @@ export default function AlphaEntryPage() {
     router.push('/alpha/welcome')
   }
 
+  // Stage 2a — create the auth account, then immediately redeem the code.
   async function handleSignUp(e: React.FormEvent) {
     e.preventDefault()
     if (honeypot) return // silent bot block
@@ -110,11 +150,11 @@ export default function AlphaEntryPage() {
       return
     }
 
-    // Account created and session established — validate the code before
-    // letting them any further into onboarding.
+    // Account created — atomically claim the invite code before proceeding
     await redeemCode()
   }
 
+  // ── Phase 1: Code entry ───────────────────────────────────────
   if (phase === 'code') {
     return (
       <div className="min-h-screen bg-navy flex flex-col items-center justify-center px-4">
@@ -126,7 +166,16 @@ export default function AlphaEntryPage() {
 
           <div className="bg-white rounded-2xl p-6 shadow-xl">
             <p className="text-[11px] text-[var(--text3)] uppercase tracking-widest font-semibold mb-1">Step 1 of 6</p>
-            <h2 className="text-[18px] font-medium text-[var(--text)] mb-5">Enter your invite code</h2>
+            <h2 className="text-[18px] font-medium text-[var(--text)] mb-1">Enter your invite code</h2>
+            <p className="text-[13px] text-[var(--text3)] mb-5">
+              Check your invitation email for your personal alpha access code.
+            </p>
+
+            {codeError && (
+              <div className="mb-4 p-3 rounded-lg bg-[var(--red-lt)] text-[var(--red)] text-[13px]">
+                {codeError}
+              </div>
+            )}
 
             <form onSubmit={handleCodeSubmit} className="space-y-4">
               <div>
@@ -136,20 +185,25 @@ export default function AlphaEntryPage() {
                 <input
                   type="text"
                   value={code}
-                  onChange={e => setCode(e.target.value)}
+                  onChange={e => {
+                    setCode(e.target.value.toUpperCase().trimStart())
+                    setCodeError(null)
+                  }}
                   required
                   autoComplete="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
                   placeholder="ALPHA-XXXXXX"
-                  className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors uppercase"
+                  className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] font-mono tracking-wider focus:outline-none focus:border-[var(--blue)] transition-colors uppercase"
                 />
               </div>
 
               <button
                 type="submit"
-                disabled={!code.trim()}
+                disabled={validating || !code.trim()}
                 className="w-full py-2.5 rounded-lg bg-navy text-white text-[14px] font-medium hover:bg-[var(--night)] disabled:opacity-50 transition-colors"
               >
-                Continue →
+                {validating ? 'Checking...' : 'Continue →'}
               </button>
             </form>
 
@@ -165,7 +219,7 @@ export default function AlphaEntryPage() {
     )
   }
 
-  // ── Phase: account creation, or retrying a rejected code ──────
+  // ── Phase 2: Account creation, or retrying a rejected code ───
   return (
     <div className="min-h-screen bg-navy flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
@@ -202,9 +256,9 @@ export default function AlphaEntryPage() {
                 <input
                   type="text"
                   value={code}
-                  onChange={e => setCode(e.target.value)}
+                  onChange={e => setCode(e.target.value.toUpperCase().trimStart())}
                   autoComplete="off"
-                  className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors uppercase"
+                  className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] font-mono tracking-wider focus:outline-none focus:border-[var(--blue)] transition-colors uppercase"
                 />
               </div>
               <button
