@@ -31,17 +31,12 @@ export async function POST(
     if (!Number.isInteger(credits) || credits <= 0) {
       return NextResponse.json({ error: 'value must be a positive integer' }, { status: 400 })
     }
-    const { error } = await service.rpc('increment_sweep_credits', {
-      user_id: targetUserId,
-      amount: credits,
-    }).throwOnError().then(() => ({ error: null })).catch(e => ({ error: e }))
 
-    if (error) {
-      // Fallback: manual fetch-then-update if RPC doesn't exist yet
-      const { data: profile } = await service.from('profiles').select('sweep_credits').eq('id', targetUserId).single()
-      const current = (profile?.sweep_credits as number) ?? 0
-      await service.from('profiles').update({ sweep_credits: current + credits }).eq('id', targetUserId)
-    }
+    // Fetch current balance then increment — no RPC dependency
+    const { data: profile } = await service.from('profiles').select('sweep_credits').eq('id', targetUserId).single()
+    const current = (profile?.sweep_credits as number) ?? 0
+    const { error: updateError } = await service.from('profiles').update({ sweep_credits: current + credits }).eq('id', targetUserId)
+    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
 
     await service.from('admin_action_log').insert({
       admin_id: admin.id,
