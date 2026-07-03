@@ -1,8 +1,5 @@
-import { notFound } from 'next/navigation'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { requireAdminUser } from '@/lib/admin/requireAdminUser'
+import { createServiceClient } from '@/lib/supabase/server'
 import AdminSweepsClient from './AdminSweepsClient'
-import AdminNav from '@/components/admin/AdminNav'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,12 +9,6 @@ interface AccountRow {
 }
 
 export default async function AdminSweepsPage() {
-  const supabase = createClient()
-  // Route-protect the same way as the API route — 404 for anyone but
-  // Jason, not just a hidden nav link.
-  const admin = await requireAdminUser(supabase)
-  if (!admin) notFound()
-
   const service = createServiceClient()
 
   const [{ data: profiles }, { data: usersData }, { data: jobs }] = await Promise.all([
@@ -55,10 +46,5 @@ export default async function AdminSweepsPage() {
     }
   })
 
-  return (
-    <div>
-      <AdminNav />
-      <AdminSweepsClient accounts={accounts} jobs={jobSummaries} />
-    </div>
-  )
+  return <AdminSweepsClient accounts={accounts} jobs={jobSummaries} />
 }

@@ -1,22 +1,13 @@
-import { notFound } from 'next/navigation'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { requireAdminUser } from '@/lib/admin/requireAdminUser'
-import AdminNav from '@/components/admin/AdminNav'
+import { createServiceClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AdminOverviewPage() {
-  const supabase = createClient()
-  const admin = await requireAdminUser(supabase)
-  if (!admin) notFound()
-
   const service = createServiceClient()
 
   const oneWeekAgo = new Date()
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
   const [
     { count: totalUsers },
@@ -32,7 +23,7 @@ export default async function AdminOverviewPage() {
     service.from('profiles').select('account_type'),
     service.from('sweeps').select('*', { count: 'exact', head: true }).gte('created_at', oneWeekAgo.toISOString()),
     service.from('bulk_sweep_jobs')
-      .select('id, cohort_filter, status, created_at, started_at, completed_at')
+      .select('id, cohort_filter, status, created_at')
       .order('created_at', { ascending: false })
       .limit(5),
   ])
@@ -61,8 +52,6 @@ export default async function AdminOverviewPage() {
 
   return (
     <div>
-      <AdminNav />
-
       <h1 className="text-[22px] font-medium text-[var(--text)] mb-6">Overview</h1>
 
       {/* Stats grid */}

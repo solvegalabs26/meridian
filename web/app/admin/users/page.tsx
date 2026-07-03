@@ -1,7 +1,4 @@
-import { notFound } from 'next/navigation'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { requireAdminUser } from '@/lib/admin/requireAdminUser'
-import AdminNav from '@/components/admin/AdminNav'
+import { createServiceClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
@@ -17,15 +14,9 @@ const ACTYPE_BADGE: Record<string, string> = {
   alpha_personal: 'bg-emerald-100 text-emerald-700',
   alpha_business: 'bg-emerald-100 text-emerald-700',
   beta:           'bg-teal-100 text-teal-700',
-  personal:       '',
-  business:       '',
 }
 
 export default async function AdminUsersPage() {
-  const supabase = createClient()
-  const admin = await requireAdminUser(supabase)
-  if (!admin) notFound()
-
   const service = createServiceClient()
 
   const [{ data: profiles }, { data: usersData }] = await Promise.all([
@@ -48,7 +39,6 @@ export default async function AdminUsersPage() {
     sweepCredits: (p.sweep_credits as number) ?? 0,
     isBeta: p.is_beta as boolean,
     createdAt: p.created_at as string,
-    trialEndsAt: p.trial_ends_at as string | null,
   }))
 
   const tierLabels: Record<string, string> = {
@@ -57,8 +47,6 @@ export default async function AdminUsersPage() {
 
   return (
     <div>
-      <AdminNav />
-
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-[22px] font-medium text-[var(--text)]">Users</h1>
         <span className="text-[13px] text-[var(--text3)]">{users.length} total</span>

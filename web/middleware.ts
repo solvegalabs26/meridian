@@ -52,13 +52,33 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Tier enforcement for authenticated users on protected app routes
+  // Tier enforcement for authenticated users on protected app routes.
+  // Uses a direct service-key REST fetch rather than supabase.from() because
+  // the SSR client in middleware may use a stale access token (pre-refresh)
+  // for PostgREST queries, causing silent RLS failures even when getUser()
+  // succeeds. The service key bypasses RLS entirely and is safe here since
+  // we already confirmed the user's identity via getUser() above.
   if (user && isProtected) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('tier, account_type, trial_ends_at')
-      .eq('id', user.id)
-      .single()
+    let profile: { tier: string | null; account_type: string | null; trial_ends_at: string | null } | null = null
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=tier,account_type,trial_ends_at`,
+        {
+          headers: {
+            'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
+          },
+          cache: 'no-store',
+        }
+      )
+      if (res.ok) {
+        const rows = await res.json() as Array<{ tier: string | null; account_type: string | null; trial_ends_at: string | null }>
+        profile = rows[0] ?? null
+      }
+    } catch {
+      // If the fetch fails, fall through without redirecting — better to let
+      // the page render (and potentially fail auth there) than to hard-block.
+    }
 
     const tier = (profile?.tier ?? 'trial') as string
     const accountType = (profile?.account_type ?? 'personal') as string
