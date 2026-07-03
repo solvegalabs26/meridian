@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { LogOut, User, Menu } from 'lucide-react'
 import { useState } from 'react'
 import SweepButton from '@/components/dashboard/SweepButton'
+import HelpMenu from '@/components/tutorial/HelpMenu'
 
 interface TopBarProps {
   title?: string
@@ -13,9 +14,20 @@ interface TopBarProps {
   lastSweepAt?: string | null
   nextSweepAt?: string | null
   onMenuClick?: () => void
+  onOpenTutorial?: () => void
+  onOpenKeyTerms?: () => void
 }
 
-export default function TopBar({ title = 'Mission Control', subtitle, userEmail, lastSweepAt, nextSweepAt, onMenuClick }: TopBarProps) {
+export default function TopBar({
+  title = 'Mission Control',
+  subtitle,
+  userEmail,
+  lastSweepAt,
+  nextSweepAt,
+  onMenuClick,
+  onOpenTutorial,
+  onOpenKeyTerms,
+}: TopBarProps) {
   const router = useRouter()
   const supabase = createClient()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -44,8 +56,13 @@ export default function TopBar({ title = 'Mission Control', subtitle, userEmail,
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
         <SweepButton lastSweepAt={lastSweepAt} nextSweepAt={nextSweepAt} />
+
+        {/* Help & Tour */}
+        {onOpenTutorial && onOpenKeyTerms && (
+          <HelpMenu onOpenTutorial={onOpenTutorial} onOpenKeyTerms={onOpenKeyTerms} />
+        )}
 
         {/* User menu — hidden on smallest screens to save space */}
         <div className="relative hidden sm:block">
