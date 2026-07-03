@@ -88,7 +88,7 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
 
   return (
     <div className="max-w-4xl">
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-start justify-between gap-3 mb-5">
         <div>
           <h1 className="text-[22px] font-medium text-[var(--text)]">Prediction Log</h1>
           <p className="text-[13px] text-[var(--text3)] mt-0.5">
@@ -97,7 +97,7 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-navy text-white text-[13px] font-medium hover:bg-[var(--night)] transition-colors"
+          className="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg bg-navy text-white text-[13px] font-medium hover:bg-[var(--night)] transition-colors"
         >
           <Plus size={14} /> New prediction
         </button>
@@ -124,7 +124,7 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
                 placeholder="By [date], [specific outcome] will happen..."
                 className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] focus:outline-none focus:border-[var(--blue)] resize-none" />
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-1">Confidence: {confidence}%</label>
                 <input type="range" min={10} max={95} value={confidence} onChange={e => setConfidence(parseInt(e.target.value))} className="w-full" />
@@ -132,12 +132,12 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
               <div>
                 <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-1">Horizon date *</label>
                 <input type="date" value={horizonDate} onChange={e => setHorizonDate(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-[13px] bg-white focus:outline-none focus:border-[var(--blue)]" />
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-[16px] bg-white focus:outline-none focus:border-[var(--blue)]" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-1">Objective</label>
                 <select value={objectiveId} onChange={e => setObjectiveId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-[13px] bg-white focus:outline-none focus:border-[var(--blue)]">
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-[16px] bg-white focus:outline-none focus:border-[var(--blue)]">
                   <option value="">— None —</option>
                   {objectives.map(o => <option key={o.id} value={o.id}>{o.obj_id}</option>)}
                 </select>
@@ -164,8 +164,8 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
           <p className="text-[13px] text-[var(--text3)]">Make a prediction about one of your objectives to start tracking accuracy.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-[var(--border)] overflow-hidden">
-          <table className="w-full text-[13px]">
+        <div className="bg-white rounded-2xl border border-[var(--border)] overflow-x-auto">
+          <table className="w-full text-[13px] min-w-[520px]">
             <thead>
               <tr className="border-b border-[var(--border)] bg-[var(--gray-lt)]">
                 <th className="text-left px-4 py-3 text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider">ID</th>

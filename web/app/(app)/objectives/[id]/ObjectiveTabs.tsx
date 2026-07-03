@@ -42,12 +42,12 @@ export default function ObjectiveTabs({ factors, actions, objId, signals, goalDe
 
   return (
     <div>
-      <div className="flex gap-1 mb-4" style={{ borderBottom: '1px solid var(--ov-border)' }}>
+      <div className="flex gap-1 mb-4 overflow-x-auto" style={{ borderBottom: '1px solid var(--ov-border)' }}>
         {TABS.map(tab => (
           <button
             key={tab}
             onClick={() => setActive(tab)}
-            className="text-[12px] font-medium px-3 py-2.5 -mb-px"
+            className="text-[12px] font-medium px-3 py-2.5 -mb-px whitespace-nowrap flex-shrink-0"
             style={{
               color: active === tab ? 'var(--gold)' : 'var(--ov-text-dim)',
               borderBottom: active === tab ? '2px solid var(--gold)' : '2px solid transparent',

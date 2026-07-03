@@ -6,11 +6,11 @@ import {
   Home,
   Newspaper,
   Target,
-  // BookOpen, — Journal icon, pair with the commented-out nav item below
   TrendingUp,
   MessageCircle,
   Settings,
   ChevronRight,
+  X,
 } from 'lucide-react'
 import MeridianArcWordmark from '@/components/brand/MeridianArcWordmark'
 
@@ -19,19 +19,38 @@ const navItems = [
   { href: '/sweep/latest', label: "This week's brief", icon: Newspaper, activeMatch: '/sweep' },
   { href: '/objectives', label: 'Your goals', icon: Target },
   { href: '/predictions', label: 'Predictions', icon: TrendingUp },
-  // Hidden pending alpha-readiness — route and page still work if visited directly.
-  // { href: '/journal', label: 'Journal', icon: BookOpen },
   { href: '/ask', label: 'Ask Meridian Arc', icon: MessageCircle },
 ]
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean
+  onClose?: () => void
+}
+
+export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname()
 
   return (
-    <aside className="fixed top-0 left-0 w-60 h-screen bg-navy overflow-y-auto z-50 flex flex-col">
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-white/8">
+    <aside
+      className={[
+        'fixed top-0 left-0 w-60 h-screen bg-navy overflow-y-auto z-50 flex flex-col',
+        'transition-transform duration-200 ease-in-out',
+        // Mobile: hidden by default, slides in when open
+        isOpen ? 'translate-x-0' : '-translate-x-full',
+        // Desktop: always visible, override the mobile hidden state
+        'md:translate-x-0',
+      ].join(' ')}
+    >
+      {/* Logo + mobile close button */}
+      <div className="px-5 py-5 border-b border-white/8 flex items-center justify-between">
         <MeridianArcWordmark size="sm" animate={true} />
+        <button
+          onClick={onClose}
+          className="md:hidden text-white/40 hover:text-white transition-colors p-1 -mr-1"
+          aria-label="Close menu"
+        >
+          <X size={18} />
+        </button>
       </div>
 
       {/* Nav */}
@@ -46,6 +65,7 @@ export default function Sidebar() {
             <Link
               key={href}
               href={href}
+              onClick={onClose}
               className={`flex items-center gap-3 px-5 py-2.5 text-[12.5px] transition-all border-l-2 ${
                 active
                   ? 'text-white border-l-gold bg-white/4'
@@ -71,6 +91,7 @@ export default function Sidebar() {
       <div className="border-t border-white/8 p-3">
         <Link
           href="/settings"
+          onClick={onClose}
           className={`flex items-center gap-3 px-3 py-2.5 text-[12.5px] rounded-lg transition-all ${
             pathname === '/settings'
               ? 'text-white bg-white/8'

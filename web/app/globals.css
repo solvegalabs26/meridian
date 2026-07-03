@@ -49,6 +49,14 @@
   * {
     box-sizing: border-box;
   }
+
+  /* iOS Safari auto-zooms on inputs smaller than 16px — floor all inputs/selects
+     to 16px on mobile so the viewport stays locked during focus. */
+  @media (max-width: 767px) {
+    input, textarea, select {
+      font-size: 16px;
+    }
+  }
 }
 
 @layer utilities {

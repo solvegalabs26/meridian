@@ -125,7 +125,7 @@ export default function SettingsClient({ email, profile }: Props) {
               <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-2">
                 Tone preference — how Meridian Arc speaks to you
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {[
                   { value: 'direct', label: 'Direct', desc: 'Blunt, no sugar-coating' },
                   { value: 'balanced', label: 'Balanced', desc: 'Clear and professional' },
@@ -154,7 +154,7 @@ export default function SettingsClient({ email, profile }: Props) {
               <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-2">
                 Depth preference — how detailed Meridian Arc&apos;s analysis is
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 {[
                   { value: 'brief', label: 'Brief', desc: 'Key points only' },
                   { value: 'standard', label: 'Standard', desc: 'Balanced detail' },
@@ -249,7 +249,7 @@ export default function SettingsClient({ email, profile }: Props) {
               {/* Credit bundles */}
               <div className="mt-5 pt-4 border-t border-[var(--border)]">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text3)] mb-3">Add sweep credits</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {SWEEP_CREDIT_BUNDLES.map(b => (
                     <div
                       key={b.credits}
