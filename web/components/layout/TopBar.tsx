@@ -11,9 +11,10 @@ interface TopBarProps {
   subtitle?: string
   userEmail?: string
   lastSweepAt?: string | null
+  nextSweepAt?: string | null
 }
 
-export default function TopBar({ title = 'Mission Control', subtitle, userEmail, lastSweepAt }: TopBarProps) {
+export default function TopBar({ title = 'Mission Control', subtitle, userEmail, lastSweepAt, nextSweepAt }: TopBarProps) {
   const router = useRouter()
   const supabase = createClient()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -32,7 +33,7 @@ export default function TopBar({ title = 'Mission Control', subtitle, userEmail,
       </div>
 
       <div className="flex items-center gap-3">
-        <SweepButton lastSweepAt={lastSweepAt} />
+        <SweepButton lastSweepAt={lastSweepAt} nextSweepAt={nextSweepAt} />
 
         {/* User menu */}
         <div className="relative">
