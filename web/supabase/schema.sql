@@ -16,6 +16,7 @@ create table public.profiles (
   pricing_tier  text,                          -- set by invite-code redemption, e.g. 'lifetime_explorer'
   onboarded_at  timestamptz,
   sweep_count   int default 0,
+  tutorial_views_count integer not null default 0,  -- auto-opens tutorial while < 2; never decremented
   created_at    timestamptz default now(),
   updated_at    timestamptz default now()
 );
@@ -283,3 +284,17 @@ $$;
 
 revoke all on function public.redeem_invite_code(text, uuid) from public;
 grant execute on function public.redeem_invite_code(text, uuid) to authenticated;
+
+-- ── tutorial_views increment (self-limiting, race-safe) ────
+create or replace function public.increment_tutorial_views(uid uuid)
+returns void
+language sql
+security invoker
+as $$
+  update public.profiles
+  set tutorial_views_count = tutorial_views_count + 1
+  where id = uid
+    and tutorial_views_count < 2;
+$$;
+
+grant execute on function public.increment_tutorial_views(uuid) to authenticated;

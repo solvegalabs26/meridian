@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('onboarded_at, account_type, last_sweep_at')
+    .select('onboarded_at, account_type, last_sweep_at, tutorial_views_count')
     .eq('id', user.id)
     .single()
   if (!profile?.onboarded_at) redirect('/onboarding/welcome')
@@ -41,6 +41,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       userEmail={user.email}
       lastSweepAt={lastSweep?.completed_at ?? null}
       nextSweepAt={nextSweepAt}
+      tutorialViewsCount={profile?.tutorial_views_count ?? 0}
     >
       {children}
     </AppShell>
