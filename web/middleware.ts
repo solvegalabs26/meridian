@@ -52,6 +52,38 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Tier enforcement for authenticated users on protected app routes
+  if (user && isProtected) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('tier, account_type, trial_ends_at')
+      .eq('id', user.id)
+      .single()
+
+    const tier = (profile?.tier ?? 'trial') as string
+    const accountType = (profile?.account_type ?? 'personal') as string
+    const isAlphaBeta = ['alpha_personal', 'alpha_business', 'beta'].includes(accountType)
+
+    // Trial expiry — redirect to plan selection (alpha/beta bypass)
+    if (!isAlphaBeta && tier === 'trial' && profile?.trial_ends_at) {
+      if (new Date(profile.trial_ends_at) < new Date()) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/onboarding/plan'
+        url.searchParams.set('expired', 'true')
+        return NextResponse.redirect(url)
+      }
+    }
+
+    // Tier-gated routes — require explorer or higher (alpha/beta bypass)
+    const tierGatedRoutes = ['/journal', '/predictions']
+    if (!isAlphaBeta && tier === 'trial' && tierGatedRoutes.some(r => pathname.startsWith(r))) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/onboarding/plan'
+      url.searchParams.set('upgrade', 'true')
+      return NextResponse.redirect(url)
+    }
+  }
+
   // Authenticated users away from the login page → dashboard
   if (pathname === '/login' && user) {
     const url = request.nextUrl.clone()

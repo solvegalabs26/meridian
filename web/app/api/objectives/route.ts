@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getMaxObjectives } from '@/lib/subscription/tiers'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,14 +32,24 @@ export async function POST(request: NextRequest) {
     target_date?: string
     notes?: string
     goal_description?: string
+    goal_context?: string | null
   }
 
-  const { count } = await supabase
-    .from('objectives')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
+  const [{ data: profile }, { count }] = await Promise.all([
+    supabase.from('profiles').select('tier, account_type').eq('id', user.id).single(),
+    supabase.from('objectives').select('*', { count: 'exact', head: true }).eq('user_id', user.id),
+  ])
 
-  const obj_id = `OBJ-${String((count ?? 0) + 1).padStart(2, '0')}`
+  const tier = (profile?.tier ?? 'trial') as Parameters<typeof getMaxObjectives>[0]
+  const accountType = (profile?.account_type ?? 'personal') as string
+  const max = getMaxObjectives(tier, accountType)
+  const currentCount = count ?? 0
+
+  if (max !== null && currentCount >= max) {
+    return NextResponse.json({ error: 'objective_limit_reached', max }, { status: 403 })
+  }
+
+  const obj_id = `OBJ-${String(currentCount + 1).padStart(2, '0')}`
 
   const { data, error } = await supabase
     .from('objectives')
@@ -52,9 +63,10 @@ export async function POST(request: NextRequest) {
       target_date: body.target_date ?? null,
       notes: body.notes ?? null,
       goal_description: body.goal_description ?? null,
+      goal_context: body.goal_context ?? null,
       status: 'active',
       confidence: 50,
-      sort_order: (count ?? 0) + 1,
+      sort_order: currentCount + 1,
     })
     .select()
     .single()
