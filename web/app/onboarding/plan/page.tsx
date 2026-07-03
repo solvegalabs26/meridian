@@ -236,8 +236,8 @@ function PlanPageInner() {
         {/* Enterprise */}
         <p className="text-center text-[12px] text-white/35 mt-6">
           For teams —{' '}
-          <a href="mailto:jason@solvega.ai" className="text-white/55 hover:text-white underline transition-colors">
-            contact us at jason@solvega.ai
+          <a href="mailto:connect@solvega.ai" className="text-white/55 hover:text-white underline transition-colors">
+            contact us at connect@solvega.ai
           </a>
         </p>
 

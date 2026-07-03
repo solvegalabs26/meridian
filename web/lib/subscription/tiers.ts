@@ -24,20 +24,20 @@ export const TIERS = {
     price_monthly: 49,
     price_annual: 490,
     max_objectives: 15,
-    sweep_cadence: 'daily',
+    sweep_cadence: 'five_weekly',
     max_predictions: null, // unlimited
     history_days: 365,
-    features: ['All Explorer features', 'Daily sweep', 'Cross-dependency detection', 'Push + SMS'],
+    features: ['All Explorer features', 'Five weekly sweeps', 'Cross-dependency detection', 'Push + SMS'],
   },
   command: {
     label: 'Command',
     price_monthly: 99,
     price_annual: 990,
     max_objectives: null, // unlimited
-    sweep_cadence: 'hourly',
+    sweep_cadence: 'two_daily',
     max_predictions: null,
     history_days: null, // unlimited
-    features: ['All Accelerator features', 'Hourly sweep', 'API access', 'Custom sources', 'White-glove onboarding'],
+    features: ['All Accelerator features', 'Two daily sweeps', 'API access', 'Custom sources', 'White-glove onboarding'],
   },
 } as const
 
