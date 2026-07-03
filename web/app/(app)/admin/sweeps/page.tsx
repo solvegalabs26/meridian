@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { requireAdminUser } from '@/lib/admin/requireAdminUser'
 import AdminSweepsClient from './AdminSweepsClient'
+import AdminNav from '@/components/admin/AdminNav'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,5 +55,10 @@ export default async function AdminSweepsPage() {
     }
   })
 
-  return <AdminSweepsClient accounts={accounts} jobs={jobSummaries} />
+  return (
+    <div>
+      <AdminNav />
+      <AdminSweepsClient accounts={accounts} jobs={jobSummaries} />
+    </div>
+  )
 }

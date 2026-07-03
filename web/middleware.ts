@@ -44,7 +44,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Unauthenticated → redirect to login for protected routes
-  const protectedPrefixes = ['/dashboard', '/objectives', '/signals', '/journal', '/predictions', '/rules', '/settings']
+  const protectedPrefixes = ['/dashboard', '/objectives', '/signals', '/journal', '/predictions', '/rules', '/settings', '/admin']
   const isProtected = protectedPrefixes.some(p => pathname.startsWith(p))
   if (isProtected && !user) {
     const url = request.nextUrl.clone()
