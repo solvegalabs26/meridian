@@ -284,3 +284,17 @@ $$;
 
 revoke all on function public.redeem_invite_code(text, uuid) from public;
 grant execute on function public.redeem_invite_code(text, uuid) to authenticated;
+
+-- ── tutorial_views increment (self-limiting, race-safe) ────
+create or replace function public.increment_tutorial_views(uid uuid)
+returns void
+language sql
+security invoker
+as $$
+  update public.profiles
+  set tutorial_views_count = tutorial_views_count + 1
+  where id = uid
+    and tutorial_views_count < 2;
+$$;
+
+grant execute on function public.increment_tutorial_views(uuid) to authenticated;
