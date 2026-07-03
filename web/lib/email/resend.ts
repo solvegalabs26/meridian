@@ -136,7 +136,7 @@ export async function sendSweepReportEmail({
         <ul style="font-size: 13px; color: #4A5568; padding-left: 18px; margin: 0 0 24px;">${actionsHtml}</ul>
       ` : ''}
       <p style="font-size: 13px; color: #4A5568; margin: 0 0 20px;">
-        Log in and fill out Sections B and D of your Alpha Journal based on this week's sweep.
+        Log in and fill out Sections A through D of your Alpha Journal based on this week's sweep.
       </p>
       <a href="${APP_URL}/dashboard" style="display: inline-block; background: #0B1829; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 500;">
         Open Meridian Arc →
