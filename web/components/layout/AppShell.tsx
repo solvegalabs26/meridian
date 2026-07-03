@@ -82,10 +82,7 @@ export default function AppShell({
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
         startPage={1}
-        onOpenKeyTerms={() => {
-          setTutorialOpen(false)
-          setKeyTermsOpen(true)
-        }}
+        onOpenKeyTerms={() => setKeyTermsOpen(true)}
       />
 
       <KeyTermsModal
