@@ -16,6 +16,7 @@ create table public.profiles (
   pricing_tier  text,                          -- set by invite-code redemption, e.g. 'lifetime_explorer'
   onboarded_at  timestamptz,
   sweep_count   int default 0,
+  tutorial_views_count integer not null default 0,  -- auto-opens tutorial while < 2; never decremented
   created_at    timestamptz default now(),
   updated_at    timestamptz default now()
 );
