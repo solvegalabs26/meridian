@@ -10,6 +10,8 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { getCategoriesForAccount } from '@/lib/utils/categories'
 
+type ApiError = { error: string; max?: number }
+
 const schema = z.object({
   title:             z.string().min(3, 'Title must be at least 3 characters'),
   category:          z.string().min(1),
@@ -84,38 +86,28 @@ export default function NewObjectivePage() {
     setSaving(true)
     setError(null)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
-
-    const { count } = await supabase
-      .from('objectives')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-
-    const objNum = String((count ?? 0) + 1).padStart(2, '0')
-    const obj_id = `OBJ-${objNum}`
-
-    const { error: insertError } = await supabase.from('objectives').insert({
-      user_id: user.id,
-      obj_id,
-      title:             data.title,
-      category:          data.category,
-      outcome:           data.outcome,
-      success_condition: data.success_condition || null,
-      target_date:       data.target_date || null,
-      notes:             data.notes || null,
-      // No separate freeform-description step on this form — the outcome
-      // field is the closest analog to "what the user typed in their own
-      // words" for the Goal tab.
-      goal_description:  data.outcome,
-      goal_context:       goalContext,
-      status:            'active',
-      confidence:        50,
-      sort_order:        (count ?? 0) + 1,
+    const res = await fetch('/api/objectives', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title:             data.title,
+        category:          data.category,
+        outcome:           data.outcome,
+        success_condition: data.success_condition || null,
+        target_date:       data.target_date || null,
+        notes:             data.notes || null,
+        goal_description:  data.outcome,
+        goal_context:      goalContext,
+      }),
     })
 
-    if (insertError) {
-      setError(insertError.message)
+    if (!res.ok) {
+      const d = await res.json() as ApiError
+      if (d.error === 'objective_limit_reached') {
+        setError(`limit:${d.max ?? 0}`)
+      } else {
+        setError(d.error ?? 'Something went wrong')
+      }
       setSaving(false)
       return
     }
@@ -156,9 +148,24 @@ export default function NewObjectivePage() {
         </div>
       </div>
 
+      {error?.startsWith('limit:') && (
+        <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-[13px]">
+          <p className="font-medium text-amber-900 mb-1">
+            You&apos;ve reached your {error.split(':')[1]}-goal limit.
+          </p>
+          <p className="text-amber-700 mb-3">Upgrade your plan to track more goals.</p>
+          <Link
+            href="/onboarding/plan?upgrade=true"
+            className="inline-block px-4 py-2 rounded-lg bg-amber-600 text-white text-[12px] font-medium hover:bg-amber-700 transition-colors"
+          >
+            Upgrade plan →
+          </Link>
+        </div>
+      )}
+
       {clarifyQuestions ? (
         <div className="bg-white rounded-2xl border border-[var(--border)] p-6 space-y-4">
-          {error && (
+          {error && !error.startsWith('limit:') && (
             <div className="p-3 rounded-lg bg-[var(--red-lt)] text-[var(--red)] text-[13px]">{error}</div>
           )}
           <div>
@@ -196,7 +203,7 @@ export default function NewObjectivePage() {
         </div>
       ) : (
       <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-2xl border border-[var(--border)] p-6 space-y-5">
-        {error && (
+        {error && !error.startsWith('limit:') && (
           <div className="p-3 rounded-lg bg-[var(--red-lt)] text-[var(--red)] text-[13px]">{error}</div>
         )}
 
