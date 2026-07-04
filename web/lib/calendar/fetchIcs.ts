@@ -12,6 +12,7 @@
 import { lookup as dnsLookup } from 'node:dns/promises'
 import https from 'node:https'
 import { isIPv4 } from 'node:net'
+import zlib from 'node:zlib'
 
 // ─── Error ──────────────────────────────────────────────────────────────────
 
@@ -163,8 +164,9 @@ async function resolveAndPin(
     assertIpAllowed(address)
   }
 
-  const { address, family } = addresses[0]
-  return { ip: address, family: family as 4 | 6 }
+  // Prefer IPv4 — some Lambda/container environments lack outbound IPv6.
+  const preferred = addresses.find(a => a.family === 4) ?? addresses[0]
+  return { ip: preferred.address, family: preferred.family as 4 | 6 }
 }
 
 // ─── Pinning HTTPS fetcher ────────────────────────────────────────────────────
@@ -175,18 +177,39 @@ interface RawResponse {
   body: Buffer | null
 }
 
-function httpsGetRaw(
+function decompress(buf: Buffer, encoding: string | undefined): Promise<Buffer> {
+  const enc = (encoding ?? '').toLowerCase()
+  if (enc === 'gzip' || enc === 'x-gzip') {
+    return new Promise((res, rej) =>
+      zlib.gunzip(buf, (err, out) => err ? rej(new IcsFetchError(SAFE_MSG)) : res(out))
+    )
+  }
+  if (enc === 'deflate') {
+    return new Promise((res, rej) =>
+      zlib.inflate(buf, (err, out) => {
+        if (!err) { res(out); return }
+        // Some servers send raw deflate without the zlib wrapper — try inflateRaw
+        zlib.inflateRaw(buf, (err2, out2) => err2 ? rej(new IcsFetchError(SAFE_MSG)) : res(out2))
+      })
+    )
+  }
+  if (enc === 'br') {
+    return new Promise((res, rej) =>
+      zlib.brotliDecompress(buf, (err, out) => err ? rej(new IcsFetchError(SAFE_MSG)) : res(out))
+    )
+  }
+  return Promise.resolve(buf)
+}
+
+async function httpsGetRaw(
   url: URL,
   pinnedIp: string,
   family: 4 | 6,
   timeoutMs: number
 ): Promise<RawResponse> {
-  return new Promise((resolve, reject) => {
-    // The agent's lookup always returns the pre-validated pinned IP regardless
-    // of what hostname the transport layer asks about — this closes the DNS
-    // rebinding window. Node ≥17 changed the lookup callback from the three-arg
-    // form (err, address, family) to an array form (err, [{address, family}]).
-    // Using the array form works on all supported Node versions.
+  const raw = await new Promise<RawResponse>((resolve, reject) => {
+    // Node ≥17 changed the Agent lookup callback to the array form
+    // (err, [{address, family}]); the three-arg form silently breaks.
     const agent = new https.Agent({
       lookup: (_hostname, _opts, cb) => cb(null, [{ address: pinnedIp, family }]),
     })
@@ -195,22 +218,32 @@ function httpsGetRaw(
 
     const req = https.request(
       {
-        hostname: url.hostname, // used for Host header + TLS SNI
+        hostname: url.hostname,
         port: 443,
         path,
         method: 'GET',
         headers: {
           'Host': url.hostname,
           'User-Agent': 'MeridianArc/1.0 (calendar-sync)',
+          // Explicitly request uncompressed — belt-and-suspenders so we never
+          // receive a compressed body we haven't asked for. We still decompress
+          // below in case an upstream proxy ignores this header.
+          'Accept-Encoding': 'identity',
         },
         agent,
-        servername: url.hostname, // explicit TLS SNI for clarity
+        servername: url.hostname,
       },
       (res) => {
         const statusCode = res.statusCode ?? 0
         const headers = res.headers as Record<string, string | string[] | undefined>
 
-        // Don't buffer 3xx bodies — just return headers for redirect handling
+        // Diagnostic — visible in Vercel function logs, never sent to client
+        const ce = headers['content-encoding']
+        const ct = headers['content-type']
+        console.log(
+          `[meridian:ics] ${statusCode} ${url.hostname} ct=${ct ?? '-'} ce=${ce ?? '-'} ip=${pinnedIp}`
+        )
+
         if (statusCode >= 300 && statusCode < 400) {
           res.destroy()
           resolve({ statusCode, headers, body: null })
@@ -219,7 +252,7 @@ function httpsGetRaw(
 
         const chunks: Buffer[] = []
         let totalBytes = 0
-        const MAX_BYTES = 2 * 1024 * 1024 // 2 MB
+        const MAX_BYTES = 2 * 1024 * 1024
 
         res.on('data', (chunk: Buffer) => {
           totalBytes += chunk.length
@@ -231,7 +264,12 @@ function httpsGetRaw(
           }
         })
 
-        res.on('end', () => resolve({ statusCode, headers, body: Buffer.concat(chunks) }))
+        res.on('end', () => {
+          const body = Buffer.concat(chunks)
+          // Log first 4 bytes so we can identify gzip (1f8b), HTML (3c68), or ICS (4245=BE)
+          console.log(`[meridian:ics] body ${body.length}B first4=${body.slice(0, 4).toString('hex')}`)
+          resolve({ statusCode, headers, body })
+        })
         res.on('error', () => reject(new IcsFetchError(SAFE_MSG)))
       }
     )
@@ -244,6 +282,18 @@ function httpsGetRaw(
     req.on('error', () => reject(new IcsFetchError(SAFE_MSG)))
     req.end()
   })
+
+  // Decompress if needed (handles any proxy that ignores Accept-Encoding: identity)
+  if (raw.body) {
+    const enc = raw.headers['content-encoding']
+    const encStr = Array.isArray(enc) ? enc[0] : enc
+    if (encStr && encStr.toLowerCase() !== 'identity') {
+      const decompressed = await decompress(raw.body, encStr)
+      return { ...raw, body: decompressed, headers: { ...raw.headers, 'content-encoding': 'identity' } }
+    }
+  }
+
+  return raw
 }
 
 // ─── Public entry point ───────────────────────────────────────────────────────

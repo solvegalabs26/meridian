@@ -522,3 +522,62 @@ describe('fetchIcsText — non-200 status codes', () => {
     await expect(fetchIcsText('https://example.com/feed.ics')).rejects.toThrow(IcsFetchError)
   })
 })
+
+// ─── Decompression regression tests ──────────────────────────────────────────
+
+describe('fetchIcsText — gzip decompression (regression: proxies that ignore Accept-Encoding: identity)', () => {
+  it('decompresses gzip-encoded ICS body and returns plain text', async () => {
+    const { gzipSync } = await import('node:zlib')
+
+    mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+
+    const icsText = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR'
+    const gzipped = gzipSync(Buffer.from(icsText, 'utf-8'))
+
+    const res = new EventEmitter() as ReturnType<typeof makeRes>
+    res.statusCode = 200
+    res.headers = { 'content-type': 'text/calendar', 'content-encoding': 'gzip' }
+    res.destroy = vi.fn()
+
+    const req = makeReq()
+    mockRequest.mockImplementation((_opts: unknown, cb: (r: typeof res) => void) => {
+      cb(res); return req
+    })
+
+    process.nextTick(() => {
+      res.emit('data', gzipped)
+      res.emit('end')
+    })
+
+    const result = await fetchIcsText('https://example.com/feed.ics')
+    expect(result).toBe(icsText)
+  })
+
+  it('passes Accept-Encoding: identity in request headers', async () => {
+    mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+
+    const req = makeReq()
+    const res = makeRes({ statusCode: 200, body: 'BEGIN:VCALENDAR' })
+    mockRequest.mockImplementation((_opts: unknown, cb: (r: typeof res) => void) => {
+      cb(res); return req
+    })
+
+    await fetchIcsText('https://example.com/feed.ics')
+
+    const callOpts = mockRequest.mock.calls[0][0] as { headers?: Record<string, string> }
+    expect(callOpts.headers?.['Accept-Encoding']).toBe('identity')
+  })
+
+  it('returns plain body unchanged when no content-encoding header', async () => {
+    mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
+
+    const req = makeReq()
+    const res = makeRes({ statusCode: 200, body: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR' })
+    mockRequest.mockImplementation((_opts: unknown, cb: (r: typeof res) => void) => {
+      cb(res); return req
+    })
+
+    const result = await fetchIcsText('https://example.com/feed.ics')
+    expect(result).toBe('BEGIN:VCALENDAR\r\nEND:VCALENDAR')
+  })
+})
