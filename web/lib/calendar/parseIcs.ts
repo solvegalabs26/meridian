@@ -23,17 +23,32 @@ export interface ParsedEvent {
 }
 
 export async function parseIcsEvents(icsText: string): Promise<ParsedEvent[]> {
-  // Dynamic import keeps node-ical out of the module graph at build time.
-  // node-ical calls BigInt() at module initialisation, which crashes Next.js
-  // page-data collection even when runtime='nodejs' is set.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const ical = require('node-ical') as { parseICS: (text: string) => Record<string, ICalComponent> }
+  // Dynamic import keeps node-ical out of the module graph at build time,
+  // avoiding the BigInt() crash during Next.js page-data collection.
+  //
+  // Use await import() (not require()): when webpack bundles CJS packages in
+  // an ESM context it returns the ESM namespace object { default: ..., ... }.
+  // A bare require() would hand us the namespace, making ical.parseICS
+  // undefined. Destructuring .default (with CJS fallback) handles both cases.
+  const icalMod = await import('node-ical')
+  // CJS-via-ESM interop: real export is on .default; plain require() puts it
+  // directly on the module object — handle both.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ical = ((icalMod as any).default ?? icalMod) as { parseICS: (text: string) => Record<string, ICalComponent> }
+
+  console.log('[meridian:parse] parseICS type:', typeof ical.parseICS, 'icsText start:', JSON.stringify(icsText.slice(0, 80)))
 
   const now = new Date()
   const windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000) // yesterday
   const windowEnd = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000) // +60 days
 
-  const data = ical.parseICS(icsText)
+  let data: Record<string, ICalComponent>
+  try {
+    data = ical.parseICS(icsText)
+  } catch (e) {
+    console.error('[meridian:parse] parseICS threw:', e instanceof Error ? e.message : String(e))
+    throw e
+  }
   const results: ParsedEvent[] = []
 
   for (const key of Object.keys(data)) {
