@@ -41,15 +41,19 @@ export async function syncCalendarConnection(
   try {
     icsText = await fetchIcsText(conn.ical_url)
   } catch (err) {
+    console.error('[meridian:sync] fetch error:', err instanceof Error ? err.message : String(err))
     const msg = err instanceof IcsFetchError ? err.message : 'Calendar URL is not reachable or not allowed'
     return markError(msg)
   }
+
+  console.log('[meridian:sync] fetch returned, icsText length:', icsText?.length ?? 'undefined')
 
   // Parse events
   let parsedEvents: Awaited<ReturnType<typeof parseIcsEvents>>
   try {
     parsedEvents = await parseIcsEvents(icsText)
-  } catch {
+  } catch (err) {
+    console.error('[meridian:sync] parse error:', err instanceof Error ? `${err.name}: ${err.message}` : String(err))
     return markError('Could not parse calendar data')
   }
 

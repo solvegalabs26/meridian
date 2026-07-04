@@ -23,20 +23,21 @@ export interface ParsedEvent {
 }
 
 export async function parseIcsEvents(icsText: string): Promise<ParsedEvent[]> {
-  // Dynamic import keeps node-ical out of the module graph at build time,
-  // avoiding the BigInt() crash during Next.js page-data collection.
-  //
-  // Use await import() (not require()): when webpack bundles CJS packages in
-  // an ESM context it returns the ESM namespace object { default: ..., ... }.
-  // A bare require() would hand us the namespace, making ical.parseICS
-  // undefined. Destructuring .default (with CJS fallback) handles both cases.
-  const icalMod = await import('node-ical')
-  // CJS-via-ESM interop: real export is on .default; plain require() puts it
-  // directly on the module object — handle both.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ical = ((icalMod as any).default ?? icalMod) as { parseICS: (text: string) => Record<string, ICalComponent> }
+  // Diagnostic fires first — before any module loading — so we can confirm
+  // the function was actually entered even if the require() below throws.
+  console.log('[meridian:parse] entered, icsText length:', icsText?.length ?? 'undefined', 'start:', JSON.stringify((icsText ?? '').slice(0, 40)))
 
-  console.log('[meridian:parse] parseICS type:', typeof ical.parseICS, 'icsText start:', JSON.stringify(icsText.slice(0, 80)))
+  // require() (not dynamic import) is correct here: node-ical is listed in
+  // serverExternalPackages so webpack never bundles it. At runtime this is a
+  // plain Node.js require() returning the CJS module directly. Dynamic
+  // import('node-ical') would be transpiled by webpack to a require() that
+  // returns the ESM namespace object, making ical.parseICS undefined.
+  // The .default ?? mod fallback handles both shapes safely.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+  const icalRaw: any = require('node-ical')
+  const ical = (icalRaw.default ?? icalRaw) as { parseICS: (text: string) => Record<string, ICalComponent> }
+
+  console.log('[meridian:parse] parseICS type:', typeof ical.parseICS)
 
   const now = new Date()
   const windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000) // yesterday
