@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { CheckCircle, X, CalendarPlus } from 'lucide-react'
+import { tierAtLeast } from '@/lib/tiers'
 
 interface ActionsListProps {
   actions: string[]
@@ -30,10 +31,6 @@ function asCompletedActionsArray(value: unknown): CompletedAction[] {
   return value.filter((e): e is CompletedAction =>
     typeof e === 'object' && e !== null && typeof (e as CompletedAction).action === 'string'
   )
-}
-
-function isAcceleratorPlus(tier: string): boolean {
-  return ['accelerator', 'command'].includes(tier)
 }
 
 function handleAddToCalendar(action: string) {
@@ -182,7 +179,7 @@ export default function ActionsList({ actions, objId, tier }: ActionsListProps) 
                   )}
 
                   {/* Add to Calendar — Accelerator+ only */}
-                  {isAcceleratorPlus(tier) ? (
+                  {tierAtLeast({ tier, account_type: null }, 'accelerator') ? (
                     <button
                       onClick={() => handleAddToCalendar(action)}
                       title="Add to Calendar"

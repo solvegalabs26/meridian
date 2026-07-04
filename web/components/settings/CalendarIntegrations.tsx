@@ -3,16 +3,12 @@
 import { useState } from 'react'
 import { Calendar, CheckCircle, AlertCircle, Clock, RefreshCw, Trash2, Plus, ExternalLink } from 'lucide-react'
 import type { CalendarConnection } from '@/lib/utils/types'
+import { tierAtLeast } from '@/lib/tiers'
 
 interface Props {
   initialConnections: CalendarConnection[]
   tier: string
   accountType: string
-}
-
-function isExplorerPlus(tier: string, accountType: string): boolean {
-  if (['alpha_personal', 'alpha_business', 'beta'].includes(accountType)) return true
-  return ['explorer', 'accelerator', 'command'].includes(tier)
 }
 
 function timeAgo(dateStr: string): string {
@@ -68,7 +64,7 @@ export default function CalendarIntegrations({ initialConnections, tier, account
   const [syncing, setSyncing] = useState<Record<string, boolean>>({})
   const [showInstructions, setShowInstructions] = useState(false)
 
-  const canConnect = isExplorerPlus(tier, accountType)
+  const canConnect = tierAtLeast({ tier, account_type: accountType }, 'explorer')
 
   async function handleAdd() {
     if (!newUrl.trim()) return

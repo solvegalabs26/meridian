@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getEffectiveTier } from '@/lib/tiers'
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -80,12 +81,13 @@ export async function middleware(request: NextRequest) {
       // the page render (and potentially fail auth there) than to hard-block.
     }
 
-    const tier = (profile?.tier ?? 'trial') as string
+    const rawTier = (profile?.tier ?? null) as string | null
     const accountType = (profile?.account_type ?? 'personal') as string
+    const effectiveTier = getEffectiveTier({ tier: rawTier, account_type: accountType })
     const isAlphaBeta = ['alpha_personal', 'alpha_business', 'beta'].includes(accountType)
 
     // Trial expiry — redirect to plan selection (alpha/beta bypass)
-    if (!isAlphaBeta && tier === 'trial' && profile?.trial_ends_at) {
+    if (!isAlphaBeta && effectiveTier === 'trial' && profile?.trial_ends_at) {
       if (new Date(profile.trial_ends_at) < new Date()) {
         const url = request.nextUrl.clone()
         url.pathname = '/onboarding/plan'
@@ -94,9 +96,9 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    // Tier-gated routes — require explorer or higher (alpha/beta bypass)
+    // Tier-gated routes — require explorer or higher
     const tierGatedRoutes = ['/journal', '/predictions']
-    if (!isAlphaBeta && tier === 'trial' && tierGatedRoutes.some(r => pathname.startsWith(r))) {
+    if (effectiveTier === 'trial' && tierGatedRoutes.some(r => pathname.startsWith(r))) {
       const url = request.nextUrl.clone()
       url.pathname = '/onboarding/plan'
       url.searchParams.set('upgrade', 'true')

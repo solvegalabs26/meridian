@@ -5,6 +5,7 @@ import { buildObjectiveState } from '@/lib/anthropic/prompts/objective'
 import { parseAnthropicResponse } from '@/lib/anthropic/prompts/output'
 import { fetchNewsSignals } from '@/lib/signals/newsapi'
 import { sendConfidenceAlert } from '@/lib/email/resend'
+import { tierAtLeast } from '@/lib/tiers'
 
 export interface SweepObjectiveResult {
   id: string
@@ -145,12 +146,10 @@ export async function runSweepForUser(
     // Queries calendar_events (pre-synced, safe data) rather than fetching live ICS.
     // Event text is wrapped in a clearly-delimited data block to prevent prompt injection.
     let calendarContext = ''
-    const profileTier = (profile as { tier?: string } | null)?.tier ?? 'trial'
-    const profileAccountType = (profile as { account_type?: string } | null)?.account_type ?? ''
-    const isExplorerPlus = ['explorer', 'accelerator', 'command'].includes(profileTier)
-      || ['alpha_personal', 'alpha_business', 'beta'].includes(profileAccountType)
+    const profileTier = (profile as { tier?: string } | null)?.tier ?? null
+    const profileAccountType = (profile as { account_type?: string } | null)?.account_type ?? null
 
-    if (isExplorerPlus) {
+    if (tierAtLeast({ tier: profileTier, account_type: profileAccountType }, 'explorer')) {
       const { data: okConnections } = await supabase
         .from('calendar_connections')
         .select('id')

@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { syncCalendarConnection } from '@/lib/calendar/syncCalendarConnection'
+import { tierAtLeast } from '@/lib/tiers'
 
 export const dynamic = 'force-dynamic'
 
 const RATE_LIMIT_MS = 5 * 60 * 1000 // 5 minutes between syncs per connection
-
-function isExplorerPlus(tier: string, accountType: string): boolean {
-  if (['alpha_personal', 'alpha_business', 'beta'].includes(accountType)) return true
-  return ['explorer', 'accelerator', 'command'].includes(tier)
-}
 
 export async function POST(request: NextRequest) {
   const supabase = createClient()
@@ -22,7 +18,7 @@ export async function POST(request: NextRequest) {
     .eq('id', user.id)
     .single()
 
-  if (!isExplorerPlus(profile?.tier ?? 'trial', profile?.account_type ?? '')) {
+  if (!tierAtLeast({ tier: profile?.tier ?? null, account_type: profile?.account_type ?? null }, 'explorer')) {
     return NextResponse.json({ error: 'Explorer plan or above required' }, { status: 403 })
   }
 

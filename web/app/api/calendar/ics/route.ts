@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { generateIcs } from '@/lib/calendar/generateIcs'
+import { tierAtLeast } from '@/lib/tiers'
 
 export const dynamic = 'force-dynamic'
-
-function isAcceleratorPlus(tier: string): boolean {
-  return ['accelerator', 'command'].includes(tier)
-}
 
 // GET ?title=&start=&duration=&description=&location=
 // Tier-gated: Accelerator+
@@ -17,11 +14,11 @@ export async function GET(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('tier')
+    .select('tier, account_type')
     .eq('id', user.id)
     .single()
 
-  if (!isAcceleratorPlus(profile?.tier ?? 'trial')) {
+  if (!tierAtLeast({ tier: profile?.tier ?? null, account_type: profile?.account_type ?? null }, 'accelerator')) {
     return NextResponse.json({ error: 'Accelerator plan or above required for calendar export' }, { status: 403 })
   }
 
