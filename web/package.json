@@ -16,6 +16,7 @@
     "framer-motion": "^12.40.0",
     "lucide-react": "^1.21.0",
     "next": "14.2.35",
+    "node-ical": "^0.26.1",
     "react": "^18",
     "react-dom": "^18",
     "react-hook-form": "^7.80.0",
