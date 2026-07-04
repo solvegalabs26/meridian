@@ -45,36 +45,36 @@ function assertIPv4Parts(dotted: string): void {
  * Throws IcsFetchError if `ip` (a resolved address string) is in any blocked range.
  * Handles standard dotted-quad IPv4 and all IPv6 forms including IPv4-mapped.
  * Input must be a resolved address (dotted-quad, full/compressed IPv6) — not a hostname.
+ *
+ * IPv6 strategy: block all known-private/special ranges; everything else is
+ * global-unicast public internet (2000::/3, first hex digit 2 or 3) and is allowed.
  */
 export function assertIpAllowed(ip: string): void {
   const lower = ip.toLowerCase()
 
+  // ── IPv4 dotted-quad ──
   if (!lower.includes(':')) {
-    // IPv4 dotted-quad (Node's dns.lookup and URL parser always return this form)
     assertIPv4Parts(lower)
     return
   }
 
   // ── IPv6 ──
-  if (lower === '::1') throw new IcsFetchError(SAFE_MSG)          // loopback
-  if (lower === '::') throw new IcsFetchError(SAFE_MSG)           // unspecified
 
-  // fc00::/7 unique-local (fc00:: and fd00:: prefixes)
-  if (/^f[cd][0-9a-f]{2}:/i.test(lower)) throw new IcsFetchError(SAFE_MSG)
+  // Loopback (::1) and unspecified (::)
+  if (lower === '::1' || lower === '::') throw new IcsFetchError(SAFE_MSG)
 
-  // fe80::/10 link-local (fe80–febf)
-  if (/^fe[89ab][0-9a-f]:/i.test(lower)) throw new IcsFetchError(SAFE_MSG)
-
-  // IPv4-mapped ::ffff:a.b.c.d  OR  ::ffff:aabb:ccdd
+  // IPv4-mapped: ::ffff:<ipv4> — validate the embedded IPv4 address.
+  // Must be checked before the fc/fd/fe prefix checks (those won't fire here,
+  // but explicit ordering avoids future confusion).
   if (lower.startsWith('::ffff:')) {
     const rest = lower.slice(7)
     if (rest.includes('.')) {
-      // Dotted notation — unwrap directly
+      // ::ffff:a.b.c.d — dotted notation
       assertIPv4Parts(rest)
-    } else if (rest.includes(':')) {
-      // Hex-group notation e.g. a9fe:a9fe → 169.254.169.254
-      const groups = rest.split(':')
-      if (groups.length === 2) {
+    } else {
+      // ::ffff:aabb:ccdd — two hex groups encoding IPv4
+      const groups = rest.split(':').filter(Boolean)
+      if (groups.length >= 2) {
         const hi = parseInt(groups[0], 16)
         const lo = parseInt(groups[1], 16)
         if (!isNaN(hi) && !isNaN(lo)) {
@@ -84,7 +84,23 @@ export function assertIpAllowed(ip: string): void {
         }
       }
     }
+    return // public IPv4-mapped → allowed
   }
+
+  // fc00::/7 — Unique Local Address (ULA): fc** and fd** prefixes
+  if (/^f[cd][0-9a-f]{2}:/i.test(lower)) throw new IcsFetchError(SAFE_MSG)
+
+  // fe80::/10 — Link-local: fe80 through febf
+  if (/^fe[89ab][0-9a-f]:/i.test(lower)) throw new IcsFetchError(SAFE_MSG)
+
+  // ff00::/8 — Multicast (should never come from DNS for a server address)
+  if (/^ff[0-9a-f]{2}:/i.test(lower)) throw new IcsFetchError(SAFE_MSG)
+
+  // All remaining IPv6 is routable public internet — allow.
+  // Real-world public addresses (Google 2607:f8b0::/32, 2001:4860::/32;
+  // Cloudflare 2606:4700::/32; etc.) all have first hex digit 2 or 3
+  // (global unicast 2000::/3). None of the above blocked patterns can
+  // match those prefixes.
 }
 
 /**
@@ -167,10 +183,12 @@ function httpsGetRaw(
 ): Promise<RawResponse> {
   return new Promise((resolve, reject) => {
     // The agent's lookup always returns the pre-validated pinned IP regardless
-    // of what hostname the transport layer asks about — this is what closes
-    // the DNS rebinding window.
+    // of what hostname the transport layer asks about — this closes the DNS
+    // rebinding window. Node ≥17 changed the lookup callback from the three-arg
+    // form (err, address, family) to an array form (err, [{address, family}]).
+    // Using the array form works on all supported Node versions.
     const agent = new https.Agent({
-      lookup: (_hostname, _opts, cb) => cb(null, pinnedIp, family),
+      lookup: (_hostname, _opts, cb) => cb(null, [{ address: pinnedIp, family }]),
     })
 
     const path = (url.pathname || '/') + (url.search || '')

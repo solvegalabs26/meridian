@@ -59,6 +59,19 @@ describe('assertIpAllowed — allowed IPv4', () => {
   }
 })
 
+describe('assertIpAllowed — blocked IPv6 (multicast)', () => {
+  const multicast = [
+    'ff02::1',     // all-nodes multicast
+    'ff0e::1',     // global scope multicast
+    'ff02::2',     // all-routers multicast
+  ]
+  for (const ip of multicast) {
+    it(`blocks multicast ${ip}`, () => {
+      expect(() => assertIpAllowed(ip)).toThrow(IcsFetchError)
+    })
+  }
+})
+
 describe('assertIpAllowed — blocked IPv6', () => {
   const blocked = [
     '::1',                  // loopback
@@ -80,13 +93,18 @@ describe('assertIpAllowed — blocked IPv6', () => {
   }
 })
 
-describe('assertIpAllowed — allowed IPv6', () => {
+describe('assertIpAllowed — allowed IPv6 (public global-unicast)', () => {
   const allowed = [
-    '2001:4860:4860::8888',  // Google DNS IPv6
-    '2606:4700:4700::1111',  // Cloudflare DNS IPv6
+    '2607:f8b0:4007:808::200e',  // Google Calendar actual IPv6 (the false-positive case)
+    '2001:4860:4860::8888',       // Google Public DNS IPv6
+    '2001:4860:4007:808::200e',   // Google Calendar alternate IPv6 range
+    '2606:4700:4700::1111',       // Cloudflare DNS IPv6
+    '2606:4700::6810:84e5',       // Cloudflare public IPv6
+    '2400:cb00:2048::1',          // Cloudflare edge IPv6
+    '3ffe::1',                    // global unicast with first digit 3
   ]
   for (const ip of allowed) {
-    it(`allows ${ip}`, () => {
+    it(`allows public global-unicast ${ip}`, () => {
       expect(() => assertIpAllowed(ip)).not.toThrow()
     })
   }
@@ -244,7 +262,7 @@ afterEach(() => {
 })
 
 describe('fetchIcsText — happy path', () => {
-  it('returns body text for a valid public URL', async () => {
+  it('returns body text for a valid public URL (IPv4)', async () => {
     mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
     const req = makeReq()
     const res = makeRes({ statusCode: 200, body: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR' })
@@ -255,6 +273,55 @@ describe('fetchIcsText — happy path', () => {
 
     const result = await fetchIcsText('https://example.com/feed.ics')
     expect(result).toBe('BEGIN:VCALENDAR\r\nEND:VCALENDAR')
+  })
+
+  it('returns body text for a valid public URL (IPv6 — Google Calendar regression)', async () => {
+    // DNS returns IPv6-first, as calendar.google.com does in most environments.
+    // This test guards against the Node ≥17 lookup-callback signature regression
+    // where cb(null, addr, family) silently fails; cb(null, [{address, family}]) is required.
+    mockLookup.mockResolvedValue([
+      { address: '2607:f8b0:4007:808::200e', family: 6 },
+      { address: '142.251.45.14', family: 4 },
+    ])
+    const req = makeReq()
+    const res = makeRes({ statusCode: 200, body: 'BEGIN:VCALENDAR\r\nEND:VCALENDAR' })
+    mockRequest.mockImplementation((_opts: unknown, cb: (r: typeof res) => void) => {
+      cb(res)
+      return req
+    })
+
+    const result = await fetchIcsText('https://calendar.google.com/calendar/ical/user%40gmail.com/private-abc/basic.ics')
+    expect(result).toBe('BEGIN:VCALENDAR\r\nEND:VCALENDAR')
+  })
+
+  it('passes the pinned IP in array form to the Agent lookup callback', async () => {
+    mockLookup.mockResolvedValue([{ address: '2607:f8b0:4007:808::200e', family: 6 }])
+    const req = makeReq()
+    const res = makeRes({ statusCode: 200, body: 'ok' })
+
+    let capturedAgentOpts: Record<string, unknown> | null = null
+    mockRequest.mockImplementation((opts: Record<string, unknown>, cb: (r: typeof res) => void) => {
+      capturedAgentOpts = opts
+      cb(res)
+      return req
+    })
+
+    await fetchIcsText('https://example.com/feed.ics')
+
+    // Invoke the agent's lookup directly and confirm it uses the array form
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const agent = capturedAgentOpts?.agent as { options?: { lookup?: (...a: any[]) => void } }
+    const lookup = agent?.options?.lookup
+    if (lookup) {
+      let callbackArgs: unknown[] = []
+      lookup('example.com', {}, (...args: unknown[]) => { callbackArgs = args })
+      // Node ≥17 array form: [null, [{address, family}]]
+      expect(callbackArgs[0]).toBeNull()
+      expect(Array.isArray(callbackArgs[1])).toBe(true)
+      const addrs = callbackArgs[1] as Array<{ address: string; family: number }>
+      expect(addrs[0].address).toBe('2607:f8b0:4007:808::200e')
+      expect(addrs[0].family).toBe(6)
+    }
   })
 })
 
