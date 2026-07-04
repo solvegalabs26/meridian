@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { EventEmitter } from 'node:events'
 import {
   assertIpAllowed,
   assertUrlAllowed,
@@ -180,7 +181,7 @@ vi.mock('node:dns/promises', () => ({
 vi.mock('node:https', () => {
   // Agent must be a constructable function (arrow functions cannot be `new`-ed)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function MockAgent(this: any, _opts: unknown) { return this }
+  function MockAgent(this: any) { return this }
   return {
     default: {
       Agent: MockAgent,
@@ -201,7 +202,6 @@ function makeRes(opts: {
   body?: string
   errorAfterHeaders?: boolean
 }) {
-  const { EventEmitter } = require('node:events')
   const res = new EventEmitter() as NodeJS.ReadableStream & {
     statusCode: number
     headers: Record<string, string>
@@ -223,7 +223,6 @@ function makeRes(opts: {
 }
 
 function makeReq() {
-  const { EventEmitter } = require('node:events')
   const req = new EventEmitter() as {
     setTimeout: ReturnType<typeof vi.fn>
     destroy: ReturnType<typeof vi.fn>
@@ -327,9 +326,7 @@ describe('fetchIcsText — redirect handling', () => {
   it('throws after exceeding 2 redirects', async () => {
     mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
 
-    let callCount = 0
     mockRequest.mockImplementation((_opts: unknown, cb: (r: ReturnType<typeof makeRes>) => void) => {
-      callCount++
       const r = makeRes({ statusCode: 301, headers: { location: 'https://example.com/feed.ics' } })
       cb(r)
       return makeReq()

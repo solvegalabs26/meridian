@@ -1,6 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ical = require('node-ical') as { parseICS: (text: string) => Record<string, ICalComponent> }
-
 interface ICalComponent {
   type: string
   uid?: string
@@ -26,6 +23,12 @@ export interface ParsedEvent {
 }
 
 export async function parseIcsEvents(icsText: string): Promise<ParsedEvent[]> {
+  // Dynamic import keeps node-ical out of the module graph at build time.
+  // node-ical calls BigInt() at module initialisation, which crashes Next.js
+  // page-data collection even when runtime='nodejs' is set.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ical = require('node-ical') as { parseICS: (text: string) => Record<string, ICalComponent> }
+
   const now = new Date()
   const windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000) // yesterday
   const windowEnd = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000) // +60 days

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { syncCalendarConnection } from '@/lib/calendar/syncCalendarConnection'
 import { tierAtLeast } from '@/lib/tiers'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const RATE_LIMIT_MS = 5 * 60 * 1000 // 5 minutes between syncs per connection

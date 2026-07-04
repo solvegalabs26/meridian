@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { syncCalendarConnection } from '@/lib/calendar/syncCalendarConnection'
 import { tierAtLeast } from '@/lib/tiers'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // Quick scheme+port check before DB insert — full DNS+SSRF guard happens in syncCalendarConnection

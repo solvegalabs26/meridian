@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { generateIcs } from '@/lib/calendar/generateIcs'
 import { tierAtLeast } from '@/lib/tiers'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // GET ?title=&start=&duration=&description=&location=
