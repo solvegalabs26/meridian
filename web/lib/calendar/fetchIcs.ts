@@ -237,13 +237,6 @@ async function httpsGetRaw(
         const statusCode = res.statusCode ?? 0
         const headers = res.headers as Record<string, string | string[] | undefined>
 
-        // Diagnostic — visible in Vercel function logs, never sent to client
-        const ce = headers['content-encoding']
-        const ct = headers['content-type']
-        console.log(
-          `[meridian:ics] ${statusCode} ${url.hostname} ct=${ct ?? '-'} ce=${ce ?? '-'} ip=${pinnedIp}`
-        )
-
         if (statusCode >= 300 && statusCode < 400) {
           res.destroy()
           resolve({ statusCode, headers, body: null })
@@ -265,10 +258,7 @@ async function httpsGetRaw(
         })
 
         res.on('end', () => {
-          const body = Buffer.concat(chunks)
-          // Log first 4 bytes so we can identify gzip (1f8b), HTML (3c68), or ICS (4245=BE)
-          console.log(`[meridian:ics] body ${body.length}B first4=${body.slice(0, 4).toString('hex')}`)
-          resolve({ statusCode, headers, body })
+          resolve({ statusCode, headers, body: Buffer.concat(chunks) })
         })
         res.on('error', () => reject(new IcsFetchError(SAFE_MSG)))
       }

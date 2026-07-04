@@ -11,8 +11,6 @@ export interface ParsedEvent {
 }
 
 export async function parseIcsEvents(icsText: string): Promise<ParsedEvent[]> {
-  console.log('[meridian:parse] entered, icsText length:', icsText?.length ?? 'undefined', 'start:', JSON.stringify((icsText ?? '').slice(0, 40)))
-
   const now = new Date()
   const windowStart = ICAL.Time.fromJSDate(new Date(now.getTime() - 24 * 60 * 60 * 1000), true)
   const windowEnd = ICAL.Time.fromJSDate(new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000), true)
@@ -28,8 +26,6 @@ export async function parseIcsEvents(icsText: string): Promise<ParsedEvent[]> {
 
   const root = new ICAL.Component(jcal)
   const vevents = root.getAllSubcomponents('vevent')
-  console.log('[meridian:parse] vevents found:', vevents.length)
-
   const results: ParsedEvent[] = []
 
   for (const vevent of vevents) {
