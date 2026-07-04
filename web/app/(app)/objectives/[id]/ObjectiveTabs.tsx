@@ -19,6 +19,7 @@ interface ObjectiveTabsProps {
   signals: TabSignal[]
   goalDescription: string | null
   goalContext: string | null
+  tier: string
 }
 
 const DOT_COLORS: Record<Factor['color'], string> = {
@@ -37,7 +38,7 @@ const SOURCE_BADGES: Record<string, { label: string; color: string }> = {
 
 const TABS = ["What's affecting it", 'What to do', 'Signals', 'Goal'] as const
 
-export default function ObjectiveTabs({ factors, actions, objId, signals, goalDescription, goalContext }: ObjectiveTabsProps) {
+export default function ObjectiveTabs({ factors, actions, objId, signals, goalDescription, goalContext, tier }: ObjectiveTabsProps) {
   const [active, setActive] = useState<typeof TABS[number]>(TABS[0])
 
   return (
@@ -82,7 +83,7 @@ export default function ObjectiveTabs({ factors, actions, objId, signals, goalDe
           actions.length === 0 ? (
             <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>Run a scan to get action items for this goal.</p>
           ) : (
-            <ActionsList actions={actions} objId={objId} />
+            <ActionsList actions={actions} objId={objId} tier={tier} />
           )
         )}
 

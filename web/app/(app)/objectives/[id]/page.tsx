@@ -33,10 +33,11 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
   const { data: obj } = await supabase.from('objectives').select('*').eq('id', params.id).eq('user_id', user.id).single()
   if (!obj) notFound()
 
-  const [{ data: scores }, { data: signals }, { data: allObjectives }] = await Promise.all([
+  const [{ data: scores }, { data: signals }, { data: allObjectives }, { data: profile }] = await Promise.all([
     supabase.from('confidence_scores').select('id, score, created_at, sweep_id, recommended_actions').eq('objective_id', obj.id).order('created_at', { ascending: false }).limit(7),
     supabase.from('signals').select('*').contains('objective_ids', [obj.id]).order('created_at', { ascending: false }),
     supabase.from('objectives').select('id, title').eq('user_id', user.id),
+    supabase.from('profiles').select('tier').eq('id', user.id).single(),
   ])
 
   // Cross-dependency signals are stored with a title like
@@ -113,6 +114,7 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
           signals={displaySignals}
           goalDescription={obj.goal_description}
           goalContext={obj.goal_context}
+          tier={(profile as { tier?: string } | null)?.tier ?? 'trial'}
         />
       </div>
     </div>

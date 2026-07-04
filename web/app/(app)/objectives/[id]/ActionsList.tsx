@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CheckCircle, X } from 'lucide-react'
+import { CheckCircle, X, CalendarPlus } from 'lucide-react'
 
 interface ActionsListProps {
   actions: string[]
   objId: string
+  tier: string
 }
 
 function currentWeekNum() {
@@ -31,7 +32,20 @@ function asCompletedActionsArray(value: unknown): CompletedAction[] {
   )
 }
 
-export default function ActionsList({ actions, objId }: ActionsListProps) {
+function isAcceleratorPlus(tier: string): boolean {
+  return ['accelerator', 'command'].includes(tier)
+}
+
+function handleAddToCalendar(action: string) {
+  const params = new URLSearchParams({
+    title: action.slice(0, 200),
+    duration: '30',
+  })
+  // Trigger .ics download
+  window.location.href = `/api/calendar/ics?${params.toString()}`
+}
+
+export default function ActionsList({ actions, objId, tier }: ActionsListProps) {
   const [completed, setCompleted] = useState<Set<number>>(new Set())
   const [hovering, setHovering] = useState<number | null>(null)
   const [activeForm, setActiveForm] = useState<number | null>(null)
@@ -146,25 +160,50 @@ export default function ActionsList({ actions, objId }: ActionsListProps) {
                   {action}
                 </span>
 
-                {isDone ? (
-                  <button
-                    onClick={() => { setCompleted(prev => new Set(Array.from(prev).filter(n => n !== i))); setHovering(null) }}
-                    onMouseEnter={() => setHovering(i)}
-                    onMouseLeave={() => setHovering(null)}
-                    className="flex-shrink-0 text-[11px] font-medium flex items-center gap-1"
-                    style={{ color: hovering === i ? 'var(--ov-amber)' : 'var(--ov-green)' }}
-                  >
-                    {hovering === i ? 'Undo' : <><CheckCircle size={13} /> Done</>}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => { setActiveForm(activeForm === i ? null : i); setSaveError(null) }}
-                    className="flex-shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-lg"
-                    style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}
-                  >
-                    Mark done
-                  </button>
-                )}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {isDone ? (
+                    <button
+                      onClick={() => { setCompleted(prev => new Set(Array.from(prev).filter(n => n !== i))); setHovering(null) }}
+                      onMouseEnter={() => setHovering(i)}
+                      onMouseLeave={() => setHovering(null)}
+                      className="text-[11px] font-medium flex items-center gap-1"
+                      style={{ color: hovering === i ? 'var(--ov-amber)' : 'var(--ov-green)' }}
+                    >
+                      {hovering === i ? 'Undo' : <><CheckCircle size={13} /> Done</>}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setActiveForm(activeForm === i ? null : i); setSaveError(null) }}
+                      className="text-[11px] font-medium px-2.5 py-1 rounded-lg"
+                      style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}
+                    >
+                      Mark done
+                    </button>
+                  )}
+
+                  {/* Add to Calendar — Accelerator+ only */}
+                  {isAcceleratorPlus(tier) ? (
+                    <button
+                      onClick={() => handleAddToCalendar(action)}
+                      title="Add to Calendar"
+                      className="p-1 rounded-lg transition-colors"
+                      style={{ color: 'var(--ov-text-dim)' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--blue-mid)')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--ov-text-dim)')}
+                    >
+                      <CalendarPlus size={13} />
+                    </button>
+                  ) : (
+                    <button
+                      disabled
+                      title="Upgrade to Accelerator to export actions to your calendar"
+                      className="p-1 rounded-lg opacity-30 cursor-not-allowed"
+                      style={{ color: 'var(--ov-text-dim)' }}
+                    >
+                      <CalendarPlus size={13} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {activeForm === i && (
