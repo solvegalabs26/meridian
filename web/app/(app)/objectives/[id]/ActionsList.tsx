@@ -281,6 +281,10 @@ export default function ActionsList({ actions, objId, tier, hasCalendar }: Actio
                                   Add to Google Calendar
                                 </button>
 
+                                <p className="mt-1.5 px-1 text-[10px] leading-snug" style={{ color: '#8A9BB5' }}>
+                                  Opens in your active Google account. If you have multiple Google accounts, make sure you&apos;re signed into the right one in this browser.
+                                </p>
+
                                 {/* Secondary: .ics download */}
                                 <a
                                   href={icsDownloadUrl(action)}
