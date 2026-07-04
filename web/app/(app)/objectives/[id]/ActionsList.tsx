@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { CheckCircle, X, CalendarPlus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { CheckCircle, X, CalendarPlus, CalendarDays, Download } from 'lucide-react'
 import { tierAtLeast } from '@/lib/tiers'
+import { googleCalendarLink } from '@/lib/calendar/googleCalendarLink'
 
 interface ActionsListProps {
   actions: string[]
   objId: string
   tier: string
+  hasCalendar: boolean
 }
 
 function currentWeekNum() {
@@ -21,11 +23,6 @@ interface CompletedAction {
   completed: boolean
 }
 
-// journal_entries.completed_actions is a jsonb column dedicated to this
-// feature — nothing else writes to it, unlike section_d (narrative
-// concerns/questions/key insight) or section_c (a separate manual action
-// log). Still validate the shape defensively, since jsonb is untyped at
-// the DB level.
 function asCompletedActionsArray(value: unknown): CompletedAction[] {
   if (!Array.isArray(value)) return []
   return value.filter((e): e is CompletedAction =>
@@ -33,16 +30,42 @@ function asCompletedActionsArray(value: unknown): CompletedAction[] {
   )
 }
 
-function handleAddToCalendar(action: string) {
-  const params = new URLSearchParams({
-    title: action.slice(0, 200),
-    duration: '30',
-  })
-  // Trigger .ics download
-  window.location.href = `/api/calendar/ics?${params.toString()}`
+// "Tomorrow at 9 AM" in the user's local timezone, expressed as a UTC Date.
+function tomorrowNineAm(): Date {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  d.setHours(9, 0, 0, 0)
+  return d
 }
 
-export default function ActionsList({ actions, objId, tier }: ActionsListProps) {
+function icsDownloadUrl(action: string): string {
+  return `/api/calendar/ics?${new URLSearchParams({ title: action.slice(0, 200), duration: '30' })}`
+}
+
+const ICS_HELP = [
+  {
+    app: 'Google Calendar',
+    steps: [
+      'Go to calendar.google.com',
+      'Click the gear icon → Settings → Import & Export → Import',
+      'Select the downloaded file',
+    ],
+  },
+  {
+    app: 'Apple Calendar',
+    steps: ['Double-click the downloaded .ics file — it opens directly.'],
+  },
+  {
+    app: 'Outlook',
+    steps: ['Double-click the file, or drag it onto your Outlook calendar.'],
+  },
+  {
+    app: 'Other apps',
+    steps: ['Most calendar apps support .ics import via File → Import.'],
+  },
+]
+
+export default function ActionsList({ actions, objId, tier, hasCalendar }: ActionsListProps) {
   const [completed, setCompleted] = useState<Set<number>>(new Set())
   const [hovering, setHovering] = useState<number | null>(null)
   const [activeForm, setActiveForm] = useState<number | null>(null)
@@ -51,12 +74,36 @@ export default function ActionsList({ actions, objId, tier }: ActionsListProps) 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  // Hydrate completed state from this week's journal entry — otherwise a
-  // genuinely successful save looks unpersisted after navigating away and
-  // back, since `completed` would otherwise only ever reflect this mount.
+  // Calendar popover state
+  const [openPopover, setOpenPopover] = useState<number | null>(null)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  // Close popover on outside click or Escape
+  useEffect(() => {
+    if (openPopover === null) return
+    function onMouseDown(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setOpenPopover(null)
+        setHelpOpen(false)
+      }
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setOpenPopover(null)
+        setHelpOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [openPopover])
+
   useEffect(() => {
     let cancelled = false
-
     async function hydrate() {
       try {
         const res = await fetch(`/api/journal?week=${currentWeekNum()}`)
@@ -72,11 +119,9 @@ export default function ActionsList({ actions, objId, tier }: ActionsListProps) 
         })
         if (!cancelled) setCompleted(doneIndices)
       } catch {
-        // Hydration failing just means we fall back to "not done" locally —
-        // not worth surfacing as an error, nothing was lost.
+        // Hydration failure → falls back to "not done" locally — nothing lost.
       }
     }
-
     hydrate()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,22 +130,18 @@ export default function ActionsList({ actions, objId, tier }: ActionsListProps) 
   async function handleComplete(i: number) {
     setSaving(true)
     setSaveError(null)
-
     try {
       const action = actions[i]
       const weekNum = currentWeekNum()
-
       const getRes = await fetch(`/api/journal?week=${weekNum}`)
       if (!getRes.ok) throw new Error('Could not load your journal — please try again.')
       const getData = await getRes.json() as { entry: { completed_actions?: unknown } | null }
       const existingActions = asCompletedActionsArray(getData.entry?.completed_actions)
-
       const entryText = [
         `[${objId}] ${action}`,
         completedDate ? `Completed: ${completedDate}` : '',
         notes.trim() ? notes.trim() : '',
       ].filter(Boolean).join(' — ')
-
       const postRes = await fetch('/api/journal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -113,7 +154,6 @@ export default function ActionsList({ actions, objId, tier }: ActionsListProps) 
         const errBody = await postRes.json().catch(() => null) as { error?: string } | null
         throw new Error(errBody?.error ?? 'Could not save — please try again.')
       }
-
       setCompleted(prev => new Set(Array.from(prev).concat(i)))
       setActiveForm(null)
       setNotes('')
@@ -133,12 +173,15 @@ export default function ActionsList({ actions, objId, tier }: ActionsListProps) 
     return { label: 'Monitor', bg: 'rgba(255,255,255,0.06)', color: 'var(--ov-text-dim)' }
   }
 
+  const isAcceleratorPlus = tierAtLeast({ tier, account_type: null }, 'accelerator')
+
   return (
     <div>
       <ul className="space-y-2">
         {actions.map((action, i) => {
           const badge = priorityBadge(i)
           const isDone = completed.has(i)
+          const isPopoverOpen = openPopover === i
 
           return (
             <li key={i}>
@@ -179,17 +222,126 @@ export default function ActionsList({ actions, objId, tier }: ActionsListProps) 
                   )}
 
                   {/* Add to Calendar — Accelerator+ only */}
-                  {tierAtLeast({ tier, account_type: null }, 'accelerator') ? (
-                    <button
-                      onClick={() => handleAddToCalendar(action)}
-                      title="Add to Calendar"
-                      className="p-1 rounded-lg transition-colors"
-                      style={{ color: 'var(--ov-text-dim)' }}
-                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--blue-mid)')}
-                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--ov-text-dim)')}
+                  {isAcceleratorPlus ? (
+                    <div
+                      className="relative"
+                      ref={isPopoverOpen ? popoverRef : undefined}
                     >
-                      <CalendarPlus size={13} />
-                    </button>
+                      <button
+                        onClick={() => {
+                          setOpenPopover(isPopoverOpen ? null : i)
+                          setHelpOpen(false)
+                        }}
+                        title="Add to Calendar"
+                        className="p-1 rounded-lg transition-colors"
+                        style={{ color: isPopoverOpen ? 'var(--blue-mid)' : 'var(--ov-text-dim)' }}
+                        onMouseEnter={e => { if (!isPopoverOpen) e.currentTarget.style.color = 'var(--blue-mid)' }}
+                        onMouseLeave={e => { if (!isPopoverOpen) e.currentTarget.style.color = 'var(--ov-text-dim)' }}
+                      >
+                        <CalendarPlus size={13} />
+                      </button>
+
+                      {isPopoverOpen && (
+                        <div
+                          className="absolute right-0 top-7 z-50 rounded-xl shadow-xl"
+                          style={{
+                            width: 220,
+                            backgroundColor: '#1a2744',
+                            border: '1px solid rgba(46,124,184,0.3)',
+                            color: '#E8EDF5',
+                          }}
+                        >
+                          <div className="p-3">
+                            {hasCalendar ? (
+                              <>
+                                {/* Primary: Google Calendar deep-link */}
+                                <button
+                                  onClick={() => {
+                                    window.open(
+                                      googleCalendarLink({ title: action.slice(0, 200), start: tomorrowNineAm() }),
+                                      '_blank'
+                                    )
+                                    setOpenPopover(null)
+                                  }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[12px] font-medium text-left transition-colors"
+                                  style={{ backgroundColor: 'rgba(46,124,184,0.18)' }}
+                                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(46,124,184,0.30)')}
+                                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(46,124,184,0.18)')}
+                                >
+                                  {/* Google Calendar colour-block icon */}
+                                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                    <rect width="16" height="16" rx="2" fill="#fff"/>
+                                    <rect x="0" y="6" width="16" height="10" rx="0" fill="#fff"/>
+                                    <rect x="0" y="0" width="16" height="6" rx="2" fill="#4285F4"/>
+                                    <rect x="0" y="4" width="16" height="2" fill="#4285F4"/>
+                                    <rect x="4" y="0" width="2" height="4" rx="1" fill="#fff"/>
+                                    <rect x="10" y="0" width="2" height="4" rx="1" fill="#fff"/>
+                                    <text x="8" y="14" textAnchor="middle" fontSize="7" fontWeight="bold" fill="#4285F4">G</text>
+                                  </svg>
+                                  Add to Google Calendar
+                                </button>
+
+                                {/* Secondary: .ics download */}
+                                <a
+                                  href={icsDownloadUrl(action)}
+                                  className="block mt-2 text-center text-[11px] py-1 rounded"
+                                  style={{ color: 'rgba(232,237,245,0.45)' }}
+                                  onMouseEnter={e => (e.currentTarget.style.color = 'rgba(232,237,245,0.75)')}
+                                  onMouseLeave={e => (e.currentTarget.style.color = 'rgba(232,237,245,0.45)')}
+                                  onClick={() => setOpenPopover(null)}
+                                >
+                                  Download .ics file
+                                </a>
+                              </>
+                            ) : (
+                              <>
+                                {/* Primary: .ics download */}
+                                <a
+                                  href={icsDownloadUrl(action)}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[12px] font-medium"
+                                  style={{ backgroundColor: 'rgba(46,124,184,0.18)', color: '#E8EDF5' }}
+                                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(46,124,184,0.30)')}
+                                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(46,124,184,0.18)')}
+                                  onClick={() => setOpenPopover(null)}
+                                >
+                                  <Download size={13} />
+                                  Download .ics file
+                                </a>
+
+                                {/* Collapsible help */}
+                                <button
+                                  onClick={() => setHelpOpen(h => !h)}
+                                  className="w-full mt-2 text-left text-[10px] px-1 py-1 flex items-center justify-between"
+                                  style={{ color: 'rgba(232,237,245,0.45)' }}
+                                >
+                                  <span>Don&apos;t know what to do with this?</span>
+                                  <span>{helpOpen ? '▲' : '▼'}</span>
+                                </button>
+
+                                {helpOpen && (
+                                  <div
+                                    className="mt-2 rounded-lg px-3 py-2.5 space-y-3 text-[10px]"
+                                    style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(46,124,184,0.15)' }}
+                                  >
+                                    <p className="font-semibold" style={{ color: '#E8EDF5' }}>How to add this to your calendar:</p>
+                                    {ICS_HELP.map(({ app, steps }) => (
+                                      <div key={app}>
+                                        <p className="font-medium mb-0.5" style={{ color: 'rgba(232,237,245,0.8)' }}>{app}</p>
+                                        {steps.map((step, si) => (
+                                          <p key={si} style={{ color: 'rgba(232,237,245,0.55)' }}>
+                                            {steps.length > 1 ? `${si + 1}. ` : ''}{step}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <button
                       disabled
@@ -197,7 +349,7 @@ export default function ActionsList({ actions, objId, tier }: ActionsListProps) 
                       className="p-1 rounded-lg opacity-30 cursor-not-allowed"
                       style={{ color: 'var(--ov-text-dim)' }}
                     >
-                      <CalendarPlus size={13} />
+                      <CalendarDays size={13} />
                     </button>
                   )}
                 </div>
