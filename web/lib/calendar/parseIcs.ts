@@ -1,16 +1,4 @@
-interface ICalComponent {
-  type: string
-  uid?: string
-  summary?: string
-  description?: string
-  location?: string
-  start?: Date
-  end?: Date
-  datetype?: string
-  rrule?: {
-    between(after: Date, before: Date, inc?: boolean): Date[]
-  }
-}
+import ICAL from 'ical.js'
 
 export interface ParsedEvent {
   uid: string | null
@@ -23,88 +11,93 @@ export interface ParsedEvent {
 }
 
 export async function parseIcsEvents(icsText: string): Promise<ParsedEvent[]> {
-  // Diagnostic fires first — before any module loading — so we can confirm
-  // the function was actually entered even if the require() below throws.
   console.log('[meridian:parse] entered, icsText length:', icsText?.length ?? 'undefined', 'start:', JSON.stringify((icsText ?? '').slice(0, 40)))
 
-  // require() (not dynamic import) is correct here: node-ical is listed in
-  // serverExternalPackages so webpack never bundles it. At runtime this is a
-  // plain Node.js require() returning the CJS module directly. Dynamic
-  // import('node-ical') would be transpiled by webpack to a require() that
-  // returns the ESM namespace object, making ical.parseICS undefined.
-  // The .default ?? mod fallback handles both shapes safely.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
-  const icalRaw: any = require('node-ical')
-  const ical = (icalRaw.default ?? icalRaw) as { parseICS: (text: string) => Record<string, ICalComponent> }
-
-  console.log('[meridian:parse] parseICS type:', typeof ical.parseICS)
-
   const now = new Date()
-  const windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000) // yesterday
-  const windowEnd = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000) // +60 days
+  const windowStart = ICAL.Time.fromJSDate(new Date(now.getTime() - 24 * 60 * 60 * 1000), true)
+  const windowEnd = ICAL.Time.fromJSDate(new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000), true)
 
-  let data: Record<string, ICalComponent>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let jcal: any
   try {
-    data = ical.parseICS(icsText)
+    jcal = ICAL.parse(icsText)
   } catch (e) {
-    console.error('[meridian:parse] parseICS threw:', e instanceof Error ? e.message : String(e))
+    console.error('[meridian:parse] ICAL.parse threw:', e instanceof Error ? e.message : String(e))
     throw e
   }
+
+  const root = new ICAL.Component(jcal)
+  const vevents = root.getAllSubcomponents('vevent')
+  console.log('[meridian:parse] vevents found:', vevents.length)
+
   const results: ParsedEvent[] = []
 
-  for (const key of Object.keys(data)) {
-    const comp = data[key]
-    if (comp.type !== 'VEVENT') continue
+  for (const vevent of vevents) {
+    let event: ICAL.Event
+    try {
+      event = new ICAL.Event(vevent)
+    } catch {
+      continue
+    }
 
-    const allDay = comp.datetype === 'date'
+    const allDay = event.startDate?.isDate ?? false
+    const uid = event.uid ?? null
+    const summary = event.summary ?? null
+    const description = event.description ?? null
+    const location = event.location ?? null
 
-    // Recurring events — expand instances within window
-    if (comp.rrule) {
-      let instances: Date[]
+    if (event.isRecurring()) {
+      // Expand recurring instances within the window
+      const durationMs = event.duration?.toSeconds ? event.duration.toSeconds() * 1000 : 0
       try {
-        instances = comp.rrule.between(windowStart, windowEnd, true)
+        const iter = event.iterator()
+        let next: ICAL.Time | null
+        while ((next = iter.next())) {
+          if (next.compare(windowEnd) > 0) break
+          if (next.compare(windowStart) < 0) continue
+          const instanceStart = next.toJSDate()
+          const instanceEnd = durationMs > 0 ? new Date(instanceStart.getTime() + durationMs) : null
+          results.push({
+            uid, summary, description, location,
+            starts_at: instanceStart.toISOString(),
+            ends_at: instanceEnd?.toISOString() ?? null,
+            all_day: allDay,
+          })
+        }
       } catch {
         continue
-      }
-
-      const durationMs = comp.start && comp.end
-        ? comp.end.getTime() - comp.start.getTime()
-        : 0
-
-      for (const instanceStart of instances) {
-        const instanceEnd = durationMs > 0 ? new Date(instanceStart.getTime() + durationMs) : null
-        results.push({
-          uid: comp.uid ?? null,
-          summary: comp.summary ?? null,
-          description: comp.description ?? null,
-          location: comp.location ?? null,
-          starts_at: instanceStart.toISOString(),
-          ends_at: instanceEnd?.toISOString() ?? null,
-          all_day: allDay,
-        })
       }
       continue
     }
 
-    // Non-recurring event
-    const startDate = comp.start instanceof Date ? comp.start : null
-    if (!startDate || isNaN(startDate.getTime())) continue
-    if (startDate < windowStart || startDate > windowEnd) continue
+    // Non-recurring
+    let startDate: Date
+    try {
+      startDate = event.startDate.toJSDate()
+    } catch {
+      continue
+    }
+    if (isNaN(startDate.getTime())) continue
 
-    const endDate = comp.end instanceof Date && !isNaN(comp.end.getTime()) ? comp.end : null
+    const startTime = ICAL.Time.fromJSDate(startDate, true)
+    if (startTime.compare(windowStart) < 0 || startTime.compare(windowEnd) > 0) continue
+
+    let endDate: Date | null = null
+    try {
+      endDate = event.endDate ? event.endDate.toJSDate() : null
+      if (endDate && isNaN(endDate.getTime())) endDate = null
+    } catch {
+      endDate = null
+    }
 
     results.push({
-      uid: comp.uid ?? null,
-      summary: comp.summary ?? null,
-      description: comp.description ?? null,
-      location: comp.location ?? null,
+      uid, summary, description, location,
       starts_at: startDate.toISOString(),
       ends_at: endDate?.toISOString() ?? null,
       all_day: allDay,
     })
   }
 
-  // Sort chronologically, cap at 200
   results.sort((a, b) => a.starts_at.localeCompare(b.starts_at))
   return results.slice(0, 200)
 }
