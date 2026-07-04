@@ -285,6 +285,51 @@ $$;
 revoke all on function public.redeem_invite_code(text, uuid) from public;
 grant execute on function public.redeem_invite_code(text, uuid) to authenticated;
 
+-- FF-001 Calendar Intelligence (applied via MCP migration ff001_calendar_intelligence_tables)
+
+create table public.calendar_connections (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid not null references public.profiles(id) on delete cascade,
+  provider       text not null default 'ical' check (provider in ('ical', 'google')),
+  ical_url       text,
+  label          text,
+  is_active      boolean not null default true,
+  sync_status    text not null default 'pending' check (sync_status in ('pending', 'ok', 'error')),
+  last_synced_at timestamptz,
+  last_error     text,
+  event_count    integer not null default 0,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+alter table public.calendar_connections enable row level security;
+create policy "own_calendar_connections" on public.calendar_connections
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create table public.calendar_events (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null references public.profiles(id) on delete cascade,
+  connection_id uuid not null references public.calendar_connections(id) on delete cascade,
+  uid           text,
+  summary       text,
+  description   text,
+  location      text,
+  starts_at     timestamptz not null,
+  ends_at       timestamptz,
+  all_day       boolean not null default false,
+  objective_ids uuid[] not null default '{}',
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create index on public.calendar_events (user_id);
+create index on public.calendar_events (connection_id);
+create index on public.calendar_events (starts_at);
+
+alter table public.calendar_events enable row level security;
+create policy "own_calendar_events" on public.calendar_events
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
 -- ── tutorial_views increment (self-limiting, race-safe) ────
 create or replace function public.increment_tutorial_views(uid uuid)
 returns void

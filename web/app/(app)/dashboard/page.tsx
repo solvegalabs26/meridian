@@ -4,6 +4,7 @@ import GoalCard from '@/components/dashboard/GoalCard'
 import DoNextCard from '@/components/dashboard/DoNextCard'
 import CrossDepBanner, { type CrossDep } from '@/components/dashboard/CrossDepBanner'
 import SweepStatusStrip from '@/components/dashboard/SweepStatusStrip'
+import UpcomingStrip, { type UpcomingEvent } from '@/components/dashboard/UpcomingStrip'
 import AskMeridianBar from '@/components/ask/AskMeridianBar'
 import { getConfidenceStatus } from '@/lib/utils/confidenceStatus'
 
@@ -13,11 +14,15 @@ export default async function DashboardPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: profile }, { data: objectives }, { data: lastSweep }, { data: unreadSignals }] = await Promise.all([
-    supabase.from('profiles').select('full_name, sweep_count, tier').eq('id', user!.id).single(),
+  const now = new Date()
+  const calWindowEnd = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000)
+
+  const [{ data: profile }, { data: objectives }, { data: lastSweep }, { data: unreadSignals }, { data: upcomingEvents }] = await Promise.all([
+    supabase.from('profiles').select('full_name, sweep_count, tier, account_type').eq('id', user!.id).single(),
     supabase.from('objectives').select('id, obj_id, title, confidence, confidence_prev, target_date, updated_at, status').eq('user_id', user!.id).eq('status', 'active').order('sort_order'),
     supabase.from('sweeps').select('*').eq('user_id', user!.id).eq('status', 'complete').order('completed_at', { ascending: false }).limit(1).single(),
     supabase.from('signals').select('objective_ids').eq('user_id', user!.id).eq('is_read', false),
+    supabase.from('calendar_events').select('id, starts_at, summary, objective_ids').eq('user_id', user!.id).gte('starts_at', now.toISOString()).lte('starts_at', calWindowEnd.toISOString()).order('starts_at').limit(5),
   ])
 
   const hasSweep = !!lastSweep
@@ -84,6 +89,13 @@ export default async function DashboardPage() {
       <HeadlineCard objectives={objectiveList} hasSweep={hasSweep} userName={profile?.full_name} />
 
       <DoNextCard topAction={topAction} moreActions={moreActions} hasSweep={hasSweep} />
+
+      {upcomingEvents && upcomingEvents.length > 0 && (
+        <UpcomingStrip
+          events={upcomingEvents as UpcomingEvent[]}
+          objectives={(objectiveList).map(o => ({ id: o.id, title: o.title, target_date: o.target_date ?? null }))}
+        />
+      )}
 
       <div>
         <p className="text-[9px] uppercase tracking-widest font-semibold mb-2" style={{ color: 'var(--blue-mid)' }}>
