@@ -268,11 +268,11 @@ export default function OnboardingObjectivePage() {
                 value={bio}
                 onChange={e => setBio(e.target.value)}
                 rows={7}
-                placeholder={`e.g. "Mother of 3 children ages 3–8, enjoy reading, fitness, and traveling. Goals: run a marathon within two years, travel to Europe within 4 years, build a four-month emergency savings account, help my kids read 5 books this summer, help my family eat healthier, read a book with my husband in the next six months."`}
+                placeholder={`e.g. "I run a (real estate brokerage, interior design, bike shop, or financial planning) and want to grow revenue 30% this year while hiring two new agents (employees). Personally, I'm training for a half marathon in October and working toward paying off my truck early."`}
                 className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] resize-none leading-relaxed"
               />
               <p className="text-[11px] text-[var(--text3)] mt-1.5">
-                Be as detailed or brief as you like. Meridian will identify up to 5 goals from your description.
+                Be as detailed or brief as you like. Meridian will identify up to 5 goals — business and personal — from your description.
               </p>
             </div>
 
