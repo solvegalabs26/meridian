@@ -268,7 +268,7 @@ export default function AlphaObjectivePage() {
                 value={bio}
                 onChange={e => setBio(e.target.value)}
                 rows={7}
-                placeholder={`e.g. "I run a (real estate brokerage, interior design, bike shop, or financial planning) and want to grow revenue 30% this year while hiring two new agents (employees). Personally, I'm training for a half marathon in October and working toward paying off my truck early."`}
+                placeholder={`Example "I run a (real estate brokerage, interior design, bike shop, or financial planning) business and want to grow revenue 30% this year while hiring two new agents (employees). Personally, I'm training for a half marathon in October and working toward paying off my truck early."`}
                 className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] resize-none leading-relaxed"
               />
               <p className="text-[11px] text-[var(--text3)] mt-1.5">
