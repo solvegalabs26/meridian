@@ -178,17 +178,28 @@ export default function PrelaunchModal({ open, onClose }: Props) {
           </div>
         ) : (
           <form onSubmit={handleSubmit} noValidate>
-            {/* Honeypot — invisible to real users, bots fill it, server silently ignores the submission */}
-            <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>
-              <label htmlFor="pl-website">Website</label>
+            {/* TEMP VISIBLE FOR TESTING — revert to hidden before merge */}
+            <div style={{ marginBottom: '14px' }}>
+              <label htmlFor="pl-website" style={{ display: 'block', fontSize: '11px', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: P.error, marginBottom: '5px' }}>
+                ⚠ TEST ONLY — Honeypot (leave blank)
+              </label>
               <input
                 ref={honeypotRef}
                 id="pl-website"
                 type="text"
                 name="website"
+                placeholder="Fill this to test bot rejection"
                 defaultValue=""
-                tabIndex={-1}
                 autoComplete="off"
+                style={{
+                  display: 'block', width: '100%',
+                  padding: '10px 12px', fontSize: '14px',
+                  borderRadius: '7px',
+                  border: `2px dashed ${P.error}`,
+                  background: 'rgba(200,90,84,.10)',
+                  color: P.text, outline: 'none',
+                  boxSizing: 'border-box',
+                }}
               />
             </div>
             <h2 style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: '26px', fontWeight: 400, color: P.text, marginBottom: '10px', lineHeight: 1.15 }}>

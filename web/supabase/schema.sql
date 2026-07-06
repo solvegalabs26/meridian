@@ -343,3 +343,30 @@ as $$
 $$;
 
 grant execute on function public.increment_tutorial_views(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Pre-launch signups (migration: create_prelaunch_signups)
+-- ---------------------------------------------------------------------------
+create table public.prelaunch_signups (
+  id         uuid        primary key default gen_random_uuid(),
+  email      text        not null,
+  source     text        not null default 'landing_home',
+  created_at timestamptz not null default now()
+);
+
+create unique index prelaunch_signups_email_lower_idx
+  on public.prelaunch_signups (lower(email));
+
+alter table public.prelaunch_signups enable row level security;
+
+-- Anyone (anon) can insert — used by /api/prelaunch (anon client, never service role)
+create policy "prelaunch_insert_public"
+  on public.prelaunch_signups
+  for insert
+  with check (true);
+
+-- Only the founder can read rows
+create policy "prelaunch_read_founder"
+  on public.prelaunch_signups
+  for select
+  using (auth.uid() = '817b615a-c2c5-4285-8763-bdea3e171e2d'::uuid);
