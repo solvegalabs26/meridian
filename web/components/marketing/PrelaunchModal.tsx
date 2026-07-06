@@ -28,6 +28,7 @@ function isValidEmail(v: string) {
 
 export default function PrelaunchModal({ open, onClose }: Props) {
   const [email, setEmail] = useState('')
+  const [website, setWebsite] = useState('') // honeypot — must stay empty
   const [state, setState] = useState<State>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const [validationErr, setValidationErr] = useState('')
@@ -82,7 +83,7 @@ export default function PrelaunchModal({ open, onClose }: Props) {
       const res = await fetch('/api/prelaunch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), website }),
       })
       if (res.ok || res.status === 409) {
         setState('success')
@@ -173,6 +174,19 @@ export default function PrelaunchModal({ open, onClose }: Props) {
           </div>
         ) : (
           <form onSubmit={handleSubmit} noValidate>
+            {/* Honeypot — invisible to real users, bots fill it, server silently ignores the submission */}
+            <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>
+              <label htmlFor="pl-website">Website</label>
+              <input
+                id="pl-website"
+                type="text"
+                name="website"
+                value={website}
+                onChange={e => setWebsite(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
+              />
+            </div>
             <h2 style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: '26px', fontWeight: 400, color: P.text, marginBottom: '10px', lineHeight: 1.15 }}>
               Meridian Arc is launching soon.
             </h2>
