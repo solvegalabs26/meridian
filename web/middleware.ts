@@ -106,6 +106,13 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Root redirect: session-aware — logged-in → /dashboard, logged-out → /home
+  if (pathname === '/') {
+    const url = request.nextUrl.clone()
+    url.pathname = user ? '/dashboard' : '/home'
+    return NextResponse.redirect(url)
+  }
+
   // Authenticated users away from the login page → dashboard
   if (pathname === '/login' && user) {
     const url = request.nextUrl.clone()
