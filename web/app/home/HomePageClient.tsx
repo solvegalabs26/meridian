@@ -5,23 +5,6 @@ import PrelaunchModal from '@/components/marketing/PrelaunchModal'
 
 const SIGNUP_ENABLED = process.env.NEXT_PUBLIC_PUBLIC_SIGNUP_ENABLED === 'true'
 
-// CTA button — links normally when signup open, opens modal when gated
-function CtaLink({ href, className, children }: { href: string; className: string; children: React.ReactNode }) {
-  const [modalOpen, setModalOpen] = useState(false)
-  if (SIGNUP_ENABLED) {
-    return <a href={href} className={className}>{children}</a>
-  }
-  return (
-    <>
-      <button type="button" onClick={() => setModalOpen(true)} className={className}
-        style={{ cursor: 'pointer', fontFamily: 'inherit' }}>
-        {children}
-      </button>
-      <PrelaunchModal open={modalOpen} onClose={() => setModalOpen(false)} />
-    </>
-  )
-}
-
 export default function HomePageClient() {
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -268,13 +251,22 @@ footer a:hover{color:var(--text)}
               <h1>Your goals don&apos;t reset<br />every time you <em>look away.</em></h1>
               <p className="sub">Most tools start from zero every session. Meridian Arc <strong>remembers what you&apos;re working toward</strong>, monitors the world for signals that matter, tells you what changed, generates <strong>your personal intelligence</strong> and what to do next.</p>
               <div className="hero-cta">
-                <CtaLink href="/onboarding/plan" className="btn-primary">
-                  Choose your plan
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                    <polyline points="12 5 19 12 12 19" />
-                  </svg>
-                </CtaLink>
+                {SIGNUP_ENABLED
+                  ? <a href="/onboarding/plan" className="btn-primary">
+                      Choose your plan
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                      </svg>
+                    </a>
+                  : <button type="button" onClick={openModal} className="btn-primary" style={{ cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Choose your plan
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                        <polyline points="12 5 19 12 12 19" />
+                      </svg>
+                    </button>
+                }
                 <a href="#difference" className="btn-ghost">See how it&apos;s different</a>
               </div>
               <p className="hero-note">7-day trial · no card required to start</p>
@@ -447,13 +439,22 @@ footer a:hover{color:var(--text)}
               </svg>
               <h2>Point it at what matters.</h2>
               <p>Give Meridian one objective and let it work. You&apos;ll see the difference in your first briefing.</p>
-              <CtaLink href="/onboarding/plan" className="btn-primary">
-                Choose your plan
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg>
-              </CtaLink>
+              {SIGNUP_ENABLED
+                ? <a href="/onboarding/plan" className="btn-primary">
+                    Choose your plan
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                      <polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  </a>
+                : <button type="button" onClick={openModal} className="btn-primary" style={{ cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Choose your plan
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                      <polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  </button>
+              }
             </div>
           </section>
 
