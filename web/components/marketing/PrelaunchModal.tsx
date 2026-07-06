@@ -28,11 +28,11 @@ function isValidEmail(v: string) {
 
 export default function PrelaunchModal({ open, onClose }: Props) {
   const [email, setEmail] = useState('')
-  const [website, setWebsite] = useState('') // honeypot — must stay empty
   const [state, setState] = useState<State>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const [validationErr, setValidationErr] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const honeypotRef = useRef<HTMLInputElement>(null)
 
   // Focus input when opened
   useEffect(() => {
@@ -80,6 +80,10 @@ export default function PrelaunchModal({ open, onClose }: Props) {
     setState('submitting')
     setErrorMsg('')
     try {
+      // Read honeypot from the DOM ref directly — bots that set .value without
+      // firing onChange won't update React state, but the ref always reflects
+      // the actual DOM value at submit time.
+      const website = honeypotRef.current?.value ?? ''
       const res = await fetch('/api/prelaunch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -178,11 +182,11 @@ export default function PrelaunchModal({ open, onClose }: Props) {
             <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>
               <label htmlFor="pl-website">Website</label>
               <input
+                ref={honeypotRef}
                 id="pl-website"
                 type="text"
                 name="website"
-                value={website}
-                onChange={e => setWebsite(e.target.value)}
+                defaultValue=""
                 tabIndex={-1}
                 autoComplete="off"
               />

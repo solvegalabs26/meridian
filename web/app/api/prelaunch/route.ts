@@ -32,6 +32,7 @@ export async function POST(req: Request) {
 
   // Honeypot — bots fill this, real users don't. Silent success to avoid teaching the bot.
   if (raw.website && String(raw.website).trim() !== '') {
+    console.log('[prelaunch] honeypot triggered — dropping submission')
     return NextResponse.json({ message: 'Subscribed' }, { status: 201 })
   }
 
