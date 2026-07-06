@@ -105,8 +105,7 @@ export default function PrelaunchModal({ open, onClose }: Props) {
       onClick={handleClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(6,15,26,.82)',
-        backdropFilter: 'blur(6px)',
+        background: 'rgba(6,15,26,0.88)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '20px',
       }}
@@ -114,14 +113,15 @@ export default function PrelaunchModal({ open, onClose }: Props) {
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          background: P.navy,
+          background: '#0F1E42',
           border: `1px solid rgba(201,162,39,.35)`,
           borderRadius: '18px',
           padding: '36px 32px 30px',
           maxWidth: '440px',
           width: '100%',
           position: 'relative',
-          boxShadow: '0 24px 64px -16px rgba(0,0,0,.7)',
+          zIndex: 1001,
+          boxShadow: '0 24px 64px -16px rgba(0,0,0,.85)',
         }}
       >
         {/* Close button */}
