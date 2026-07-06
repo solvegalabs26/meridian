@@ -343,3 +343,32 @@ as $$
 $$;
 
 grant execute on function public.increment_tutorial_views(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Pre-launch signups (migration: create_prelaunch_signups)
+-- ---------------------------------------------------------------------------
+create table if not exists public.prelaunch_signups (
+  id         uuid        primary key default gen_random_uuid(),
+  email      text        not null,
+  source     text        default 'landing_home',
+  notified   boolean     not null default false,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists prelaunch_signups_email_key
+  on public.prelaunch_signups (lower(email));
+
+alter table public.prelaunch_signups enable row level security;
+
+drop policy if exists prelaunch_insert_public on public.prelaunch_signups;
+create policy prelaunch_insert_public
+  on public.prelaunch_signups for insert
+  to anon, authenticated
+  with check (true);
+
+-- Founder-scoped read (profiles has NO admin column; do not change to is_admin).
+drop policy if exists prelaunch_admin_read on public.prelaunch_signups;
+create policy prelaunch_admin_read
+  on public.prelaunch_signups for select
+  to authenticated
+  using ( auth.uid() = '817b615a-c2c5-4285-8763-bdea3e171e2d'::uuid );

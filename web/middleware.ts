@@ -106,6 +106,18 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Public signup gate — when disabled, redirect unauthenticated visitors away from
+  // the create-account and plan-selection pages. /alpha is intentionally exempt.
+  const signupEnabled = process.env.NEXT_PUBLIC_PUBLIC_SIGNUP_ENABLED === 'true'
+  if (!signupEnabled && !user) {
+    const gatedPaths = ['/onboarding', '/onboarding/plan']
+    if (gatedPaths.includes(pathname)) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/home'
+      return NextResponse.redirect(url)
+    }
+  }
+
   // Root redirect: session-aware — logged-in → /dashboard, logged-out → /home
   if (pathname === '/') {
     const url = request.nextUrl.clone()

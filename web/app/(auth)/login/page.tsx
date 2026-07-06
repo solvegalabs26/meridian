@@ -8,6 +8,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
 import MeridianArcWordmark from '@/components/brand/MeridianArcWordmark'
+import PrelaunchModal from '@/components/marketing/PrelaunchModal'
+
+const SIGNUP_ENABLED = process.env.NEXT_PUBLIC_PUBLIC_SIGNUP_ENABLED === 'true'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,6 +20,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [prelaunchOpen, setPrelaunchOpen] = useState(false)
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -49,6 +53,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-navy flex items-center justify-center px-4">
+      <PrelaunchModal open={prelaunchOpen} onClose={() => setPrelaunchOpen(false)} />
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8 flex flex-col items-center">
@@ -135,9 +140,19 @@ export default function LoginPage() {
 
           <p className="text-center text-[12px] text-[var(--text3)] mt-5">
             Don&apos;t have an account?{' '}
-            <Link href="/onboarding" className="text-[var(--blue)] hover:underline">
-              Sign up
-            </Link>
+            {SIGNUP_ENABLED ? (
+              <Link href="/onboarding" className="text-[var(--blue)] hover:underline">
+                Sign up
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPrelaunchOpen(true)}
+                className="text-[var(--blue)] hover:underline bg-transparent border-none p-0 cursor-pointer text-[12px]"
+              >
+                Join the pre-launch list
+              </button>
+            )}
           </p>
         </div>
       </div>
