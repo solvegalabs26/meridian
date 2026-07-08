@@ -136,6 +136,8 @@ export async function runSweepForUser(
           context: (obj as { context?: Record<string, unknown> }).context ?? {},
           title: obj.title,
           currentDate,
+          reservationPrice: (obj as { reservation_price?: number | null }).reservation_price ?? null,
+          targetDate: obj.target_date ?? null,
         })
       }
     }

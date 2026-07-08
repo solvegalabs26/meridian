@@ -32,6 +32,9 @@ GROUNDED CONFIDENCE RULES:
 - If inventory or days-on-market data is present, weight it into the signal_quality rating.
 - If no comps and no news signals: score conservatively (35–55 range) and note this in signal_gap.
 - Avoid "neutral 50" as a default — 50 should only appear when evidence is genuinely ambiguous and balanced.
+- When market_comps.price_position is present: 'below' = favorable (user can undercut market), 'at' = competitive, 'above' = headwind. Treat as a strong confidence anchor.
+- When market_comps.p_sale_by_horizon_estimate is present: use it as the floor for your confidence score (do not score lower without a specific counter-signal), and treat it as one directional input among several — not a literal probability to echo verbatim.
+- Always cite the price_position in confidence_reasoning for resale objectives so the user understands why the score is what it is.
 
 USER CONTEXT:
 Name: ${userName}

@@ -91,7 +91,13 @@ export async function POST(request: NextRequest) {
 
   // Fire-and-forget: classify type + seed rules_filter. Does not block the response.
   if (data) {
-    autoConfigObjective(data.id, { title: data.title, outcome: data.outcome, category: data.category })
+    autoConfigObjective(data.id, {
+      title:        data.title,
+      outcome:      data.outcome,
+      category:     data.category,
+      notes:        data.notes ?? null,
+      goal_context: data.goal_context ?? null,
+    })
       .catch(err => console.error('[autoConfig] failed for', data.id, err))
   }
 

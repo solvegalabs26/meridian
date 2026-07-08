@@ -28,13 +28,21 @@ export interface CompsResult {
   sources: string[]
   /** Whether we got enough data to ground a confidence score */
   isGrounded: boolean
+  /** Where the user's floor/ask sits relative to market — feeds confidence */
+  price_position: 'below' | 'at' | 'above' | null
+  /** Directional P(sale by target_date) — 0–1, not a precise stat */
+  p_sale_by_horizon_estimate: number | null
 }
 
-interface CompsInput {
+export interface CompsInput {
   objectiveType: string
   context: Record<string, unknown>
   title: string
   currentDate: string
+  /** User's minimum acceptable price (reservation_price) */
+  reservationPrice?: number | null
+  /** ISO date string for the target/horizon date */
+  targetDate?: string | null
 }
 
 function buildCompsQuery(input: CompsInput): string {
@@ -111,6 +119,44 @@ function extractInventory(text: string): number | null {
   return n > 0 ? n : null
 }
 
+function derivePricePosition(
+  reservationPrice: number,
+  band: { low: number; mid: number; high: number }
+): 'below' | 'at' | 'above' {
+  if (reservationPrice < band.low) return 'below'
+  if (reservationPrice > band.high) return 'above'
+  return 'at'
+}
+
+function deriveHorizonEstimate(
+  pricePosition: 'below' | 'at' | 'above',
+  seasonality: string | null,
+  daysOnMarket: number | null,
+  targetDate: string | null,
+  currentDate: string
+): number {
+  // Base probability from price positioning
+  let p = pricePosition === 'below' ? 0.78 : pricePosition === 'at' ? 0.55 : 0.28
+
+  // Seasonality adjustment — RV/vehicle specific soft signals
+  if (seasonality) {
+    const lower = seasonality.toLowerCase()
+    if (lower.includes('peak') || lower.includes('spring') || lower.includes('strong demand')) p += 0.08
+    if (lower.includes('slow') || lower.includes('winter') || lower.includes('soft season')) p -= 0.10
+  }
+
+  // Days-remaining vs DOM adjustment
+  if (daysOnMarket !== null && targetDate) {
+    const daysRemaining = Math.max(0,
+      (new Date(targetDate).getTime() - new Date(currentDate).getTime()) / (1000 * 60 * 60 * 24)
+    )
+    if (daysRemaining > daysOnMarket * 2) p += 0.06     // ample runway
+    else if (daysRemaining < daysOnMarket * 0.75) p -= 0.12  // tight window
+  }
+
+  return Math.min(0.97, Math.max(0.05, Math.round(p * 100) / 100))
+}
+
 function extractSeasonality(text: string, objectiveType: string): string | null {
   const lower = text.toLowerCase()
   if (objectiveType.includes('recreational_vehicle')) {
@@ -127,6 +173,7 @@ export async function fetchComps(input: CompsInput): Promise<CompsResult | null>
     askingPrices: [], askingBand: null, inventoryCount: null,
     daysOnMarket: null, seasonality: null,
     summary: 'No comp data retrieved.', sources: [], isGrounded: false,
+    price_position: null, p_sale_by_horizon_estimate: null,
   }
 
   const query = buildCompsQuery(input)
@@ -207,7 +254,18 @@ Return ONLY valid JSON (no markdown):
 
     const isGrounded = prices.length >= 2 || (band !== null)
 
-    return { askingPrices: prices, askingBand: band, inventoryCount: inv, daysOnMarket: dom, seasonality, summary, sources, isGrounded }
+    // Derive price position and horizon estimate when we have enough data
+    let price_position: CompsResult['price_position'] = null
+    let p_sale_by_horizon_estimate: number | null = null
+
+    if (band && input.reservationPrice != null) {
+      price_position = derivePricePosition(input.reservationPrice, band)
+      p_sale_by_horizon_estimate = deriveHorizonEstimate(
+        price_position, seasonality, dom, input.targetDate ?? null, input.currentDate
+      )
+    }
+
+    return { askingPrices: prices, askingBand: band, inventoryCount: inv, daysOnMarket: dom, seasonality, summary, sources, isGrounded, price_position, p_sale_by_horizon_estimate }
   } catch (err) {
     console.error('[fetchComps] error:', err)
     return empty

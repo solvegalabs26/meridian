@@ -67,6 +67,8 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
             seasonality: comps.seasonality,
             summary: comps.summary,
             sources: comps.sources.slice(0, 5),
+            price_position: comps.price_position,
+            p_sale_by_horizon_estimate: comps.p_sale_by_horizon_estimate,
           },
         })
       }
