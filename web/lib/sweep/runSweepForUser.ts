@@ -4,6 +4,7 @@ import { buildSystemPrompt } from '@/lib/anthropic/prompts/system'
 import { buildObjectiveState } from '@/lib/anthropic/prompts/objective'
 import { parseAnthropicResponse } from '@/lib/anthropic/prompts/output'
 import { fetchNewsSignals } from '@/lib/signals/newsapi'
+import { fetchComps, CompsResult } from '@/lib/sweep/fetchComps'
 import { sendConfidenceAlert } from '@/lib/email/resend'
 import { tierAtLeast } from '@/lib/tiers'
 
@@ -124,6 +125,21 @@ export async function runSweepForUser(
       }
     }
 
+    // 5b. Fetch market comps for resale-type objectives
+    const compsMap: Record<string, CompsResult | null> = {}
+    const currentDate = new Date().toISOString().split('T')[0]
+    for (const obj of objectives) {
+      const objectiveType = (obj as { objective_type?: string | null }).objective_type ?? null
+      if (objectiveType?.startsWith('asset.resale')) {
+        compsMap[obj.id] = await fetchComps({
+          objectiveType,
+          context: (obj as { context?: Record<string, unknown> }).context ?? {},
+          title: obj.title,
+          currentDate,
+        })
+      }
+    }
+
     // 6. Build objective state JSON
     const objectiveInputs = objectives.map(obj => {
       const history = (allScores ?? [])
@@ -139,7 +155,7 @@ export async function runSweepForUser(
         date: a.publishedAt.split('T')[0],
       }))
 
-      return { objective: obj, confidenceHistory: history, recentSignals }
+      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null }
     })
 
     // Inject upcoming calendar events for Explorer+ users who have a synced connection.
@@ -204,7 +220,6 @@ export async function runSweepForUser(
     }
 
     // 7. Call Anthropic API
-    const currentDate = new Date().toISOString().split('T')[0]
     const systemPrompt = buildSystemPrompt({
       userName: profile?.full_name ?? 'User',
       tone: (profile?.tone_pref as 'direct' | 'balanced' | 'encouraging') ?? 'balanced',
@@ -237,6 +252,7 @@ export async function runSweepForUser(
       source_type: string
       relevance: string
       signal_type: string
+      signal_class: string
       is_cross_dep: boolean
     }> = []
 
@@ -253,8 +269,43 @@ export async function runSweepForUser(
           source_type: 'news',
           relevance: 'medium',
           signal_type: 'neutral',
+          signal_class: 'news',
           is_cross_dep: false,
         })
+      }
+
+      // Write comps as market signals
+      const comps = compsMap[obj.id]
+      if (comps && comps.isGrounded) {
+        signalInserts.push({
+          user_id: userId,
+          objective_ids: [obj.id],
+          sweep_id: sweep.id,
+          title: 'Market comps: current asking prices',
+          body: comps.summary,
+          source: comps.sources[0] ?? null,
+          source_type: 'market',
+          relevance: 'high',
+          signal_type: 'neutral',
+          signal_class: 'market',
+          is_cross_dep: false,
+        })
+
+        if (comps.seasonality) {
+          signalInserts.push({
+            user_id: userId,
+            objective_ids: [obj.id],
+            sweep_id: sweep.id,
+            title: 'Seasonality signal',
+            body: comps.seasonality,
+            source: null,
+            source_type: 'market',
+            relevance: 'medium',
+            signal_type: 'neutral',
+            signal_class: 'market',
+            is_cross_dep: false,
+          })
+        }
       }
     }
 
@@ -270,9 +321,10 @@ export async function runSweepForUser(
           title: `Cross-dependency: ${dep.from_obj} → ${dep.to_obj}`,
           body: dep.description,
           source: null,
-          source_type: 'news',
+          source_type: 'dependency',
           relevance: dep.urgency === 'high' ? 'high' : dep.urgency === 'low' ? 'low' : 'medium',
           signal_type: 'cross_dep',
+          signal_class: 'dependency',
           is_cross_dep: true,
         })
       }
