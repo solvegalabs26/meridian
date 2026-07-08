@@ -154,7 +154,12 @@ export default function OnboardingObjectivePage() {
     })
 
     if (!res.ok) {
-      setSyncError('Could not save a goal — please try re-checking it.')
+      const d = await res.json() as { error?: string; target_date?: string }
+      if (d.error === 'past_target_date') {
+        setSyncError(`Date ${d.target_date} is in the past — please edit goal ${i + 1} and set a future date.`)
+      } else {
+        setSyncError('Could not save a goal — please try re-checking it.')
+      }
       return
     }
 
@@ -352,8 +357,14 @@ export default function OnboardingObjectivePage() {
                       type="date"
                       value={goal.target_date ?? ''}
                       onChange={e => updateGoal(i, { target_date: e.target.value || null })}
+                      min={new Date().toISOString().split('T')[0]}
                       className="w-full px-3 py-2 rounded-lg border border-[var(--border)] text-[12px] bg-white focus:outline-none"
                     />
+                    {goal.target_date && goal.target_date < new Date().toISOString().split('T')[0] && (
+                      <p className="text-[11px] text-[var(--red)] mt-1">
+                        ⚠ This date is in the past — please update it before continuing.
+                      </p>
+                    )}
                     <button
                       onClick={() => finishEditing(i)}
                       className="text-[12px] font-medium text-[var(--blue)] hover:text-[var(--night)]"

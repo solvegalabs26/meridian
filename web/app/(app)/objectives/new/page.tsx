@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { getCategoriesForAccount } from '@/lib/utils/categories'
 
-type ApiError = { error: string; max?: number }
+type ApiError = { error: string; max?: number; target_date?: string }
 
 const schema = z.object({
   title:             z.string().min(3, 'Title must be at least 3 characters'),
@@ -105,6 +105,8 @@ export default function NewObjectivePage() {
       const d = await res.json() as ApiError
       if (d.error === 'objective_limit_reached') {
         setError(`limit:${d.max ?? 0}`)
+      } else if (d.error === 'past_target_date') {
+        setError('Target date cannot be in the past — please choose a future date.')
       } else {
         setError(d.error ?? 'Something went wrong')
       }
@@ -262,8 +264,10 @@ export default function NewObjectivePage() {
           <input
             type="date"
             {...register('target_date')}
+            min={new Date().toISOString().split('T')[0]}
             className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] bg-white focus:outline-none focus:border-[var(--blue)] transition-colors"
           />
+          {errors.target_date && <p className="text-[11px] text-[var(--red)] mt-1">{errors.target_date.message}</p>}
         </div>
 
         {/* Notes */}

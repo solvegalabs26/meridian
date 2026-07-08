@@ -89,7 +89,17 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
           <h1 style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: 26, color: '#fff', lineHeight: 1.2 }}>
             {obj.title}
           </h1>
-          <ObjectiveDetailClient obj={obj} />
+          <ObjectiveDetailClient obj={{
+            id:                obj.id,
+            title:             obj.title,
+            status:            obj.status,
+            target_date:       obj.target_date ?? null,
+            deadline_type:     (obj as { deadline_type?: 'hard' | 'soft' }).deadline_type ?? 'hard',
+            reservation_price: (obj as { reservation_price?: number | null }).reservation_price ?? null,
+            context:           (obj as { context?: Record<string, unknown> }).context ?? {},
+            objective_type:    (obj as { objective_type?: string | null }).objective_type ?? null,
+            notes:             obj.notes ?? null,
+          }} />
         </div>
         <p className="text-[12px] mb-6" style={{ color: 'var(--ov-text-dim)' }}>
           {obj.target_date

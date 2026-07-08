@@ -14,7 +14,11 @@ export async function POST(request: NextRequest) {
   const body = await request.json() as { text: string }
   if (!body.text?.trim()) return NextResponse.json({ error: 'Text is required' }, { status: 400 })
 
+  const currentDate = new Date().toISOString().split('T')[0]
+
   const prompt = `You are helping a user set up their Meridian objective tracking profile.
+
+Today's date is ${currentDate}. Use this as your reference point — all target dates must be on or after ${currentDate}. Never output a date in the past.
 
 The user has shared this description of themselves and their goals:
 "${body.text}"
@@ -23,7 +27,7 @@ Extract up to 6 clear, distinct life objectives from this text. For each objecti
 - Write a concise title (5-8 words)
 - Choose the best category from: Career/Aviation, Finance, Health, Business, Travel, Home, Lifestyle
 - Write an outcome statement starting with "I will have..." that is specific and measurable
-- Estimate a target date if mentioned or implied (YYYY-MM-DD format), otherwise null
+- Estimate a target date if mentioned or implied (YYYY-MM-DD format), otherwise null. If the user mentions a month/season without a year, use the next upcoming occurrence on or after ${currentDate}.
 
 Respond ONLY in valid JSON with no preamble:
 {
@@ -32,7 +36,7 @@ Respond ONLY in valid JSON with no preamble:
       "title": "string",
       "category": "Health",
       "outcome": "I will have...",
-      "target_date": "2026-08-31" or null
+      "target_date": "${currentDate.slice(0, 4)}-MM-DD" or null
     }
   ]
 }`

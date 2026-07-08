@@ -31,6 +31,11 @@ export interface Objective {
   sort_order: number
   goal_description: string | null
   goal_context: string | null
+  // Initial Sweep Pipeline fields (migration: 2026-07-06)
+  objective_type: string | null
+  deadline_type: 'hard' | 'soft'
+  reservation_price: number | null
+  context: Record<string, unknown>
   created_at: string
   updated_at: string
 }

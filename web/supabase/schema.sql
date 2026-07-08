@@ -372,3 +372,101 @@ create policy prelaunch_admin_read
   on public.prelaunch_signups for select
   to authenticated
   using ( auth.uid() = '817b615a-c2c5-4285-8763-bdea3e171e2d'::uuid );
+
+-- ---------------------------------------------------------------------------
+-- Initial Sweep Pipeline (migration: Meridian_Migrations_20260706_InitialSweep)
+-- Applied 2026-07-06 via Supabase dashboard. Idempotent — safe to re-run.
+-- ---------------------------------------------------------------------------
+
+-- 01 — objectives.objective_type
+alter table public.objectives
+  add column if not exists objective_type text;
+
+comment on column public.objectives.objective_type is
+  'Closed-taxonomy key, e.g. asset.resale.recreational_vehicle. Nullable; backfilled per objective.';
+
+-- 02 — objectives.deadline_type
+alter table public.objectives
+  add column if not exists deadline_type text not null default 'hard';
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'objectives_deadline_type_check'
+      and conrelid = 'public.objectives'::regclass
+  ) then
+    alter table public.objectives
+      add constraint objectives_deadline_type_check
+      check (deadline_type in ('hard','soft'));
+  end if;
+end $$;
+
+comment on column public.objectives.deadline_type is
+  'hard = must complete by horizon; soft = reservation/optional, non-completion can be an acceptable outcome.';
+
+-- 03 — objectives.reservation_price
+alter table public.objectives
+  add column if not exists reservation_price numeric;
+
+comment on column public.objectives.reservation_price is
+  'Floor/reservation value for soft-deadline objectives (e.g. minimum acceptable sale price).';
+
+-- 04 — signals.signal_class
+alter table public.signals
+  add column if not exists signal_class text;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'signals_signal_class_check'
+      and conrelid = 'public.signals'::regclass
+  ) then
+    alter table public.signals
+      add constraint signals_signal_class_check
+      check (signal_class in ('market','news','dependency','internal'));
+  end if;
+end $$;
+
+comment on column public.signals.signal_class is
+  'market = external market data; news = press; dependency = cross-objective link (render under "What''s affecting it"); internal = model-internal.';
+
+-- 05 — objective_type_sources (curated type→source reference table)
+create table if not exists public.objective_type_sources (
+  id            uuid primary key default gen_random_uuid(),
+  taxonomy_key  text not null,
+  source_name   text not null,
+  tier          int  not null check (tier between 1 and 4),
+  weight        numeric not null default 1.0,
+  ingest_method text,
+  notes         text,
+  created_at    timestamptz not null default now(),
+  unique (taxonomy_key, source_name)
+);
+
+alter table public.objective_type_sources enable row level security;
+
+drop policy if exists objective_type_sources_select on public.objective_type_sources;
+create policy objective_type_sources_select
+  on public.objective_type_sources
+  for select to authenticated
+  using (true);
+
+insert into public.objective_type_sources
+  (taxonomy_key, source_name, tier, weight, ingest_method, notes)
+values
+  ('asset.resale.recreational_vehicle','RV Trader',1,1.0,'web_search','Active listing comps + inventory count'),
+  ('asset.resale.recreational_vehicle','RVUSA / RVUniverse / RVT.com',1,1.0,'web_search','Active listing comps'),
+  ('asset.resale.recreational_vehicle','NADA / J.D. Power RV Values',1,1.0,'valuation_licensed','Valuation baseline'),
+  ('asset.resale.recreational_vehicle','Facebook Marketplace / Craigslist',2,0.8,'web_search','Private-party comps; scrape-hostile'),
+  ('asset.resale.recreational_vehicle','Camping World / local dealer inventory',2,0.8,'web_search','Dealer comps + alternate sale channel'),
+  ('asset.resale.recreational_vehicle','iRV2 / r/GoRVing',3,0.5,'web_search','Private-seller sentiment / corroboration')
+on conflict (taxonomy_key, source_name) do nothing;
+
+-- 06 — objectives.context jsonb
+alter table public.objectives
+  add column if not exists context jsonb not null default '{}'::jsonb;
+
+comment on column public.objectives.context is
+  'Structured per-type context, e.g. resale: {listing_price, floor_price, payoff, year, make, model, condition, region}.';
