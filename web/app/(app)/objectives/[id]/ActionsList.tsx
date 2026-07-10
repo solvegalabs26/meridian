@@ -8,6 +8,7 @@ import { googleCalendarLink } from '@/lib/calendar/googleCalendarLink'
 interface ActionsListProps {
   actions: string[]
   objId: string
+  objectiveId: string
   tier: string
   hasCalendar: boolean
 }
@@ -65,7 +66,7 @@ const ICS_HELP = [
   },
 ]
 
-export default function ActionsList({ actions, objId, tier, hasCalendar }: ActionsListProps) {
+export default function ActionsList({ actions, objId, objectiveId, tier, hasCalendar }: ActionsListProps) {
   const [completed, setCompleted] = useState<Set<number>>(new Set())
   const [hovering, setHovering] = useState<number | null>(null)
   const [activeForm, setActiveForm] = useState<number | null>(null)
@@ -154,6 +155,16 @@ export default function ActionsList({ actions, objId, tier, hasCalendar }: Actio
         const errBody = await postRes.json().catch(() => null) as { error?: string } | null
         throw new Error(errBody?.error ?? 'Could not save — please try again.')
       }
+      // Log engine-recommended action completion into objective_actions
+      fetch(`/api/objectives/${objectiveId}/actions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: action,
+          action_date: completedDate || new Date().toISOString().split('T')[0],
+          source: 'engine_recommended',
+        }),
+      }).catch(() => { /* non-fatal */ })
       setCompleted(prev => new Set(Array.from(prev).concat(i)))
       setActiveForm(null)
       setNotes('')

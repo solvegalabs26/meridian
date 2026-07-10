@@ -18,6 +18,7 @@ interface ObjectiveTabsProps {
   factors: Factor[]
   actions: string[]
   objId: string
+  objectiveId: string
   signals: TabSignal[]
   goalDescription: string | null
   goalContext: string | null
@@ -37,12 +38,67 @@ const SOURCE_BADGES: Record<string, { label: string; color: string }> = {
   calendar: { label: 'Calendar', color: '#2EA88C' },
   inbox: { label: 'Inbox', color: 'var(--gold)' },
   manual: { label: 'Manual', color: 'var(--ov-text-dim)' },
+  user_action: { label: 'You', color: 'var(--gold)' },
 }
+
+const ACTION_CLASSES = [
+  { value: '', label: 'Select type (optional)' },
+  { value: 'listed', label: 'Listed / posted' },
+  { value: 'price_change', label: 'Price change' },
+  { value: 'inquiry', label: 'Inquiry' },
+  { value: 'offer', label: 'Offer' },
+  { value: 'showing', label: 'Showing' },
+  { value: 'other', label: 'Other' },
+]
 
 const TABS = ["What's affecting it", 'What to do', 'Signals', 'Goal'] as const
 
-export default function ObjectiveTabs({ factors, actions, objId, signals, goalDescription, goalContext, tier, hasCalendar }: ObjectiveTabsProps) {
+export default function ObjectiveTabs({ factors, actions, objId, objectiveId, signals, goalDescription, goalContext, tier, hasCalendar }: ObjectiveTabsProps) {
   const [active, setActive] = useState<typeof TABS[number]>(TABS[0])
+
+  // "I did this" form state
+  const [logOpen, setLogOpen] = useState(false)
+  const [logDesc, setLogDesc] = useState('')
+  const [logDate, setLogDate] = useState(new Date().toISOString().split('T')[0])
+  const [logClass, setLogClass] = useState('')
+  const [logSaving, setLogSaving] = useState(false)
+  const [logError, setLogError] = useState<string | null>(null)
+  const [logResult, setLogResult] = useState<{ newConfidence: number; reasoning: string } | null>(null)
+
+  async function handleLogAction() {
+    if (!logDesc.trim()) return
+    setLogSaving(true)
+    setLogError(null)
+    setLogResult(null)
+    try {
+      const res = await fetch(`/api/objectives/${objectiveId}/actions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: logDesc.trim(),
+          action_date: logDate,
+          action_class: logClass || null,
+          source: 'user_logged',
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(body.error ?? 'Could not save — please try again.')
+      }
+      const data = await res.json() as { new_confidence?: number; confidence_reasoning?: string }
+      setLogResult({
+        newConfidence: data.new_confidence ?? 0,
+        reasoning: data.confidence_reasoning ?? '',
+      })
+      setLogDesc('')
+      setLogClass('')
+      setLogDate(new Date().toISOString().split('T')[0])
+    } catch (err) {
+      setLogError(err instanceof Error ? err.message : 'Something went wrong.')
+    } finally {
+      setLogSaving(false)
+    }
+  }
 
   return (
     <div>
@@ -65,7 +121,8 @@ export default function ObjectiveTabs({ factors, actions, objId, signals, goalDe
       <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)' }}>
         {active === "What's affecting it" && (() => {
           const depSignals = signals.filter(s => s.signal_class === 'dependency')
-          const hasContent = factors.length > 0 || depSignals.length > 0
+          const userActionSignals = signals.filter(s => s.signal_class === 'user_action')
+          const hasContent = factors.length > 0 || depSignals.length > 0 || userActionSignals.length > 0
           if (!hasContent) {
             return <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>Run a scan to see what&apos;s affecting this goal.</p>
           }
@@ -107,21 +164,150 @@ export default function ObjectiveTabs({ factors, actions, objId, signals, goalDe
                   </ul>
                 </div>
               )}
+              {userActionSignals.length > 0 && (
+                <div>
+                  {(factors.length > 0 || depSignals.length > 0) && <div className="mb-3" style={{ borderTop: '1px solid var(--ov-border)' }} />}
+                  <p className="text-[10px] uppercase tracking-wide mb-2.5" style={{ color: 'var(--ov-text-dim)' }}>What you&apos;ve done</p>
+                  <ul className="space-y-3">
+                    {userActionSignals.map(sig => (
+                      <li key={sig.id} className="flex gap-3">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: 'var(--gold)' }} />
+                        <div>
+                          <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
+                          {sig.body && (
+                            <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
+                          )}
+                          <p className="text-[10px] mt-1" style={{ color: 'var(--ov-text-dim)' }}>
+                            {new Date(sig.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )
         })()}
 
         {active === 'What to do' && (
-          actions.length === 0 ? (
-            <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>Run a scan to get action items for this goal.</p>
-          ) : (
-            <ActionsList actions={actions} objId={objId} tier={tier} hasCalendar={hasCalendar} />
-          )
+          <div className="space-y-4">
+            {actions.length === 0 ? (
+              <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>Run a scan to get action items for this goal.</p>
+            ) : (
+              <ActionsList
+                actions={actions}
+                objId={objId}
+                objectiveId={objectiveId}
+                tier={tier}
+                hasCalendar={hasCalendar}
+              />
+            )}
+
+            {/* "I did this" free-form action log */}
+            <div style={{ borderTop: '1px solid var(--ov-border)', paddingTop: 16 }}>
+              {!logOpen && !logResult && (
+                <button
+                  onClick={() => setLogOpen(true)}
+                  className="text-[12px] font-medium"
+                  style={{ color: 'var(--gold)' }}
+                >
+                  + I did something — log it
+                </button>
+              )}
+
+              {logResult && (
+                <div
+                  className="rounded-xl p-3 mb-3"
+                  style={{ backgroundColor: 'rgba(201,162,39,0.1)', border: '1px solid rgba(201,162,39,0.25)' }}
+                >
+                  <p className="text-[12px] font-semibold mb-0.5" style={{ color: 'var(--gold)' }}>
+                    Confidence updated to {logResult.newConfidence}%
+                  </p>
+                  {logResult.reasoning && (
+                    <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ov-text-mid)' }}>{logResult.reasoning}</p>
+                  )}
+                  <button
+                    onClick={() => { setLogResult(null); setLogOpen(true) }}
+                    className="mt-2 text-[11px]"
+                    style={{ color: 'var(--ov-text-dim)' }}
+                  >
+                    Log another
+                  </button>
+                </div>
+              )}
+
+              {logOpen && (
+                <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(201,162,39,0.06)', border: '1px solid rgba(201,162,39,0.2)' }}>
+                  <p className="text-[12px] font-semibold mb-3" style={{ color: 'var(--gold)' }}>What did you do?</p>
+
+                  {logError && (
+                    <div className="mb-3 px-3 py-2 rounded-lg text-[11px]" style={{ backgroundColor: 'rgba(192,64,42,0.14)', color: 'var(--ov-red)' }}>
+                      {logError}
+                    </div>
+                  )}
+
+                  <div className="mb-2.5">
+                    <textarea
+                      rows={2}
+                      value={logDesc}
+                      onChange={e => setLogDesc(e.target.value)}
+                      placeholder="Describe what you did and the result..."
+                      className="w-full px-3 py-2 rounded-lg text-[12px] resize-none focus:outline-none"
+                      style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)', color: '#fff' }}
+                    />
+                  </div>
+
+                  <div className="flex gap-2 mb-3">
+                    <div className="flex-1">
+                      <input
+                        type="date"
+                        value={logDate}
+                        onChange={e => setLogDate(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg text-[12px] focus:outline-none"
+                        style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)', color: '#fff' }}
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <select
+                        value={logClass}
+                        onChange={e => setLogClass(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg text-[12px] focus:outline-none"
+                        style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)', color: logClass ? '#fff' : 'var(--ov-text-dim)' }}
+                      >
+                        {ACTION_CLASSES.map(c => (
+                          <option key={c.value} value={c.value}>{c.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setLogOpen(false); setLogError(null); setLogDesc(''); setLogClass('') }}
+                      className="flex-1 py-1.5 rounded-lg text-[12px]"
+                      style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleLogAction}
+                      disabled={logSaving || !logDesc.trim()}
+                      className="flex-1 py-1.5 rounded-lg text-[12px] font-medium disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--gold)', color: '#0a1628' }}
+                    >
+                      {logSaving ? 'Saving...' : 'Log action'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {active === 'Signals' && (() => {
-          // Dependency signals belong in "What's affecting it", never here.
-          const feedSignals = signals.filter(s => s.signal_class !== 'dependency')
+          // Dependency, user_action belong in "What's affecting it" — not here.
+          const feedSignals = signals.filter(s => s.signal_class !== 'dependency' && s.signal_class !== 'user_action')
           return feedSignals.length === 0 ? (
             <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>No signals yet for this goal.</p>
           ) : (
