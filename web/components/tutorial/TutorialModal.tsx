@@ -195,7 +195,7 @@ function Page6Illustration() {
         </div>
         <div>
           <p style={{ fontSize: 12, fontWeight: 700, color: P.ink, margin: '0 0 3px' }}>Log what you actually did</p>
-          <p style={{ fontSize: 11, color: P.body, lineHeight: 1.45, margin: 0 }}>In <strong style={{ color: P.ink }}>What to do</strong>, scroll to the bottom and tap <em>"+ I did something — log it."</em> Your score updates immediately with a cited reason.</p>
+          <p style={{ fontSize: 11, color: P.body, lineHeight: 1.45, margin: 0 }}>In <strong style={{ color: P.ink }}>What to do</strong>, scroll to the bottom and tap <em>&ldquo;+ I did something &mdash; log it.&rdquo;</em> Your score updates immediately with a cited reason.</p>
         </div>
       </div>
       {/* Card 2 — Edit via gear */}
