@@ -133,7 +133,7 @@ export default function ObjectiveDetailClient({ obj }: Props) {
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/50" onClick={closeDrawer} />
-          <div className="relative w-80 h-full shadow-xl flex flex-col overflow-y-auto" style={{ backgroundColor: 'var(--ov-navy-card)' }}>
+          <div className="relative w-80 h-full shadow-xl flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--ov-navy-card)' }}>
             {/* Header */}
             <div className="flex items-center justify-between p-5 flex-shrink-0" style={{ borderBottom: '1px solid var(--ov-border)' }}>
               {view === 'edit' ? (
@@ -154,7 +154,7 @@ export default function ObjectiveDetailClient({ obj }: Props) {
 
             {/* Menu view */}
             {view === 'menu' && (
-              <div className="p-5 flex flex-col gap-3">
+              <div className="p-5 flex flex-col gap-3 overflow-y-auto flex-1">
                 <p className="text-[12px] mb-1 leading-relaxed" style={{ color: 'var(--ov-text-mid)' }}>{obj.title}</p>
                 <button
                   onClick={() => setView('edit')}
@@ -178,7 +178,8 @@ export default function ObjectiveDetailClient({ obj }: Props) {
 
             {/* Edit view */}
             {view === 'edit' && (
-              <div className="p-5 flex flex-col gap-4 flex-1">
+              <div className="flex flex-col flex-1 min-h-0">
+              <div className="p-5 flex flex-col gap-4 overflow-y-auto flex-1">
                 {saveError && (
                   <div className="p-3 rounded-lg text-[12px]" style={{ background: 'rgba(200,90,84,.12)', color: '#C85A54' }}>
                     {saveError}
@@ -288,6 +289,9 @@ export default function ObjectiveDetailClient({ obj }: Props) {
                   />
                 </div>
 
+              </div>
+              {/* Sticky save footer — always visible regardless of form height */}
+              <div className="p-4 flex-shrink-0" style={{ borderTop: '1px solid var(--ov-border)' }}>
                 <button
                   onClick={handleSave}
                   disabled={loading || !title.trim()}
@@ -296,6 +300,7 @@ export default function ObjectiveDetailClient({ obj }: Props) {
                 >
                   {loading ? 'Saving...' : 'Save changes'}
                 </button>
+              </div>
               </div>
             )}
           </div>
