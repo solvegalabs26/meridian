@@ -244,7 +244,13 @@ export async function runSweepForUser(
     const parsed = parseAnthropicResponse(responseText)
 
     // 9. Write signals to Supabase
-    const signalInserts: Array<{
+    //
+    // IMPORTANT: parsed.objectives[i] is matched to objectives[i] by POSITION,
+    // not by obj_id string. The LLM generates label variants ("OBJ-02-RV",
+    // "OBJ-02a", etc.) that never reliably match the DB obj_id column. The
+    // objectives array was passed into the sweep in a fixed order — zip back
+    // on that same order.
+    type SignalInsert = {
       user_id: string
       objective_ids: string[]
       sweep_id: string
@@ -256,71 +262,144 @@ export async function runSweepForUser(
       signal_type: string
       signal_class: string
       is_cross_dep: boolean
-    }> = []
+    }
+    const signalInserts: SignalInsert[] = []
 
-    for (const obj of objectives) {
-      const articles = newsSignalsMap[obj.id] ?? []
-      for (const article of articles) {
-        signalInserts.push({
-          user_id: userId,
-          objective_ids: [obj.id],
-          sweep_id: sweep.id,
-          title: article.title,
-          body: article.description,
-          source: article.url,
-          source_type: 'news',
-          relevance: 'medium',
-          signal_type: 'neutral',
-          signal_class: 'news',
-          is_cross_dep: false,
-        })
-      }
+    for (let i = 0; i < objectives.length; i++) {
+      const obj = objectives[i]
 
-      // Write comps as market signals
-      const comps = compsMap[obj.id]
-      if (comps && comps.isGrounded) {
-        signalInserts.push({
-          user_id: userId,
-          objective_ids: [obj.id],
-          sweep_id: sweep.id,
-          title: 'Market comps: current asking prices',
-          body: comps.summary,
-          source: comps.sources[0] ?? null,
-          source_type: 'market',
-          relevance: 'high',
-          signal_type: 'neutral',
-          signal_class: 'market',
-          is_cross_dep: false,
-        })
-
-        if (comps.seasonality) {
+      try {
+        // --- News signals ---
+        const articles = newsSignalsMap[obj.id] ?? []
+        for (const article of articles) {
           signalInserts.push({
             user_id: userId,
             objective_ids: [obj.id],
             sweep_id: sweep.id,
-            title: 'Seasonality signal',
-            body: comps.seasonality,
-            source: null,
-            source_type: 'market',
+            title: article.title,
+            body: article.description,
+            source: article.url,
+            source_type: 'news',
             relevance: 'medium',
+            signal_type: 'neutral',
+            signal_class: 'news',
+            is_cross_dep: false,
+          })
+        }
+
+        // --- Comps / market signals ---
+        const comps = compsMap[obj.id]
+        if (comps && comps.isGrounded) {
+          signalInserts.push({
+            user_id: userId,
+            objective_ids: [obj.id],
+            sweep_id: sweep.id,
+            title: 'Market comps: current asking prices',
+            body: comps.summary,
+            source: comps.sources[0] ?? null,
+            source_type: 'market',
+            relevance: 'high',
             signal_type: 'neutral',
             signal_class: 'market',
             is_cross_dep: false,
           })
+
+          if (comps.seasonality) {
+            signalInserts.push({
+              user_id: userId,
+              objective_ids: [obj.id],
+              sweep_id: sweep.id,
+              title: 'Seasonality signal',
+              body: comps.seasonality,
+              source: null,
+              source_type: 'market',
+              relevance: 'medium',
+              signal_type: 'neutral',
+              signal_class: 'market',
+              is_cross_dep: false,
+            })
+          }
         }
+
+        // --- Risks and opportunities from the parsed sweep response ---
+        // Positional join: parsed.objectives[i] corresponds to objectives[i].
+        const parsedObj = parsed.objectives[i]
+        if (parsedObj) {
+          for (const risk of parsedObj.risks) {
+            signalInserts.push({
+              user_id: userId,
+              objective_ids: [obj.id],
+              sweep_id: sweep.id,
+              title: risk.slice(0, 120),
+              body: risk.length > 120 ? risk : null,
+              source: null,
+              source_type: 'sweep',
+              relevance: 'high',
+              signal_type: 'risk',
+              signal_class: 'market',
+              is_cross_dep: false,
+            })
+          }
+
+          for (const opp of parsedObj.opportunities) {
+            signalInserts.push({
+              user_id: userId,
+              objective_ids: [obj.id],
+              sweep_id: sweep.id,
+              title: opp.slice(0, 120),
+              body: opp.length > 120 ? opp : null,
+              source: null,
+              source_type: 'sweep',
+              relevance: 'medium',
+              signal_type: 'opportunity',
+              signal_class: 'market',
+              is_cross_dep: false,
+            })
+          }
+
+          // Per-objective cross_dependencies[] are narrative strings that may
+          // reference other objectives. Write as dependency signals on this
+          // objective; the top-level cross_objective_dependencies loop below
+          // handles the structured bidirectional write.
+          for (const dep of parsedObj.cross_dependencies) {
+            signalInserts.push({
+              user_id: userId,
+              objective_ids: [obj.id],
+              sweep_id: sweep.id,
+              title: dep.slice(0, 120),
+              body: dep.length > 120 ? dep : null,
+              source: null,
+              source_type: 'dependency',
+              relevance: 'medium',
+              signal_type: 'cross_dep',
+              signal_class: 'dependency',
+              is_cross_dep: true,
+            })
+          }
+        }
+      } catch (err) {
+        console.error(`[sweep] signal write failed for objective ${obj.id} (${obj.obj_id}):`, err)
+        // Continue — one objective's write failure must not silence the rest
       }
     }
 
-    // Add cross-dep signals
+    // --- Top-level cross-dependency signals (structured, bidirectional) ---
+    // A single signal row with both UUIDs in objective_ids surfaces under
+    // "What's affecting it" on both objectives without duplication.
     for (const dep of parsed.cross_objective_dependencies) {
+      // Resolve by DB obj_id (e.g. "OBJ-02") — these are stable, Solvega-assigned
+      // codes that the system prompt tells Claude to echo exactly. Fall back to
+      // positional index if the string match misses (label drift safety net).
       const fromObj = objectives.find(o => o.obj_id === dep.from_obj)
+        ?? objectives[parsed.cross_objective_dependencies.indexOf(dep) % objectives.length]
       const toObj = objectives.find(o => o.obj_id === dep.to_obj)
-      if (fromObj && toObj) {
+
+      if (fromObj && toObj && fromObj.id !== toObj.id) {
         signalInserts.push({
           user_id: userId,
           objective_ids: [fromObj.id, toObj.id],
           sweep_id: sweep.id,
-          title: `Cross-dependency: ${dep.from_obj} → ${dep.to_obj}`,
+          title: `${dep.from_obj} → ${dep.to_obj}`,
           body: dep.description,
           source: null,
           source_type: 'dependency',
@@ -337,55 +416,68 @@ export async function runSweepForUser(
     }
 
     // 10. Write confidence scores and update objectives
+    // Positional join: parsed.objectives[i] → objectives[i].
+    // Never use obj_id string match — LLM label variants break it for obj 2+.
     const objResults: SweepObjectiveResult[] = []
-    for (const obj of objectives) {
-      const result = parsed.objectives.find(r => r.obj_id === obj.obj_id)
-      if (!result) continue
+    for (let i = 0; i < objectives.length; i++) {
+      const obj = objectives[i]
+      const result = parsed.objectives[i]
 
-      // Write confidence score record
-      await supabase.from('confidence_scores').insert({
-        objective_id: obj.id,
-        user_id: userId,
-        sweep_id: sweep.id,
-        score: result.confidence,
-        factors: {
-          signal_quality: result.signal_quality === 'high' ? 85 : result.signal_quality === 'medium' ? 60 : 35,
-        },
-        signal_gap: result.signal_gap,
-        recommended_actions: result.actions,
-      })
-
-      // Update objective confidence
-      await supabase.from('objectives').update({
-        confidence_prev: obj.confidence,
-        confidence: result.confidence,
-        updated_at: new Date().toISOString(),
-      }).eq('id', obj.id)
-
-      // Email alert if confidence delta > 5 points — unchanged from the
-      // original single-user route, so this fires for bulk sweeps too.
-      const delta = result.confidence - obj.confidence
-      if (Math.abs(delta) > 5 && userEmail) {
-        sendConfidenceAlert({
-          toEmail: userEmail,
-          objectiveTitle: obj.title,
-          prevScore: obj.confidence,
-          newScore: result.confidence,
-          delta,
-        }).catch(console.error)
+      if (!result) {
+        console.error(`[sweep] no parsed result at index ${i} for objective ${obj.id} (${obj.obj_id})`)
+        continue
       }
 
-      objResults.push({
-        id: obj.id,
-        obj_id: obj.obj_id,
-        title: obj.title,
-        confidence_prev: obj.confidence,
-        confidence_new: result.confidence,
-        delta: result.confidence - obj.confidence,
-        actions: result.actions,
-        cross_deps: result.cross_dependencies,
-        signal_gap: result.signal_gap,
-      })
+      try {
+        // Write confidence score record
+        await supabase.from('confidence_scores').insert({
+          objective_id: obj.id,
+          user_id: userId,
+          sweep_id: sweep.id,
+          score: result.confidence,
+          factors: {
+            signal_quality: result.signal_quality === 'high' ? 85 : result.signal_quality === 'medium' ? 60 : 35,
+            price_position: compsMap[obj.id]?.price_position ?? null,
+            p_sale_by_horizon: compsMap[obj.id]?.p_sale_by_horizon_estimate ?? null,
+          },
+          signal_gap: result.signal_gap,
+          recommended_actions: result.actions,
+        })
+
+        // Update objective confidence
+        await supabase.from('objectives').update({
+          confidence_prev: obj.confidence,
+          confidence: result.confidence,
+          updated_at: new Date().toISOString(),
+        }).eq('id', obj.id)
+
+        // Email alert if confidence delta > 5 points
+        const delta = result.confidence - obj.confidence
+        if (Math.abs(delta) > 5 && userEmail) {
+          sendConfidenceAlert({
+            toEmail: userEmail,
+            objectiveTitle: obj.title,
+            prevScore: obj.confidence,
+            newScore: result.confidence,
+            delta,
+          }).catch(console.error)
+        }
+
+        objResults.push({
+          id: obj.id,
+          obj_id: obj.obj_id,
+          title: obj.title,
+          confidence_prev: obj.confidence,
+          confidence_new: result.confidence,
+          delta: result.confidence - obj.confidence,
+          actions: result.actions,
+          cross_deps: result.cross_dependencies,
+          signal_gap: result.signal_gap,
+        })
+      } catch (err) {
+        console.error(`[sweep] confidence write failed for objective ${obj.id} (${obj.obj_id}):`, err)
+        // Continue — one failure must not block remaining objectives
+      }
     }
 
     // 11. Update sweep record as complete
