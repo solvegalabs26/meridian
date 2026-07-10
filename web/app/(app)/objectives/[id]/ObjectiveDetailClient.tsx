@@ -296,7 +296,7 @@ export default function ObjectiveDetailClient({ obj }: Props) {
                   onClick={handleSave}
                   disabled={loading || !title.trim()}
                   className="w-full py-2.5 rounded-xl text-[14px] font-medium transition-colors disabled:opacity-40"
-                  style={{ background: 'var(--ov-gold)', color: 'var(--ov-navy-deep)' }}
+                  style={{ background: 'var(--gold)', color: '#0a1628' }}
                 >
                   {loading ? 'Saving...' : 'Save changes'}
                 </button>
