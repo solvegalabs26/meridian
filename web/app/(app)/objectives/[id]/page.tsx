@@ -124,6 +124,7 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
           factors={factors}
           actions={(latestScoreEntry?.recommended_actions as string[] | null) ?? []}
           objId={obj.obj_id}
+          objectiveId={obj.id}
           signals={displaySignals}
           goalDescription={obj.goal_description}
           goalContext={obj.goal_context}
