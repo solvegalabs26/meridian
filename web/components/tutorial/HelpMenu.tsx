@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { HelpCircle, RotateCcw, BookOpen } from 'lucide-react'
+import { HelpCircle, RotateCcw, BookOpen, CheckSquare, Settings } from 'lucide-react'
 
 interface HelpMenuProps {
   onOpenTutorial: () => void
@@ -47,7 +47,7 @@ export default function HelpMenu({ onOpenTutorial, onOpenKeyTerms }: HelpMenuPro
 
       {open && (
         <div
-          className="absolute right-0 top-10 w-52 rounded-xl shadow-lg py-1 z-50"
+          className="absolute right-0 top-10 w-72 rounded-xl shadow-lg py-1 z-50"
           style={{ backgroundColor: 'var(--white)', border: '1px solid var(--border)' }}
           role="menu"
         >
@@ -69,6 +69,26 @@ export default function HelpMenu({ onOpenTutorial, onOpenKeyTerms }: HelpMenuPro
             <BookOpen size={13} className="flex-shrink-0 text-[var(--text3)]" />
             Key Terms &amp; Definitions
           </button>
+
+          {/* Tips — static info rows, no action */}
+          <div className="mx-2 my-1.5" style={{ borderTop: '1px solid var(--border)' }} />
+          <div className="px-3 pb-1">
+            <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: 'var(--text3)' }}>Tips</p>
+            <div className="flex gap-2.5 mb-3">
+              <CheckSquare size={13} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--gold)' }} />
+              <div>
+                <p className="text-[12px] font-medium leading-snug mb-0.5" style={{ color: 'var(--text)' }}>Log what you did</p>
+                <p className="text-[11px] leading-snug" style={{ color: 'var(--text3)' }}>In any goal → <strong>What to do</strong>, scroll down and tap &ldquo;+ I did something.&rdquo; Your confidence score updates instantly.</p>
+              </div>
+            </div>
+            <div className="flex gap-2.5">
+              <Settings size={13} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--blue)' }} />
+              <div>
+                <p className="text-[12px] font-medium leading-snug mb-0.5" style={{ color: 'var(--text)' }}>Edit a goal</p>
+                <p className="text-[11px] leading-snug" style={{ color: 'var(--text3)' }}>Tap the <strong>⚙ gear icon</strong> on any goal to update title, date, or price fields.</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

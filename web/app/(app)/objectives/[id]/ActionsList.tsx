@@ -394,7 +394,7 @@ export default function ActionsList({ actions, objId, tier, hasCalendar }: Actio
                       rows={2}
                       value={notes}
                       onChange={e => setNotes(e.target.value)}
-                      placeholder="Describe what you did and the result..."
+                      placeholder="e.g. 'Listed on RV Trader at $49,500' — logging this updates your confidence score right now."
                       className="w-full px-3 py-2 rounded-lg text-[12px] resize-none focus:outline-none"
                       style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)', color: '#fff' }}
                     />
