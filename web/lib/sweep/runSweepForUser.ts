@@ -418,6 +418,19 @@ export async function runSweepForUser(
     // 10. Write confidence scores and update objectives
     // Positional join: parsed.objectives[i] → objectives[i].
     // Never use obj_id string match — LLM label variants break it for obj 2+.
+    //
+    // BUG-2 fix — confidence delta block: count grounded (market + news) signals
+    // written for each objective in this sweep. If zero, hold confidence at its
+    // current value. A score change with no evidence is worse than no change.
+    const groundedSignalCount: Record<string, number> = {}
+    for (const s of signalInserts) {
+      if (s.signal_class === 'market' || s.signal_class === 'news') {
+        for (const oid of s.objective_ids) {
+          groundedSignalCount[oid] = (groundedSignalCount[oid] ?? 0) + 1
+        }
+      }
+    }
+
     const objResults: SweepObjectiveResult[] = []
     for (let i = 0; i < objectives.length; i++) {
       const obj = objectives[i]
@@ -429,14 +442,21 @@ export async function runSweepForUser(
       }
 
       try {
+        // Block confidence delta when no grounded signal was written for this
+        // objective — prevents unanchored drift (e.g. 50 → 48 with nothing behind it).
+        const hasGroundedSignal = (groundedSignalCount[obj.id] ?? 0) > 0
+        const scoreToWrite = hasGroundedSignal ? result.confidence : obj.confidence
+
         // Write confidence score record
         await supabase.from('confidence_scores').insert({
           objective_id: obj.id,
           user_id: userId,
           sweep_id: sweep.id,
-          score: result.confidence,
+          score: scoreToWrite,
           factors: {
             signal_quality: result.signal_quality === 'high' ? 85 : result.signal_quality === 'medium' ? 60 : 35,
+            grounded_signal_count: groundedSignalCount[obj.id] ?? 0,
+            confidence_blocked: !hasGroundedSignal,
             price_position: compsMap[obj.id]?.price_position ?? null,
             p_sale_by_horizon: compsMap[obj.id]?.p_sale_by_horizon_estimate ?? null,
           },
@@ -447,18 +467,18 @@ export async function runSweepForUser(
         // Update objective confidence
         await supabase.from('objectives').update({
           confidence_prev: obj.confidence,
-          confidence: result.confidence,
+          confidence: scoreToWrite,
           updated_at: new Date().toISOString(),
         }).eq('id', obj.id)
 
         // Email alert if confidence delta > 5 points
-        const delta = result.confidence - obj.confidence
+        const delta = scoreToWrite - obj.confidence
         if (Math.abs(delta) > 5 && userEmail) {
           sendConfidenceAlert({
             toEmail: userEmail,
             objectiveTitle: obj.title,
             prevScore: obj.confidence,
-            newScore: result.confidence,
+            newScore: scoreToWrite,
             delta,
           }).catch(console.error)
         }
@@ -468,8 +488,8 @@ export async function runSweepForUser(
           obj_id: obj.obj_id,
           title: obj.title,
           confidence_prev: obj.confidence,
-          confidence_new: result.confidence,
-          delta: result.confidence - obj.confidence,
+          confidence_new: scoreToWrite,
+          delta: scoreToWrite - obj.confidence,
           actions: result.actions,
           cross_deps: result.cross_dependencies,
           signal_gap: result.signal_gap,

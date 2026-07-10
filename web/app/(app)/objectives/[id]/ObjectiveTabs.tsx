@@ -7,8 +7,10 @@ import type { Factor } from './page'
 interface TabSignal {
   id: string
   title: string
+  body: string | null
   source: string | null
   source_type: string | null
+  signal_class: string | null
   created_at: string
 }
 
@@ -61,24 +63,53 @@ export default function ObjectiveTabs({ factors, actions, objId, signals, goalDe
       </div>
 
       <div className="rounded-2xl p-4" style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)' }}>
-        {active === "What's affecting it" && (
-          factors.length === 0 ? (
-            <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>Run a scan to see what&apos;s affecting this goal.</p>
-          ) : (
-            <ul className="space-y-3">
-              {factors.map((f, i) => (
-                <li key={i} className="flex gap-3">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: DOT_COLORS[f.color] }} />
-                  <div>
-                    <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{f.title}</p>
-                    <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{f.description}</p>
-                    <p className="text-[10px] uppercase tracking-wide mt-1" style={{ color: 'var(--ov-text-dim)' }}>{f.impact}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+        {active === "What's affecting it" && (() => {
+          const depSignals = signals.filter(s => s.signal_class === 'dependency')
+          const hasContent = factors.length > 0 || depSignals.length > 0
+          if (!hasContent) {
+            return <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>Run a scan to see what&apos;s affecting this goal.</p>
+          }
+          return (
+            <div className="space-y-4">
+              {factors.length > 0 && (
+                <ul className="space-y-3">
+                  {factors.map((f, i) => (
+                    <li key={i} className="flex gap-3">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: DOT_COLORS[f.color] }} />
+                      <div>
+                        <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{f.title}</p>
+                        <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{f.description}</p>
+                        <p className="text-[10px] uppercase tracking-wide mt-1" style={{ color: 'var(--ov-text-dim)' }}>{f.impact}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {depSignals.length > 0 && (
+                <div>
+                  {factors.length > 0 && <div className="mb-3" style={{ borderTop: '1px solid var(--ov-border)' }} />}
+                  <p className="text-[10px] uppercase tracking-wide mb-2.5" style={{ color: 'var(--ov-text-dim)' }}>Cross-goal dependencies</p>
+                  <ul className="space-y-3">
+                    {depSignals.map(sig => (
+                      <li key={sig.id} className="flex gap-3">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: 'var(--blue-mid)' }} />
+                        <div>
+                          <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
+                          {sig.body && (
+                            <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
+                          )}
+                          <p className="text-[10px] mt-1" style={{ color: 'var(--ov-text-dim)' }}>
+                            {new Date(sig.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           )
-        )}
+        })()}
 
         {active === 'What to do' && (
           actions.length === 0 ? (
@@ -88,12 +119,14 @@ export default function ObjectiveTabs({ factors, actions, objId, signals, goalDe
           )
         )}
 
-        {active === 'Signals' && (
-          signals.length === 0 ? (
+        {active === 'Signals' && (() => {
+          // Dependency signals belong in "What's affecting it", never here.
+          const feedSignals = signals.filter(s => s.signal_class !== 'dependency')
+          return feedSignals.length === 0 ? (
             <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>No signals yet for this goal.</p>
           ) : (
             <ul className="space-y-2.5">
-              {signals.map(sig => {
+              {feedSignals.map(sig => {
                 const badge = SOURCE_BADGES[sig.source_type ?? ''] ?? { label: sig.source_type ?? 'Signal', color: 'var(--ov-text-dim)' }
                 return (
                   <li key={sig.id} className="flex items-start gap-2.5">
@@ -114,7 +147,7 @@ export default function ObjectiveTabs({ factors, actions, objId, signals, goalDe
               })}
             </ul>
           )
-        )}
+        })()}
 
         {active === 'Goal' && (
           goalDescription ? (
