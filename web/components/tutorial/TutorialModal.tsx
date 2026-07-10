@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, ChevronLeft, ChevronRight, Target, Radio, MessageCircle, Check } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Target, Radio, MessageCircle, Check, Settings } from 'lucide-react'
 import MeridianBeacon from '@/components/brand/MeridianBeacon'
 
 // Hardcoded palette — do NOT replace with CSS custom properties.
@@ -31,33 +31,39 @@ interface TutorialModalProps {
 
 const PAGES = [
   {
-    kicker: 'Getting Started · 1 of 5',
+    kicker: 'Getting Started · 1 of 6',
     title: 'Welcome to Meridian Arc',
     subtitle: 'Signals from everywhere. Your heading, straight ahead.',
     body: "Meridian Arc watches your most important goals and brings the signals that matter to your priority focus. Your dashboard has three things: Your Goals, This Week's Brief, and Ask Meridian Arc. This quick tour walks you through each.",
   },
   {
-    kicker: 'Your Goals · 2 of 5',
+    kicker: 'Your Goals · 2 of 6',
     title: "Open a goal to see what's moving it",
     subtitle: 'Every goal shows a live on-track score and the intelligence behind it.',
     body: 'Click any goal to open it. The ring shows your on-track score and the badge tells you its health at a glance. The "What\'s affecting it" tab lists the signals moving your score up or down — so you always know why the number is what it is.',
   },
   {
-    kicker: 'Your Goals · 3 of 5',
+    kicker: 'Your Goals · 3 of 6',
     title: 'Do the next thing — then log it',
     subtitle: 'Meridian recommends what to do. You check it off.',
     body: 'Open "What to do" for the actions Meridian recommends. When you finish one, tap the checkbox to log it as complete — your progress feeds back into the score. Forgot what the goal actually was? The "Goal" tab always shows your original objective in your own words.',
   },
   {
-    kicker: "This Week's Brief · 4 of 5",
+    kicker: "This Week's Brief · 4 of 6",
     title: 'See what happened this week',
     subtitle: 'Signals delivered as plain-language story cards.',
     body: "This Week's Brief is where you see what happened. Each week Meridian sweeps the news, data, and industry signals tied to your goals and delivers them as plain-language cards — Risk, Opportunity, Insight, Action. No reports to read. Just what changed and what it means.",
   },
   {
-    kicker: 'Ask Meridian Arc · 5 of 5',
+    kicker: 'Ask Meridian Arc · 5 of 6',
     title: 'Ask anytime — and revisit this tour',
     subtitle: 'Help is always one click away.',
+    body: null,
+  },
+  {
+    kicker: 'Two things worth knowing · 6 of 6',
+    title: 'Keep your score current. Fix anything.',
+    subtitle: "Don't wait for the weekly sweep — you can act now.",
     body: null,
   },
 ]
@@ -179,7 +185,34 @@ function Page5Illustration() {
   )
 }
 
-const ILLUSTRATIONS = [Page1Illustration, Page2Illustration, Page3Illustration, Page4Illustration, Page5Illustration]
+function Page6Illustration() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Card 1 — Log an action */}
+      <div style={{ backgroundColor: P.white, border: `1px solid ${P.line}`, borderLeft: `4px solid ${P.gold}`, borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(201,162,39,.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Check size={15} color={P.gold} strokeWidth={2.5} />
+        </div>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 700, color: P.ink, margin: '0 0 3px' }}>Log what you actually did</p>
+          <p style={{ fontSize: 11, color: P.body, lineHeight: 1.45, margin: 0 }}>In <strong style={{ color: P.ink }}>What to do</strong>, scroll to the bottom and tap <em>&ldquo;+ I did something &mdash; log it.&rdquo;</em> Your score updates immediately with a cited reason.</p>
+        </div>
+      </div>
+      {/* Card 2 — Edit via gear */}
+      <div style={{ backgroundColor: P.white, border: `1px solid ${P.line}`, borderLeft: `4px solid ${P.blue}`, borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: 'rgba(46,124,184,.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Settings size={15} color={P.blue} strokeWidth={2} />
+        </div>
+        <div>
+          <p style={{ fontSize: 12, fontWeight: 700, color: P.ink, margin: '0 0 3px' }}>Edit goal details anytime</p>
+          <p style={{ fontSize: 11, color: P.body, lineHeight: 1.45, margin: 0 }}>Tap the <strong style={{ color: P.ink }}>⚙ gear icon</strong> on any goal to update the title, target date, deadline type, or price fields. Changes save immediately.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const ILLUSTRATIONS = [Page1Illustration, Page2Illustration, Page3Illustration, Page4Illustration, Page5Illustration, Page6Illustration]
 
 export default function TutorialModal({ open, onClose, startPage = 1, onOpenKeyTerms }: TutorialModalProps) {
   const [page, setPage] = useState(startPage - 1)
@@ -244,7 +277,7 @@ export default function TutorialModal({ open, onClose, startPage = 1, onOpenKeyT
                 Key Terms &amp; Definitions
               </button>. You&apos;re all set. Welcome aboard.
             </p>
-          ) : (
+          ) : page === 5 ? null : (
             <p style={{ fontSize: 13, lineHeight: 1.65, color: P.body, margin: 0 }}>{current.body}</p>
           )}
         </div>

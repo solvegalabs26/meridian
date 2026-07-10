@@ -127,7 +127,7 @@ export default function DoNextActions({ topAction, actions }: DoNextActionsProps
                   rows={2}
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
-                  placeholder="Describe what you did and the result..."
+                  placeholder="e.g. 'Listed on RV Trader at $49,500' — logging this updates your confidence score right now."
                   className="w-full px-2.5 py-1.5 rounded-lg border border-[var(--border)] text-[12px] resize-none focus:outline-none focus:border-[var(--blue)]"
                 />
               </div>
