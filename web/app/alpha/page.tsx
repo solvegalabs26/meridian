@@ -110,6 +110,25 @@ export default function AlphaEntryPage() {
       return
     }
 
+    // The redeem_invite_code RPC sets pricing_tier but not the tier column the
+    // app reads for feature gating. Finalize maps pricing_tier_grant → tier.
+    // Non-fatal: a failure here leaves the user on 'trial' until manually fixed,
+    // which is the current broken state — so we log and continue rather than
+    // blocking the user from their newly redeemed account.
+    try {
+      const finalizeRes = await fetch('/api/invites/finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: code.trim() }),
+      })
+      if (!finalizeRes.ok) {
+        const fd = await finalizeRes.json().catch(() => ({})) as { error?: string }
+        console.error('[alpha] tier finalize failed:', fd.error)
+      }
+    } catch (err) {
+      console.error('[alpha] tier finalize error:', err)
+    }
+
     if (data.requires_idme) {
       router.push('/alpha/verify-idme')
       return
