@@ -10,6 +10,7 @@ export default async function LatestSweepRedirect() {
     .select('id')
     .eq('user_id', user!.id)
     .eq('status', 'complete')
+    .not('raw_response', 'is', null)
     .order('completed_at', { ascending: false })
     .limit(1)
     .single()

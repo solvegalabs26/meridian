@@ -10,7 +10,7 @@ export default async function AskPage({ searchParams }: { searchParams: { q?: st
 
   const [{ data: objectives }, { data: latestSweep }] = await Promise.all([
     supabase.from('objectives').select('id, title, confidence, confidence_prev, category, status').eq('user_id', user!.id).eq('status', 'active'),
-    supabase.from('sweeps').select('summary, raw_response, completed_at').eq('user_id', user!.id).eq('status', 'complete').order('completed_at', { ascending: false }).limit(1).single(),
+    supabase.from('sweeps').select('summary, raw_response, completed_at').eq('user_id', user!.id).eq('status', 'complete').not('raw_response', 'is', null).order('completed_at', { ascending: false }).limit(1).single(),
   ])
 
   const objectiveList = objectives ?? []
