@@ -40,6 +40,29 @@ export interface RunSweepResult {
 // caller. Takes userId explicitly rather than reading auth.uid() — uses the
 // service-role client throughout, since RLS would otherwise block loading
 // another user's objectives/profile.
+function buildCompletedContext(
+  objectiveId: string,
+  doneByObjectiveId: Map<string, { description: string; action_date: string }[]>,
+  crossDepsByObjectiveId: Map<string, string[]>
+): string {
+  const own = doneByObjectiveId.get(objectiveId) ?? []
+  const crossDepIds = crossDepsByObjectiveId.get(objectiveId) ?? []
+  const crossDep = crossDepIds.flatMap(id => doneByObjectiveId.get(id) ?? [])
+
+  if (own.length === 0 && crossDep.length === 0) return ''
+
+  const lines: string[] = ['COMPLETED ACTIONS — do not re-recommend any of the following:']
+  if (own.length > 0) {
+    lines.push('For this objective:')
+    own.slice(0, 10).forEach(a => lines.push(`- [${a.action_date}] ${a.description}`))
+  }
+  if (crossDep.length > 0) {
+    lines.push('From linked objectives:')
+    crossDep.slice(0, 10).forEach(a => lines.push(`- [${a.action_date}] ${a.description}`))
+  }
+  return lines.join('\n')
+}
+
 export async function runSweepForUser(
   userId: string,
   options: { objectiveIds?: string[]; manualSignals?: string; triggerType?: string } = {}
@@ -114,6 +137,44 @@ export async function runSweepForUser(
       .in('objective_id', objectives.map(o => o.id))
       .order('created_at', { ascending: true })
 
+    // 4b. Fetch completed actions (90-day window) for Layer 2 context injection
+    const ninetyDaysAgo = new Date()
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+
+    const { data: doneActions } = await supabase
+      .from('objective_actions')
+      .select('objective_id, description, action_date')
+      .eq('user_id', userId)
+      .eq('status', 'done')
+      .gte('action_date', ninetyDaysAgo.toISOString().split('T')[0])
+      .order('action_date', { ascending: false })
+
+    const doneByObjectiveId = new Map<string, { description: string; action_date: string }[]>()
+    for (const action of doneActions ?? []) {
+      if (!doneByObjectiveId.has(action.objective_id)) {
+        doneByObjectiveId.set(action.objective_id, [])
+      }
+      doneByObjectiveId.get(action.objective_id)!.push(action)
+    }
+
+    // 4c. Fetch latest episode per objective to get cross-dep IDs
+    const { data: latestEpisodes } = await supabase
+      .from('objective_episodes')
+      .select('objective_id, cross_deps_detected, episode_number')
+      .in('objective_id', objectives.map(o => o.id))
+      .order('episode_number', { ascending: false })
+
+    const crossDepsByObjectiveId = new Map<string, string[]>()
+    const seenEpisodeObj = new Set<string>()
+    for (const ep of latestEpisodes ?? []) {
+      if (seenEpisodeObj.has(ep.objective_id)) continue
+      seenEpisodeObj.add(ep.objective_id)
+      const ids = ((ep.cross_deps_detected as { objective_id?: string }[] | null) ?? [])
+        .map(d => d.objective_id)
+        .filter((id): id is string => Boolean(id))
+      crossDepsByObjectiveId.set(ep.objective_id, ids)
+    }
+
     // 5. Fetch NewsAPI signals for each objective
     const newsSignalsMap: Record<string, Awaited<ReturnType<typeof fetchNewsSignals>>> = {}
     for (const obj of objectives) {
@@ -157,7 +218,8 @@ export async function runSweepForUser(
         date: a.publishedAt.split('T')[0],
       }))
 
-      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null }
+      const completedActionsContext = buildCompletedContext(obj.id, doneByObjectiveId, crossDepsByObjectiveId)
+      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined }
     })
 
     // Inject upcoming calendar events for Explorer+ users who have a synced connection.
