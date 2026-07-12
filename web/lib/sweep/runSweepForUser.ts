@@ -471,6 +471,54 @@ export async function runSweepForUser(
           updated_at: new Date().toISOString(),
         }).eq('id', obj.id)
 
+        // Write episode record — immutable audit entry for this objective's sweep
+        try {
+          const relevanceOrder: Record<string, number> = { high: 0, medium: 1, low: 2 }
+          const objSignals = signalInserts
+            .filter(s => s.objective_ids.includes(obj.id))
+            .sort((a, b) => (relevanceOrder[a.relevance] ?? 1) - (relevanceOrder[b.relevance] ?? 1))
+            .slice(0, 5)
+
+          const topSignals = objSignals.map(s => ({
+            title: s.title,
+            signal_class: s.signal_class,
+            relevance: s.relevance,
+            body_excerpt: s.body?.slice(0, 300) ?? null,
+          }))
+
+          const crossDeps = parsed.cross_objective_dependencies
+            .filter(dep => dep.from_obj === obj.obj_id || dep.to_obj === obj.obj_id)
+            .map(dep => {
+              const relatedId = dep.from_obj === obj.obj_id ? dep.to_obj : dep.from_obj
+              const relatedObj = objectives.find(o => o.obj_id === relatedId)
+              return {
+                obj_id: relatedId,
+                objective_id: relatedObj?.id ?? null,
+                title: relatedObj?.title ?? null,
+                relationship: dep.description ?? null,
+              }
+            })
+
+          await supabase.from('objective_episodes').insert({
+            user_id: userId,
+            objective_id: obj.id,
+            sweep_id: sweep.id,
+            episode_number: 0, // ignored — trigger auto-sets
+            confidence_start: obj.confidence,
+            confidence_end: scoreToWrite,
+            signal_count: signalInserts.filter(s => s.objective_ids.includes(obj.id)).length,
+            top_signals: topSignals,
+            narrative: result.confidence_reasoning ?? null,
+            top_action: result.actions?.[0] ?? null,
+            recommended_actions: result.actions ?? null,
+            signal_gap: result.signal_gap ?? null,
+            cross_deps_detected: crossDeps,
+            source: 'sweep',
+          })
+        } catch (err) {
+          console.error(`[sweep] episode write failed for objective ${obj.id} (${obj.obj_id}):`, err)
+        }
+
         // Email alert if confidence delta > 5 points
         const delta = scoreToWrite - obj.confidence
         if (Math.abs(delta) > 5 && userEmail) {
