@@ -156,15 +156,23 @@ export default function ActionsList({ actions, objId, objectiveId, tier, hasCale
         throw new Error(errBody?.error ?? 'Could not save — please try again.')
       }
       // Log engine-recommended action completion into objective_actions
-      fetch(`/api/objectives/${objectiveId}/actions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: action,
-          action_date: completedDate || new Date().toISOString().split('T')[0],
-          source: 'engine_recommended',
-        }),
-      }).catch(() => { /* non-fatal */ })
+      try {
+        const actionRes = await fetch(`/api/objectives/${objectiveId}/actions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            description: action,
+            action_date: completedDate || new Date().toISOString().split('T')[0],
+            source: 'engine_recommended',
+          }),
+        })
+        if (!actionRes.ok) {
+          const errBody = await actionRes.json().catch(() => null) as { error?: string } | null
+          console.error(`[ActionsList] objective_actions write failed — status ${actionRes.status}, objective ${objectiveId}:`, errBody?.error ?? '(no body)')
+        }
+      } catch (err) {
+        console.error(`[ActionsList] objective_actions fetch error — objective ${objectiveId}:`, err)
+      }
       setCompleted(prev => new Set(Array.from(prev).concat(i)))
       setActiveForm(null)
       setNotes('')

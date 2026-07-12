@@ -33,13 +33,14 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
   const { data: obj } = await supabase.from('objectives').select('*').eq('id', params.id).eq('user_id', user.id).single()
   if (!obj) notFound()
 
-  const [{ data: scores }, { data: signals }, { data: allObjectives }, { data: profile }, { data: calConnections }, { data: episodes }] = await Promise.all([
+  const [{ data: scores }, { data: signals }, { data: allObjectives }, { data: profile }, { data: calConnections }, { data: episodes }, { data: doneEngineActions }] = await Promise.all([
     supabase.from('confidence_scores').select('id, score, created_at, sweep_id, recommended_actions').eq('objective_id', obj.id).order('created_at', { ascending: false }).limit(7),
     supabase.from('signals').select('*').contains('objective_ids', [obj.id]).order('created_at', { ascending: false }),
     supabase.from('objectives').select('id, title').eq('user_id', user.id),
     supabase.from('profiles').select('tier').eq('id', user.id).single(),
     supabase.from('calendar_connections').select('id').eq('user_id', user.id).eq('sync_status', 'ok').limit(1),
     supabase.from('objective_episodes').select('id, episode_number, confidence_start, confidence_end, confidence_delta, narrative, top_action, recommended_actions, signal_gap, top_signals, cross_deps_detected, source, signal_count, created_at').eq('objective_id', obj.id).order('episode_number', { ascending: false }),
+    supabase.from('objective_actions').select('description').eq('objective_id', obj.id).eq('source', 'engine_recommended').eq('status', 'done'),
   ])
 
   const hasCalendar = (calConnections?.length ?? 0) > 0
@@ -58,6 +59,9 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
   })
 
   const latestScoreEntry = scores?.[0] ?? null
+  const doneDescriptions = new Set((doneEngineActions ?? []).map(a => a.description as string))
+  const recommendedActions = ((latestScoreEntry?.recommended_actions as string[] | null) ?? [])
+    .filter(a => !doneDescriptions.has(a))
   const sparklineScores = [...(scores ?? [])].reverse() // chronological order
 
   // Pull this objective's narrative from its most recent sweep, for the factor list
@@ -123,7 +127,7 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
 
         <ObjectiveTabs
           factors={factors}
-          actions={(latestScoreEntry?.recommended_actions as string[] | null) ?? []}
+          actions={recommendedActions}
           objId={obj.obj_id}
           objectiveId={obj.id}
           signals={displaySignals}
