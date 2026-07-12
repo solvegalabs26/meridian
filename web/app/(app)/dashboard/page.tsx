@@ -5,6 +5,7 @@ import DoNextCard from '@/components/dashboard/DoNextCard'
 import CrossDepBanner, { type CrossDep } from '@/components/dashboard/CrossDepBanner'
 import SweepStatusStrip from '@/components/dashboard/SweepStatusStrip'
 import UpcomingStrip, { type UpcomingEvent } from '@/components/dashboard/UpcomingStrip'
+import ConfidenceGraph, { type ObjectiveSeries } from '@/components/dashboard/ConfidenceGraph'
 import AskMeridianBar from '@/components/ask/AskMeridianBar'
 import { getConfidenceStatus } from '@/lib/utils/confidenceStatus'
 
@@ -17,12 +18,13 @@ export default async function DashboardPage() {
   const now = new Date()
   const calWindowEnd = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000)
 
-  const [{ data: profile }, { data: objectives }, { data: lastSweep }, { data: unreadSignals }, { data: upcomingEvents }] = await Promise.all([
+  const [{ data: profile }, { data: objectives }, { data: lastSweep }, { data: unreadSignals }, { data: upcomingEvents }, { data: episodeData }] = await Promise.all([
     supabase.from('profiles').select('full_name, sweep_count, tier, account_type').eq('id', user!.id).single(),
     supabase.from('objectives').select('id, obj_id, title, confidence, confidence_prev, target_date, updated_at, status').eq('user_id', user!.id).eq('status', 'active').order('sort_order'),
     supabase.from('sweeps').select('*').eq('user_id', user!.id).eq('status', 'complete').not('raw_response', 'is', null).order('completed_at', { ascending: false }).limit(1).single(),
     supabase.from('signals').select('objective_ids').eq('user_id', user!.id).eq('is_read', false),
     supabase.from('calendar_events').select('id, starts_at, summary, objective_ids').eq('user_id', user!.id).gte('starts_at', now.toISOString()).lte('starts_at', calWindowEnd.toISOString()).order('starts_at').limit(5),
+    supabase.from('objective_episodes').select('objective_id, episode_number, confidence_end, created_at, narrative').eq('user_id', user!.id).order('episode_number', { ascending: true }),
   ])
 
   const hasSweep = !!lastSweep
@@ -81,6 +83,26 @@ export default async function DashboardPage() {
     (a, b) => STATUS_RANK[getConfidenceStatus(a.confidence)] - STATUS_RANK[getConfidenceStatus(b.confidence)]
   )
 
+  // Build per-objective episode series for the confidence trajectory chart
+  const episodesByObjId = new Map<string, ObjectiveSeries['episodes']>()
+  for (const ep of episodeData ?? []) {
+    if (!episodesByObjId.has(ep.objective_id)) episodesByObjId.set(ep.objective_id, [])
+    episodesByObjId.get(ep.objective_id)!.push({
+      episode_number: ep.episode_number as number,
+      confidence_end: ep.confidence_end as number,
+      created_at: ep.created_at as string,
+      narrative: ep.narrative as string | null,
+    })
+  }
+  const confidenceSeries: ObjectiveSeries[] = objectiveList
+    .map(obj => ({
+      objectiveId: obj.id,
+      objId: obj.obj_id,
+      title: obj.title,
+      episodes: episodesByObjId.get(obj.id) ?? [],
+    }))
+    .filter(s => s.episodes.length > 0)
+
   return (
     <div className="-m-6 p-6 min-h-[calc(100vh-3.5rem)]" style={{ backgroundColor: 'var(--navy)' }}>
     <div className="max-w-2xl space-y-4">
@@ -96,6 +118,20 @@ export default async function DashboardPage() {
           objectives={(objectiveList).map(o => ({ id: o.id, title: o.title, target_date: o.target_date ?? null }))}
         />
       )}
+
+      <div
+        className="rounded-2xl p-4"
+        style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid var(--ov-border)' }}
+      >
+        <p className="text-[9px] uppercase tracking-widest font-semibold mb-3" style={{ color: 'var(--blue-mid)' }}>
+          Confidence Trajectory
+        </p>
+        <ConfidenceGraph
+          series={confidenceSeries}
+          tier={profile?.tier ?? 'trial'}
+          accountType={profile?.account_type ?? null}
+        />
+      </div>
 
       <div>
         <p className="text-[9px] uppercase tracking-widest font-semibold mb-2" style={{ color: 'var(--blue-mid)' }}>
