@@ -1,5 +1,5 @@
 /**
- * autoConfig — fires after objective creation (fire-and-forget).
+ * autoConfig — fires after objective creation.
  *
  * 1. Classifies the objective into the closed taxonomy (objective_type)
  * 2. For resale types: extracts structured context (year, make, model, price
@@ -7,8 +7,9 @@
  * 3. Seeds a rules_filter row from objective_type_sources for the detected type
  *
  * Uses the service-role client so it can run outside the authenticated request
- * context. Errors are caught by the caller and logged; they never fail the
- * creation response.
+ * context. Errors are logged to Vercel via console.error; they never fail the
+ * creation response. All checkpoints are logged to console.log so the call
+ * chain is visible in Vercel Function logs under the creation request.
  */
 
 import { createServiceClient } from '@/lib/supabase/server'
@@ -61,7 +62,10 @@ export interface ObjectiveInput {
   goal_context?: string | null
 }
 
-async function classifyObjectiveType(input: ObjectiveInput): Promise<TaxonomyKey | null> {
+async function classifyObjectiveType(
+  objectiveId: string,
+  input: ObjectiveInput
+): Promise<TaxonomyKey | null> {
   const prompt = `Classify this objective into exactly one taxonomy key from the list below, or "none" if no key fits well.
 
 Objective title: "${input.title}"
@@ -81,6 +85,8 @@ Rules:
 
 Respond with just the key or "none". No other text.`
 
+  console.log(`[autoConfig:classify] ${objectiveId} — calling Haiku for "${input.title}"`)
+
   try {
     const msg = await getAnthropicClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -88,15 +94,24 @@ Respond with just the key or "none". No other text.`
       messages: [{ role: 'user', content: prompt }],
     })
     const raw = (msg.content[0].type === 'text' ? msg.content[0].text : '').trim().toLowerCase()
+    console.log(`[autoConfig:classify] ${objectiveId} — Haiku returned: "${raw}"`)
+
     if (raw === 'none') return null
     const match = TAXONOMY_KEYS.find(k => k === raw)
+    if (!match) {
+      console.warn(`[autoConfig:classify] ${objectiveId} — response "${raw}" did not match any taxonomy key`)
+    }
     return match ?? null
-  } catch {
+  } catch (err) {
+    console.error(`[autoConfig:classify] ${objectiveId} — Anthropic API error:`, err)
     return null
   }
 }
 
-async function extractResaleContext(input: ObjectiveInput): Promise<ResaleContext> {
+async function extractResaleContext(
+  objectiveId: string,
+  input: ObjectiveInput
+): Promise<ResaleContext> {
   const corpus = [input.title, input.outcome, input.notes ?? '', input.goal_context ?? '']
     .filter(Boolean).join('\n')
 
@@ -119,6 +134,8 @@ Return this exact shape (use null for any field not mentioned):
   "payoff": number or null — loan payoff amount in USD if mentioned
 }`
 
+  console.log(`[autoConfig:context] ${objectiveId} — calling Haiku for resale context extraction`)
+
   try {
     const msg = await getAnthropicClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -126,10 +143,18 @@ Return this exact shape (use null for any field not mentioned):
       messages: [{ role: 'user', content: prompt }],
     })
     const raw = msg.content[0].type === 'text' ? msg.content[0].text.trim() : '{}'
+    console.log(`[autoConfig:context] ${objectiveId} — Haiku returned: ${raw.slice(0, 200)}`)
+
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return emptyResaleContext()
-    return { ...emptyResaleContext(), ...JSON.parse(jsonMatch[0]) } as ResaleContext
-  } catch {
+    if (!jsonMatch) {
+      console.warn(`[autoConfig:context] ${objectiveId} — no JSON found in response`)
+      return emptyResaleContext()
+    }
+    const parsed = { ...emptyResaleContext(), ...JSON.parse(jsonMatch[0]) } as ResaleContext
+    console.log(`[autoConfig:context] ${objectiveId} — parsed context:`, JSON.stringify(parsed))
+    return parsed
+  } catch (err) {
+    console.error(`[autoConfig:context] ${objectiveId} — error:`, err)
     return emptyResaleContext()
   }
 }
@@ -142,16 +167,24 @@ export async function autoConfigObjective(
   objectiveId: string,
   input: ObjectiveInput
 ): Promise<void> {
+  console.log(`[autoConfig] START ${objectiveId} — title: "${input.title}", category: "${input.category}"`)
+
   const supabase = createServiceClient()
 
   // 1. Classify
-  const objectiveType = await classifyObjectiveType(input)
-  if (!objectiveType) return
+  const objectiveType = await classifyObjectiveType(objectiveId, input)
+
+  if (!objectiveType) {
+    console.log(`[autoConfig] ${objectiveId} — no taxonomy match; objective_type remains null (expected for non-resale/non-classified goals)`)
+    return
+  }
+
+  console.log(`[autoConfig] ${objectiveId} — matched taxonomy: ${objectiveType}`)
 
   // 2. For resale types, extract structured context in parallel with source load
   const isResale = RESALE_TYPES.has(objectiveType)
   const [resaleContext, sourcesResult, objResult] = await Promise.all([
-    isResale ? extractResaleContext(input) : Promise.resolve(null),
+    isResale ? extractResaleContext(objectiveId, input) : Promise.resolve(null),
     supabase
       .from('objective_type_sources')
       .select('source_name, tier, weight')
@@ -166,14 +199,25 @@ export async function autoConfigObjective(
       .single(),
   ])
 
+  if (sourcesResult.error) {
+    console.error(`[autoConfig] ${objectiveId} — error loading objective_type_sources:`, sourcesResult.error)
+  }
+  if (objResult.error) {
+    console.error(`[autoConfig] ${objectiveId} — error loading objective user_id:`, objResult.error)
+  }
+
   const sources = sourcesResult.data ?? []
   const obj = objResult.data
-  if (!obj) return
+  console.log(`[autoConfig] ${objectiveId} — sources loaded: ${sources.length} rows; obj found: ${!!obj}`)
+
+  if (!obj) {
+    console.error(`[autoConfig] ${objectiveId} — objective not found in DB; aborting`)
+    return
+  }
 
   // 3. Write objective_type + context in one update
   const contextUpdate: Record<string, unknown> = { objective_type: objectiveType }
   if (isResale && resaleContext) {
-    // Only write non-null fields so we don't stomp user-supplied context
     const filtered = Object.fromEntries(
       Object.entries(resaleContext).filter(([, v]) => v !== null)
     )
@@ -181,22 +225,36 @@ export async function autoConfigObjective(
       contextUpdate.context = filtered
     }
   }
-  await supabase.from('objectives').update(contextUpdate).eq('id', objectiveId)
+
+  console.log(`[autoConfig] ${objectiveId} — writing objective_type=${objectiveType}, context keys: ${Object.keys(contextUpdate.context as object ?? {}).join(', ') || 'none'}`)
+  const { error: updateError } = await supabase
+    .from('objectives')
+    .update(contextUpdate)
+    .eq('id', objectiveId)
+
+  if (updateError) {
+    console.error(`[autoConfig] ${objectiveId} — objectives.update failed:`, updateError)
+  } else {
+    console.log(`[autoConfig] ${objectiveId} — objectives.update OK`)
+  }
 
   // 4. Seed rules_filter — idempotent upsert
-  if (sources.length === 0) return
+  if (sources.length === 0) {
+    console.log(`[autoConfig] ${objectiveId} — no sources for ${objectiveType}; skipping rules_filter upsert`)
+    return
+  }
 
   const keywordsHigh = sources.filter(s => s.tier === 1).map(s => s.source_name)
   const keywordsMed  = sources.filter(s => s.tier === 2).map(s => s.source_name)
 
-  // Inject extracted entities as additional high-value keywords
   if (isResale && resaleContext) {
     const entities = [resaleContext.year, resaleContext.make, resaleContext.model]
       .filter((v): v is string => typeof v === 'string' && v.length > 0)
     keywordsHigh.push(...entities)
   }
 
-  await supabase
+  console.log(`[autoConfig] ${objectiveId} — upserting rules_filter: high=[${keywordsHigh.join(', ')}] med=[${keywordsMed.join(', ')}]`)
+  const { error: upsertError } = await supabase
     .from('rules_filter')
     .upsert({
       objective_id:  objectiveId,
@@ -212,4 +270,12 @@ export async function autoConfigObjective(
       },
       updated_at: new Date().toISOString(),
     }, { onConflict: 'objective_id' })
+
+  if (upsertError) {
+    console.error(`[autoConfig] ${objectiveId} — rules_filter upsert failed:`, upsertError)
+  } else {
+    console.log(`[autoConfig] ${objectiveId} — rules_filter upsert OK`)
+  }
+
+  console.log(`[autoConfig] DONE ${objectiveId}`)
 }
