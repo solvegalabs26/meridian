@@ -14,6 +14,23 @@ interface TabSignal {
   created_at: string
 }
 
+export interface Episode {
+  id: string
+  episode_number: number
+  confidence_start: number | null
+  confidence_end: number
+  confidence_delta: number | null
+  narrative: string | null
+  top_action: string | null
+  recommended_actions: string[] | null
+  signal_gap: string | null
+  top_signals: { title: string; signal_class: string; relevance: string; body_excerpt: string | null }[] | null
+  cross_deps_detected: { obj_id: string; objective_id: string | null; title: string | null; relationship: string | null }[] | null
+  source: string
+  signal_count: number
+  created_at: string
+}
+
 interface ObjectiveTabsProps {
   factors: Factor[]
   actions: string[]
@@ -24,6 +41,7 @@ interface ObjectiveTabsProps {
   goalContext: string | null
   tier: string
   hasCalendar: boolean
+  episodes: Episode[]
 }
 
 const DOT_COLORS: Record<Factor['color'], string> = {
@@ -51,10 +69,19 @@ const ACTION_CLASSES = [
   { value: 'other', label: 'Other' },
 ]
 
-const TABS = ["What's affecting it", 'What to do', 'Signals', 'Goal'] as const
+const TABS = ["What's affecting it", 'What to do', 'Signals', 'History', 'Goal'] as const
 
-export default function ObjectiveTabs({ factors, actions, objId, objectiveId, signals, goalDescription, goalContext, tier, hasCalendar }: ObjectiveTabsProps) {
+export default function ObjectiveTabs({ factors, actions, objId, objectiveId, signals, goalDescription, goalContext, tier, hasCalendar, episodes }: ObjectiveTabsProps) {
   const [active, setActive] = useState<typeof TABS[number]>(TABS[0])
+  const [expandedEpisodes, setExpandedEpisodes] = useState<Set<string>>(new Set())
+
+  function toggleEpisode(id: string) {
+    setExpandedEpisodes(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
 
   // "I did this" form state
   const [logOpen, setLogOpen] = useState(false)
@@ -328,6 +355,159 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                         {new Date(sig.created_at).toLocaleDateString()}
                       </p>
                     </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )
+        })()}
+
+        {active === 'History' && (() => {
+          if (episodes.length === 0) {
+            return (
+              <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>
+                No sweep history yet. Run your first sweep to begin building your objective&apos;s confidence timeline.
+              </p>
+            )
+          }
+
+          const SOURCE_LABEL: Record<string, string> = {
+            sweep: 'Sweep',
+            user_action: 'You logged',
+            manual: 'Manual',
+          }
+
+          return (
+            <ul className="space-y-3">
+              {episodes.map(ep => {
+                const expanded = expandedEpisodes.has(ep.id)
+                const delta = ep.confidence_delta
+                const deltaStr = delta !== null
+                  ? (delta >= 0 ? `+${delta}` : `${delta}`)
+                  : null
+                const deltaColor = delta === null ? 'var(--ov-text-dim)'
+                  : delta > 0 ? 'var(--ov-green)'
+                  : delta < 0 ? 'var(--ov-red)'
+                  : 'var(--ov-text-dim)'
+
+                return (
+                  <li key={ep.id} className="rounded-xl p-3" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid var(--ov-border)' }}>
+                    {/* Header */}
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[12px] font-semibold" style={{ color: 'var(--ov-text-hi)' }}>
+                          Episode #{ep.episode_number}
+                        </span>
+                        <span className="text-[11px]" style={{ color: 'var(--ov-text-dim)' }}>
+                          {new Date(ep.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                        <span
+                          className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                          style={{ backgroundColor: 'rgba(201,162,39,0.12)', color: 'var(--gold)' }}
+                        >
+                          {SOURCE_LABEL[ep.source] ?? ep.source}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Confidence row */}
+                    <div className="flex items-center gap-2 mb-2.5 text-[12px]">
+                      {ep.confidence_start !== null ? (
+                        <>
+                          <span style={{ color: 'var(--ov-text-mid)' }}>{ep.confidence_start}%</span>
+                          <span style={{ color: 'var(--ov-text-dim)' }}>→</span>
+                        </>
+                      ) : null}
+                      <span className="font-semibold" style={{ color: 'var(--ov-text-hi)' }}>{ep.confidence_end}%</span>
+                      {deltaStr && (
+                        <span className="text-[11px] font-medium" style={{ color: deltaColor }}>
+                          ({deltaStr})
+                        </span>
+                      )}
+                      <span className="text-[10px]" style={{ color: 'var(--ov-text-dim)' }}>
+                        · {ep.signal_count} signal{ep.signal_count !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    {/* Narrative */}
+                    {ep.narrative && (
+                      <p className="text-[12px] leading-relaxed mb-2.5" style={{ color: 'var(--ov-text-mid)' }}>
+                        {ep.narrative}
+                      </p>
+                    )}
+
+                    {/* Expand toggle */}
+                    {(ep.top_action || (ep.recommended_actions?.length ?? 0) > 0 || ep.signal_gap || (ep.top_signals?.length ?? 0) > 0 || (ep.cross_deps_detected?.length ?? 0) > 0) && (
+                      <button
+                        onClick={() => toggleEpisode(ep.id)}
+                        className="text-[11px]"
+                        style={{ color: 'var(--ov-text-dim)' }}
+                      >
+                        {expanded ? '↑ Less' : '↓ More'}
+                      </button>
+                    )}
+
+                    {/* Expanded detail */}
+                    {expanded && (
+                      <div className="mt-3 space-y-3" style={{ borderTop: '1px solid var(--ov-border)', paddingTop: 12 }}>
+                        {(ep.top_signals?.length ?? 0) > 0 && (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>Top signals</p>
+                            <ul className="space-y-1.5">
+                              {ep.top_signals!.map((s, i) => (
+                                <li key={i} className="text-[12px]" style={{ color: 'var(--ov-text-mid)' }}>
+                                  <span
+                                    className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full mr-1.5"
+                                    style={{ backgroundColor: 'rgba(255,255,255,0.07)', color: 'var(--ov-text-dim)' }}
+                                  >
+                                    {s.relevance}
+                                  </span>
+                                  {s.title}
+                                  {s.body_excerpt && (
+                                    <span className="block text-[11px] mt-0.5 ml-0.5" style={{ color: 'var(--ov-text-dim)' }}>{s.body_excerpt}</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {(ep.recommended_actions?.length ?? 0) > 0 && (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>Recommended actions</p>
+                            <ul className="space-y-1">
+                              {ep.recommended_actions!.map((a, i) => (
+                                <li key={i} className="text-[12px] flex gap-2" style={{ color: 'var(--ov-text-mid)' }}>
+                                  <span style={{ color: 'var(--ov-text-dim)' }}>{i + 1}.</span>
+                                  {a}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {ep.signal_gap && (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide mb-1" style={{ color: 'var(--ov-text-dim)' }}>Signal gap</p>
+                            <p className="text-[12px]" style={{ color: 'var(--ov-text-mid)' }}>{ep.signal_gap}</p>
+                          </div>
+                        )}
+
+                        {(ep.cross_deps_detected?.length ?? 0) > 0 && (
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>Cross-goal links</p>
+                            <ul className="space-y-1">
+                              {ep.cross_deps_detected!.map((d, i) => (
+                                <li key={i} className="text-[12px]" style={{ color: 'var(--ov-text-mid)' }}>
+                                  <span className="font-medium" style={{ color: 'var(--ov-text-hi)' }}>{d.title ?? d.obj_id}</span>
+                                  {d.relationship && <span> — {d.relationship}</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </li>
                 )
               })}

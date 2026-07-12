@@ -33,12 +33,13 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
   const { data: obj } = await supabase.from('objectives').select('*').eq('id', params.id).eq('user_id', user.id).single()
   if (!obj) notFound()
 
-  const [{ data: scores }, { data: signals }, { data: allObjectives }, { data: profile }, { data: calConnections }] = await Promise.all([
+  const [{ data: scores }, { data: signals }, { data: allObjectives }, { data: profile }, { data: calConnections }, { data: episodes }] = await Promise.all([
     supabase.from('confidence_scores').select('id, score, created_at, sweep_id, recommended_actions').eq('objective_id', obj.id).order('created_at', { ascending: false }).limit(7),
     supabase.from('signals').select('*').contains('objective_ids', [obj.id]).order('created_at', { ascending: false }),
     supabase.from('objectives').select('id, title').eq('user_id', user.id),
     supabase.from('profiles').select('tier').eq('id', user.id).single(),
     supabase.from('calendar_connections').select('id').eq('user_id', user.id).eq('sync_status', 'ok').limit(1),
+    supabase.from('objective_episodes').select('id, episode_number, confidence_start, confidence_end, confidence_delta, narrative, top_action, recommended_actions, signal_gap, top_signals, cross_deps_detected, source, signal_count, created_at').eq('objective_id', obj.id).order('episode_number', { ascending: false }),
   ])
 
   const hasCalendar = (calConnections?.length ?? 0) > 0
@@ -130,6 +131,7 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
           goalContext={obj.goal_context}
           tier={(profile as { tier?: string } | null)?.tier ?? 'trial'}
           hasCalendar={hasCalendar}
+          episodes={(episodes ?? []) as import('./ObjectiveTabs').Episode[]}
         />
       </div>
     </div>
