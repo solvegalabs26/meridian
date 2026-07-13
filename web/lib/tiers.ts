@@ -10,6 +10,7 @@ const TIER_ORDER: Record<Tier, number> = {
 export type TierProfile = {
   tier: string | null
   account_type: string | null
+  complimentary_expires_at?: string | null
 }
 
 const ALPHA_ACCOUNT_TYPES = new Set(['alpha_business', 'alpha_personal'])
@@ -21,6 +22,10 @@ function normalizeTier(t: string | null): Tier {
 
 /** The tier a user should be treated as for FEATURE ACCESS (not billing). */
 export function getEffectiveTier(p: TierProfile): Tier {
+  // Complimentary access floors to explorer regardless of pricing_tier
+  if (p.complimentary_expires_at && new Date(p.complimentary_expires_at) > new Date()) {
+    return 'explorer'
+  }
   const base = normalizeTier(p.tier)
   const isAlpha = !!p.account_type && ALPHA_ACCOUNT_TYPES.has(p.account_type)
   // TODO(beta): add `|| p.is_beta` here to floor beta accounts to explorer too
