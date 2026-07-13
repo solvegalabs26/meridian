@@ -16,11 +16,12 @@ interface ObjectiveStateInput {
   recentSignals: RecentSignal[]
   openActions?: string[]
   comps?: CompsResult | null
+  completedActionsContext?: string
 }
 
 export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
   return {
-    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps }) => {
+    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext }) => {
       const obj = objective as Objective & {
         objective_type?: string | null
         deadline_type?: 'hard' | 'soft'
@@ -54,6 +55,11 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
       }
       if (obj.context && Object.keys(obj.context).length > 0) {
         Object.assign(base, { context: obj.context })
+      }
+
+      // Inject completed actions so Claude doesn't re-recommend already-done items
+      if (completedActionsContext) {
+        Object.assign(base, { completed_actions: completedActionsContext })
       }
 
       // Attach comps data for resale-type objectives
