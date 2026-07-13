@@ -129,6 +129,13 @@ export async function runSweepForUser(
 
   if (!sweep) return { ...empty, userEmail, error: 'Failed to create sweep' }
 
+  // Wall-clock anchor — all [sweep:timing] log lines report ms since this point
+  // so we can see exactly which step a Vercel-killed sweep reached.
+  const t0 = Date.now()
+  const elapsed = () => `+${Date.now() - t0}ms`
+
+  console.log(`[sweep:start] ${sweep.id} user=${userId} trigger=${triggerType} objectives=${objectives.length} tier=${(profile as { tier?: string } | null)?.tier ?? 'unknown'} account_type=${(profile as { account_type?: string } | null)?.account_type ?? 'unknown'}`)
+
   try {
     // 4. Fetch confidence history per objective
     const { data: allScores } = await supabase
@@ -136,6 +143,8 @@ export async function runSweepForUser(
       .select('objective_id, score, created_at')
       .in('objective_id', objectives.map(o => o.id))
       .order('created_at', { ascending: true })
+
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — confidence history loaded`)
 
     // 4b. Fetch completed actions (90-day window) for Layer 2 context injection
     const ninetyDaysAgo = new Date()
@@ -175,6 +184,8 @@ export async function runSweepForUser(
       crossDepsByObjectiveId.set(ep.objective_id, ids)
     }
 
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — completed actions + episodes loaded`)
+
     // 5. Fetch NewsAPI signals for each objective
     const newsSignalsMap: Record<string, Awaited<ReturnType<typeof fetchNewsSignals>>> = {}
     for (const obj of objectives) {
@@ -185,6 +196,8 @@ export async function runSweepForUser(
         newsSignalsMap[obj.id] = []
       }
     }
+
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — news signals fetched (${objectives.filter(o => (o.signal_keywords ?? []).length > 0).length} objectives with keywords)`)
 
     // 5b. Fetch market comps for resale-type objectives
     const compsMap: Record<string, CompsResult | null> = {}
@@ -202,6 +215,8 @@ export async function runSweepForUser(
         })
       }
     }
+
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — market comps fetched (${Object.keys(compsMap).length} resale objectives)`)
 
     // 6. Build objective state JSON
     const objectiveInputs = objectives.map(obj => {
@@ -283,6 +298,8 @@ export async function runSweepForUser(
       sweep_instructions: 'Focus on cross-dependencies. Flag any signal that changes urgency on open actions. If calendar events are provided, factor upcoming events into recommendations — identify which objectives have relevant events approaching and surface time-sensitive actions.',
     }
 
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — prompt built, calling Anthropic (model=claude-sonnet-4-6 max_tokens=8192)`)
+
     // 7. Call Anthropic API
     const systemPrompt = buildSystemPrompt({
       userName: profile?.full_name ?? 'User',
@@ -301,6 +318,8 @@ export async function runSweepForUser(
     const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
     const tokensUsed = message.usage.input_tokens + message.usage.output_tokens
     const costUsd = (message.usage.input_tokens * 0.000003) + (message.usage.output_tokens * 0.000015)
+
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — Anthropic responded (in=${message.usage.input_tokens} out=${message.usage.output_tokens} tokens)`)
 
     // 8. Parse Anthropic response
     const parsed = parseAnthropicResponse(responseText)
@@ -473,6 +492,8 @@ export async function runSweepForUser(
       }
     }
 
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — ${signalInserts.length} signals assembled, writing to DB`)
+
     if (signalInserts.length > 0) {
       await supabase.from('signals').insert(signalInserts)
     }
@@ -610,6 +631,8 @@ export async function runSweepForUser(
       }
     }
 
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — confidence scores + episodes written for ${objResults.length}/${objectives.length} objectives`)
+
     // 11. Update sweep record as complete
     await supabase.from('sweeps').update({
       status: 'complete',
@@ -627,6 +650,8 @@ export async function runSweepForUser(
         ? ((profile as { sweep_count?: number }).sweep_count ?? 0) + 1
         : 1,
     }).eq('id', userId)
+
+    console.log(`[sweep:done] ${sweep.id} ${elapsed()} — complete signals=${signalInserts.length} tokens=${tokensUsed} cost=$${costUsd.toFixed(4)}`)
 
     return {
       success: true,

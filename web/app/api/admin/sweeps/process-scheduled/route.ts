@@ -19,6 +19,23 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServiceClient()
 
+  // Recover sweeps left stuck at status='running' from a prior Vercel hard-kill.
+  // A Vercel function kill bypasses try/catch, so runSweepForUser never marks
+  // them failed. Any sweep still running after 15 minutes is orphaned.
+  const staleThreshold = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+  const { data: staleSweeps, error: staleErr } = await supabase
+    .from('sweeps')
+    .update({ status: 'failed', completed_at: new Date().toISOString() })
+    .eq('status', 'running')
+    .lt('started_at', staleThreshold)
+    .select('id, user_id')
+
+  if (staleErr) {
+    console.error('[cron:stale-recovery] error marking stale sweeps failed:', staleErr)
+  } else if (staleSweeps && staleSweeps.length > 0) {
+    console.log(`[cron:stale-recovery] marked ${staleSweeps.length} stale sweep(s) failed:`, staleSweeps.map(s => s.id))
+  }
+
   const { data: dueJobs } = await supabase
     .from('bulk_sweep_jobs')
     .select('id')
