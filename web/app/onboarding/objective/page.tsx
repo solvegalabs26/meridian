@@ -87,15 +87,39 @@ function OnboardingObjectivePageInner() {
 
   const CATEGORIES = getCategoriesForAccount(accountType)
 
+  // Loads career transition template into state and persists objectives to DB.
+  // Called from both the URL param path and the profile context path.
+  // bio is '' in both cases — acceptable for goal_description.
+  function activateCareerTemplate() {
+    setGoals(CAREER_TRANSITION_TEMPLATE)
+    setSelected(CAREER_TRANSITION_TEMPLATE.map(() => true))
+    setSavedIds(CAREER_TRANSITION_TEMPLATE.map(() => null))
+    setClarifyQuestions(CAREER_TRANSITION_TEMPLATE.map(() => undefined))
+    setClarifyAnswers(CAREER_TRANSITION_TEMPLATE.map(() => []))
+    setClarifyDone(CAREER_TRANSITION_TEMPLATE.map(() => false))
+    ;(async () => {
+      for (let i = 0; i < CAREER_TRANSITION_TEMPLATE.length; i++) {
+        await createGoal(i, CAREER_TRANSITION_TEMPLATE[i])
+      }
+    })()
+  }
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
       setUserId(user.id)
-      supabase.from('profiles').select('account_type').eq('id', user.id).single()
-        .then(({ data }) => setAccountType(data?.account_type ?? 'personal'))
+      supabase.from('profiles').select('account_type, onboarding_context').eq('id', user.id).single()
+        .then(({ data }) => {
+          setAccountType(data?.account_type ?? 'personal')
+          // If the user's saved context is career_transition and the URL param
+          // didn't already activate the template, activate it now.
+          if (data?.onboarding_context === 'career_transition' && !isCareerTemplate) {
+            activateCareerTemplate()
+          }
+        })
     })
 
-    // Persist template objectives to DB on first load (bio is '' — acceptable for goal_description)
+    // URL param path — state was already initialized synchronously; only persist.
     if (isCareerTemplate) {
       ;(async () => {
         for (let i = 0; i < CAREER_TRANSITION_TEMPLATE.length; i++) {
