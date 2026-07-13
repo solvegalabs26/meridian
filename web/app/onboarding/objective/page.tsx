@@ -1,11 +1,43 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import MeridianBeacon from '@/components/brand/MeridianBeacon'
 import { Check, Pencil, X } from 'lucide-react'
 import { getCategoriesForAccount, CATEGORY_COLORS } from '@/lib/utils/categories'
 import { createClient } from '@/lib/supabase/client'
+
+// Career Transition Template — 5 pre-built draft objectives
+const CAREER_TRANSITION_TEMPLATE: ExtractedGoal[] = [
+  {
+    title: 'Land my target civilian role within 90 days of separation',
+    category: 'Career',
+    outcome: 'Signed offer letter for a role that matches my experience, meets my salary floor, and fits my location and schedule requirements. I am targeting [role type] roles at [1-3 companies]. My minimum base salary is [$X]. Location requirement: [city/region or remote].',
+    target_date: (() => {
+      const d = new Date()
+      d.setDate(d.getDate() + 90)
+      return d.toISOString().split('T')[0]
+    })(),
+  },
+  {
+    title: 'Bridge the income and benefits gap through separation',
+    category: 'Finance',
+    outcome: 'No gap in health coverage. VA disability claim filed and in process. TSP rollover decision made. Cash reserves stay above two months of household expenses through the transition window. GI Bill transfer or use plan confirmed.',
+    target_date: null,
+  },
+  {
+    title: 'Complete one civilian certification that strengthens my target role',
+    category: 'Career',
+    outcome: 'Passed and credentialed in [target certification — e.g. PMP, AWS Cloud Practitioner, Lean Six Sigma Green Belt, CompTIA Security+]. Exam fee budgeted and prep materials identified. Study timeline fits around separation activities.',
+    target_date: null,
+  },
+  {
+    title: 'Family celebration — the trip we\'ve been postponing',
+    category: 'Personal',
+    outcome: 'Family trip completed — destination [X], duration [X days], all-in budget [$X]. This is the reward horizon. Timing downstream of financial stabilization confirming on track.',
+    target_date: null,
+  },
+]
 
 interface ExtractedGoal {
   title: string
@@ -16,6 +48,7 @@ interface ExtractedGoal {
 
 export default function OnboardingObjectivePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   // Step A — free text input
@@ -25,7 +58,7 @@ export default function OnboardingObjectivePage() {
   const [accountType, setAccountType] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
 
-  // Load account_type on mount
+  // Load account_type on mount; also bootstrap template if requested
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
@@ -33,6 +66,24 @@ export default function OnboardingObjectivePage() {
       supabase.from('profiles').select('account_type').eq('id', user.id).single()
         .then(({ data }) => setAccountType(data?.account_type ?? 'personal'))
     })
+
+    // Option A template pre-load — skip bio extraction step
+    const template = searchParams.get('template')
+    if (template === 'career_transition') {
+      const templateGoals = CAREER_TRANSITION_TEMPLATE
+      setGoals(templateGoals)
+      setSelected(templateGoals.map(() => true))
+      setSavedIds(templateGoals.map(() => null))
+      setClarifyQuestions(templateGoals.map(() => undefined))
+      setClarifyAnswers(templateGoals.map(() => []))
+      setClarifyDone(templateGoals.map(() => false))
+      // Persist each template objective sequentially (bio is '' for template path — acceptable)
+      ;(async () => {
+        for (let i = 0; i < templateGoals.length; i++) {
+          await createGoal(i, templateGoals[i])
+        }
+      })()
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const CATEGORIES = getCategoriesForAccount(accountType)

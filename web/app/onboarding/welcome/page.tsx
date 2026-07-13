@@ -19,7 +19,7 @@ export default function OnboardingWelcomePage() {
         Meridian Arc monitors your most important objectives — tracking signals, synthesizing intelligence, and surfacing what matters most today.
       </p>
       <button
-        onClick={() => router.push('/onboarding/profile')}
+        onClick={() => router.push('/onboarding/context')}
         className="px-8 py-3.5 rounded-xl bg-gold text-navy text-[15px] font-semibold hover:bg-gold/90 transition-colors"
       >
         Set up your profile →
