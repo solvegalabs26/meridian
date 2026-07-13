@@ -232,8 +232,7 @@ function Page4Illustration() {
   )
 }
 
-function Page5Illustration({ context }: { context: string }) {
-  const cta = TEMPLATE_CTA[context] ?? TEMPLATE_CTA.general
+function Page5Illustration({ onUseTemplate }: { onUseTemplate: () => void }) {
   return (
     <div style={{ backgroundColor: P.white, border: `1.5px solid ${P.gold}`, borderRadius: 10, overflow: 'hidden' }}>
       <div style={{ padding: '14px 16px', backgroundColor: P.bg }}>
@@ -241,7 +240,12 @@ function Page5Illustration({ context }: { context: string }) {
         <p style={{ fontSize: 11, color: P.muted, margin: 0, lineHeight: 1.4 }}>5 pre-built objectives: target role, financial stabilization, credential build, relocation, and a personal milestone.</p>
       </div>
       <div style={{ padding: '12px 16px', borderTop: `1px solid ${P.line}`, backgroundColor: P.white }}>
-        <span style={{ display: 'inline-block', backgroundColor: P.navy, color: P.white, fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 8 }}>{cta.label}</span>
+        <button
+          onClick={onUseTemplate}
+          style={{ display: 'inline-block', backgroundColor: P.navy, color: P.white, fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 8, border: `1.5px solid ${P.gold}`, cursor: 'pointer' }}
+        >
+          Use the Career Transition Template →
+        </button>
       </div>
     </div>
   )
@@ -315,7 +319,7 @@ export default function TutorialModal({ open, onClose, startPage = 1, onOpenKeyT
           {/* Illustration panel */}
           <div style={{ backgroundColor: P.bg, border: `1px solid ${P.line}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
             {page === 4
-              ? <Page5Illustration context={context} />
+              ? <Page5Illustration onUseTemplate={() => { onClose(); router.push(TEMPLATE_CTA.career_transition.route) }} />
               : (() => { const C = IllustrationComp as React.FC; return <C /> })()
             }
           </div>

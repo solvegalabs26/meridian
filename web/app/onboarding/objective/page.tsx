@@ -51,6 +51,9 @@ function OnboardingObjectivePageInner() {
   const searchParams = useSearchParams()
   const supabase = createClient()
 
+  // Resolve template param before any state declarations so initial state is correct
+  const isCareerTemplate = searchParams.get('template') === 'career_transition'
+
   // Step A — free text input
   const [bio, setBio] = useState('')
   const [extracting, setExtracting] = useState(false)
@@ -58,7 +61,32 @@ function OnboardingObjectivePageInner() {
   const [accountType, setAccountType] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
 
-  // Load account_type on mount; also bootstrap template if requested
+  // Step B — review extracted goals
+  // Initialize directly from template param — bypasses bio-extraction screen on first render
+  const [goals, setGoals] = useState<ExtractedGoal[] | null>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE : null
+  )
+  const [selected, setSelected] = useState<boolean[]>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE.map(() => true) : []
+  )
+  const [editing, setEditing] = useState<number | null>(null)
+  const [savedIds, setSavedIds] = useState<(string | null)[]>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE.map(() => null) : []
+  )
+  const [syncError, setSyncError] = useState<string | null>(null)
+
+  const [clarifyQuestions, setClarifyQuestions] = useState<(string[] | undefined)[]>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE.map(() => undefined) : []
+  )
+  const [clarifyAnswers, setClarifyAnswers] = useState<string[][]>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE.map(() => []) : []
+  )
+  const [clarifyDone, setClarifyDone] = useState<boolean[]>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE.map(() => false) : []
+  )
+
+  const CATEGORIES = getCategoriesForAccount(accountType)
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
@@ -67,40 +95,15 @@ function OnboardingObjectivePageInner() {
         .then(({ data }) => setAccountType(data?.account_type ?? 'personal'))
     })
 
-    // Option A template pre-load — skip bio extraction step
-    const template = searchParams.get('template')
-    if (template === 'career_transition') {
-      const templateGoals = CAREER_TRANSITION_TEMPLATE
-      setGoals(templateGoals)
-      setSelected(templateGoals.map(() => true))
-      setSavedIds(templateGoals.map(() => null))
-      setClarifyQuestions(templateGoals.map(() => undefined))
-      setClarifyAnswers(templateGoals.map(() => []))
-      setClarifyDone(templateGoals.map(() => false))
-      // Persist each template objective sequentially (bio is '' for template path — acceptable)
+    // Persist template objectives to DB on first load (bio is '' — acceptable for goal_description)
+    if (isCareerTemplate) {
       ;(async () => {
-        for (let i = 0; i < templateGoals.length; i++) {
-          await createGoal(i, templateGoals[i])
+        for (let i = 0; i < CAREER_TRANSITION_TEMPLATE.length; i++) {
+          await createGoal(i, CAREER_TRANSITION_TEMPLATE[i])
         }
       })()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const CATEGORIES = getCategoriesForAccount(accountType)
-
-  // Step B — review extracted goals
-  const [goals, setGoals] = useState<ExtractedGoal[] | null>(null)
-  const [selected, setSelected] = useState<boolean[]>([])
-  const [editing, setEditing] = useState<number | null>(null)
-  // Supabase row id for each goal once it's been persisted, or null if not yet saved
-  const [savedIds, setSavedIds] = useState<(string | null)[]>([])
-  const [syncError, setSyncError] = useState<string | null>(null)
-
-  // AI clarifying questions, assessed per-goal after it's persisted.
-  // undefined = not yet assessed, [] = assessed and none needed.
-  const [clarifyQuestions, setClarifyQuestions] = useState<(string[] | undefined)[]>([])
-  const [clarifyAnswers, setClarifyAnswers] = useState<string[][]>([])
-  const [clarifyDone, setClarifyDone] = useState<boolean[]>([])
 
   async function handleExtract() {
     if (!bio.trim()) return
