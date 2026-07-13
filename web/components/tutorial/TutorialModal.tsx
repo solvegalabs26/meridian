@@ -249,6 +249,7 @@ function Page5Illustration({ context }: { context: string }) {
 
 const ILLUSTRATIONS = [Page1Illustration, Page2Illustration, Page3Illustration, Page4Illustration, Page5Illustration]
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function TutorialModal({ open, onClose, startPage = 1, onOpenKeyTerms: _onOpenKeyTerms }: TutorialModalProps) {
   const [page, setPage] = useState(startPage - 1)
   const [context, setContext] = useState('general')
