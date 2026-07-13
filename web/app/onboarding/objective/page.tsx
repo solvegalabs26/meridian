@@ -59,6 +59,7 @@ function OnboardingObjectivePageInner() {
   const [extracting, setExtracting] = useState(false)
   const [extractError, setExtractError] = useState<string | null>(null)
   const [accountType, setAccountType] = useState<string | null>(null)
+  const [onboardingContext, setOnboardingContext] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
 
   // Step B — review extracted goals
@@ -104,6 +105,7 @@ function OnboardingObjectivePageInner() {
     })()
   }
 
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
@@ -111,6 +113,7 @@ function OnboardingObjectivePageInner() {
       supabase.from('profiles').select('account_type, onboarding_context').eq('id', user.id).single()
         .then(({ data }) => {
           setAccountType(data?.account_type ?? 'personal')
+          setOnboardingContext(data?.onboarding_context ?? null)
           // If the user's saved context is career_transition and the URL param
           // didn't already activate the template, activate it now.
           if (data?.onboarding_context === 'career_transition' && !isCareerTemplate) {
@@ -351,7 +354,9 @@ function OnboardingObjectivePageInner() {
                 value={bio}
                 onChange={e => setBio(e.target.value)}
                 rows={7}
-                placeholder={`Example "I run a (real estate brokerage, interior design, bike shop, or financial planning) business and want to grow revenue 30% this year while hiring two new agents (employees). Personally, I'm training for a half marathon in October and working toward paying off my truck early."`}
+                placeholder={onboardingContext === 'career_transition'
+                  ? `Example: "I'm separating from the Army in October after 8 years as a logistics officer. I'm targeting Program Manager roles at defense contractors in the Denver area. Minimum salary $90K, hybrid or remote only. I also need to sort out VA benefits, TRICARE coverage, and my TSP rollover before my last day."`
+                  : `Example "I run a (real estate brokerage, interior design, bike shop, or financial planning) business and want to grow revenue 30% this year while hiring two new agents (employees). Personally, I'm training for a half marathon in October and working toward paying off my truck early."`}
                 className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] resize-none leading-relaxed"
               />
               <p className="text-[11px] text-[var(--text3)] mt-1.5">
