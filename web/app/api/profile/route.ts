@@ -13,6 +13,7 @@ export async function PATCH(request: NextRequest) {
     tone_pref?: string
     depth_pref?: string
     onboarded_at?: string
+    onboarding_context?: string
   }
 
   const { data, error } = await supabase

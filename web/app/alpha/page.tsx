@@ -80,53 +80,31 @@ export default function AlphaEntryPage() {
     }
   }
 
-  // Stage 2b — atomic redemption via SECURITY DEFINER RPC. Called right
-  // after signup succeeds, and again from the retry form if a code was
-  // wrong — reusing the same (now-authenticated) account rather than
-  // signing up again, so a typo doesn't leave behind orphaned auth accounts.
+  // Stage 2b — redemption via server route (handles multi-use codes, org fields,
+  // tier mapping, and complimentary access in one atomic operation). Called right
+  // after signup succeeds, and again from the retry form if a code was wrong —
+  // reusing the same (now-authenticated) account rather than signing up again,
+  // so a typo doesn't leave behind orphaned auth accounts.
   async function redeemCode() {
     setLoading(true)
     setLoadingLabel('Checking your code...')
     setError(null)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setError('Something went wrong — please try signing in again.')
-      setLoading(false)
-      return
-    }
-
-    const { data, error: rpcError } = await supabase.rpc('redeem_invite_code', {
-      p_code: code.trim(),
-      p_user_id: user.id,
+    const res = await fetch('/api/invites/redeem', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code.trim() }),
     })
 
     setLoading(false)
 
-    if (rpcError || !data?.success) {
-      const key = data?.error as string | undefined
-      setError(REDEMPTION_ERRORS[key ?? ''] ?? 'Something went wrong redeeming your code — please try again.')
+    const data = await res.json() as { success?: boolean; requires_idme?: boolean; error?: string }
+
+    if (!res.ok || !data.success) {
+      const key = data.error ?? ''
+      setError(REDEMPTION_ERRORS[key] ?? 'Something went wrong redeeming your code — please try again.')
       setPhase('redeem_error')
       return
-    }
-
-    // The redeem_invite_code RPC sets pricing_tier but not the tier column the
-    // app reads for feature gating. Finalize maps pricing_tier_grant → tier.
-    // Non-fatal: a failure here leaves the user on 'trial' until manually fixed,
-    // which is the current broken state — so we log and continue rather than
-    // blocking the user from their newly redeemed account.
-    try {
-      const finalizeRes = await fetch('/api/invites/finalize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: code.trim() }),
-      })
-      if (!finalizeRes.ok) {
-        const fd = await finalizeRes.json().catch(() => ({})) as { error?: string }
-        console.error('[alpha] tier finalize failed:', fd.error)
-      }
-    } catch (err) {
-      console.error('[alpha] tier finalize error:', err)
     }
 
     if (data.requires_idme) {

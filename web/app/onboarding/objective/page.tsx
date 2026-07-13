@@ -1,11 +1,43 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import MeridianBeacon from '@/components/brand/MeridianBeacon'
 import { Check, Pencil, X } from 'lucide-react'
 import { getCategoriesForAccount, CATEGORY_COLORS } from '@/lib/utils/categories'
 import { createClient } from '@/lib/supabase/client'
+
+// Career Transition Template — 5 pre-built draft objectives
+const CAREER_TRANSITION_TEMPLATE: ExtractedGoal[] = [
+  {
+    title: 'Land my target civilian role within 90 days of separation',
+    category: 'Career',
+    outcome: 'Signed offer letter for a role that matches my experience, meets my salary floor, and fits my location and schedule requirements. I am targeting [role type] roles at [1-3 companies]. My minimum base salary is [$X]. Location requirement: [city/region or remote].',
+    target_date: (() => {
+      const d = new Date()
+      d.setDate(d.getDate() + 90)
+      return d.toISOString().split('T')[0]
+    })(),
+  },
+  {
+    title: 'Bridge the income and benefits gap through separation',
+    category: 'Finance',
+    outcome: 'No gap in health coverage. VA disability claim filed and in process. TSP rollover decision made. Cash reserves stay above two months of household expenses through the transition window. GI Bill transfer or use plan confirmed.',
+    target_date: null,
+  },
+  {
+    title: 'Complete one civilian certification that strengthens my target role',
+    category: 'Career',
+    outcome: 'Passed and credentialed in [target certification — e.g. PMP, AWS Cloud Practitioner, Lean Six Sigma Green Belt, CompTIA Security+]. Exam fee budgeted and prep materials identified. Study timeline fits around separation activities.',
+    target_date: null,
+  },
+  {
+    title: 'Family celebration — the trip we\'ve been postponing',
+    category: 'Personal',
+    outcome: 'Family trip completed — destination [X], duration [X days], all-in budget [$X]. This is the reward horizon. Timing downstream of financial stabilization confirming on track.',
+    target_date: null,
+  },
+]
 
 interface ExtractedGoal {
   title: string
@@ -14,9 +46,13 @@ interface ExtractedGoal {
   target_date: string | null
 }
 
-export default function OnboardingObjectivePage() {
+function OnboardingObjectivePageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  // Resolve template param before any state declarations so initial state is correct
+  const isCareerTemplate = searchParams.get('template') === 'career_transition'
 
   // Step A — free text input
   const [bio, setBio] = useState('')
@@ -25,31 +61,73 @@ export default function OnboardingObjectivePage() {
   const [accountType, setAccountType] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
 
-  // Load account_type on mount
+  // Step B — review extracted goals
+  // Initialize directly from template param — bypasses bio-extraction screen on first render
+  const [goals, setGoals] = useState<ExtractedGoal[] | null>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE : null
+  )
+  const [selected, setSelected] = useState<boolean[]>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE.map(() => true) : []
+  )
+  const [editing, setEditing] = useState<number | null>(null)
+  const [savedIds, setSavedIds] = useState<(string | null)[]>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE.map(() => null) : []
+  )
+  const [syncError, setSyncError] = useState<string | null>(null)
+
+  const [clarifyQuestions, setClarifyQuestions] = useState<(string[] | undefined)[]>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE.map(() => undefined) : []
+  )
+  const [clarifyAnswers, setClarifyAnswers] = useState<string[][]>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE.map(() => []) : []
+  )
+  const [clarifyDone, setClarifyDone] = useState<boolean[]>(
+    isCareerTemplate ? CAREER_TRANSITION_TEMPLATE.map(() => false) : []
+  )
+
+  const CATEGORIES = getCategoriesForAccount(accountType)
+
+  // Loads career transition template into state and persists objectives to DB.
+  // Called from both the URL param path and the profile context path.
+  // bio is '' in both cases — acceptable for goal_description.
+  function activateCareerTemplate() {
+    setGoals(CAREER_TRANSITION_TEMPLATE)
+    setSelected(CAREER_TRANSITION_TEMPLATE.map(() => true))
+    setSavedIds(CAREER_TRANSITION_TEMPLATE.map(() => null))
+    setClarifyQuestions(CAREER_TRANSITION_TEMPLATE.map(() => undefined))
+    setClarifyAnswers(CAREER_TRANSITION_TEMPLATE.map(() => []))
+    setClarifyDone(CAREER_TRANSITION_TEMPLATE.map(() => false))
+    ;(async () => {
+      for (let i = 0; i < CAREER_TRANSITION_TEMPLATE.length; i++) {
+        await createGoal(i, CAREER_TRANSITION_TEMPLATE[i])
+      }
+    })()
+  }
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
       setUserId(user.id)
-      supabase.from('profiles').select('account_type').eq('id', user.id).single()
-        .then(({ data }) => setAccountType(data?.account_type ?? 'personal'))
+      supabase.from('profiles').select('account_type, onboarding_context').eq('id', user.id).single()
+        .then(({ data }) => {
+          setAccountType(data?.account_type ?? 'personal')
+          // If the user's saved context is career_transition and the URL param
+          // didn't already activate the template, activate it now.
+          if (data?.onboarding_context === 'career_transition' && !isCareerTemplate) {
+            activateCareerTemplate()
+          }
+        })
     })
+
+    // URL param path — state was already initialized synchronously; only persist.
+    if (isCareerTemplate) {
+      ;(async () => {
+        for (let i = 0; i < CAREER_TRANSITION_TEMPLATE.length; i++) {
+          await createGoal(i, CAREER_TRANSITION_TEMPLATE[i])
+        }
+      })()
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const CATEGORIES = getCategoriesForAccount(accountType)
-
-  // Step B — review extracted goals
-  const [goals, setGoals] = useState<ExtractedGoal[] | null>(null)
-  const [selected, setSelected] = useState<boolean[]>([])
-  const [editing, setEditing] = useState<number | null>(null)
-  // Supabase row id for each goal once it's been persisted, or null if not yet saved
-  const [savedIds, setSavedIds] = useState<(string | null)[]>([])
-  const [syncError, setSyncError] = useState<string | null>(null)
-
-  // AI clarifying questions, assessed per-goal after it's persisted.
-  // undefined = not yet assessed, [] = assessed and none needed.
-  const [clarifyQuestions, setClarifyQuestions] = useState<(string[] | undefined)[]>([])
-  const [clarifyAnswers, setClarifyAnswers] = useState<string[][]>([])
-  const [clarifyDone, setClarifyDone] = useState<boolean[]>([])
 
   async function handleExtract() {
     if (!bio.trim()) return
@@ -474,5 +552,13 @@ export default function OnboardingObjectivePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function OnboardingObjectivePage() {
+  return (
+    <Suspense fallback={null}>
+      <OnboardingObjectivePageInner />
+    </Suspense>
   )
 }
