@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import MeridianBeacon from '@/components/brand/MeridianBeacon'
 import { Check, Pencil, X } from 'lucide-react'
@@ -46,7 +46,7 @@ interface ExtractedGoal {
   target_date: string | null
 }
 
-export default function OnboardingObjectivePage() {
+function OnboardingObjectivePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -525,5 +525,13 @@ export default function OnboardingObjectivePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function OnboardingObjectivePage() {
+  return (
+    <Suspense fallback={null}>
+      <OnboardingObjectivePageInner />
+    </Suspense>
   )
 }
