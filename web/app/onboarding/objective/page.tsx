@@ -107,24 +107,43 @@ function OnboardingObjectivePageInner() {
 
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return
       setUserId(user.id)
-      supabase.from('profiles').select('account_type, onboarding_context').eq('id', user.id).single()
-        .then(({ data }) => {
-          setAccountType(data?.account_type ?? 'personal')
-          setOnboardingContext(data?.onboarding_context ?? null)
-          // If the user's saved context is career_transition and the URL param
-          // didn't already activate the template, activate it now.
-          if (data?.onboarding_context === 'career_transition' && !isCareerTemplate) {
-            activateCareerTemplate()
-          }
-        })
+
+      const [profileResult, countResult] = await Promise.all([
+        supabase.from('profiles').select('account_type, onboarding_context').eq('id', user.id).single(),
+        supabase.from('objectives').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+      ])
+
+      setAccountType(profileResult.data?.account_type ?? 'personal')
+      setOnboardingContext(profileResult.data?.onboarding_context ?? null)
+
+      const existingCount = countResult.count ?? 0
+
+      if (existingCount > 0) {
+        // User already has objectives — skip template creation and go to dashboard
+        router.replace('/dashboard')
+        return
+      }
+
+      // If the user's saved context is career_transition and the URL param
+      // didn't already activate the template, activate it now.
+      if (profileResult.data?.onboarding_context === 'career_transition' && !isCareerTemplate) {
+        activateCareerTemplate()
+      }
     })
 
     // URL param path — state was already initialized synchronously; only persist.
     if (isCareerTemplate) {
       ;(async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const { count } = await supabase.from('objectives').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
+        if ((count ?? 0) > 0) {
+          router.replace('/dashboard')
+          return
+        }
         for (let i = 0; i < CAREER_TRANSITION_TEMPLATE.length; i++) {
           await createGoal(i, CAREER_TRANSITION_TEMPLATE[i])
         }
