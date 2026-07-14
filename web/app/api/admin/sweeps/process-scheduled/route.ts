@@ -21,8 +21,10 @@ export async function GET(request: NextRequest) {
 
   // Recover sweeps left stuck at status='running' from a prior Vercel hard-kill.
   // A Vercel function kill bypasses try/catch, so runSweepForUser never marks
-  // them failed. Any sweep still running after 15 minutes is orphaned.
-  const staleThreshold = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+  // them failed. Vercel functions max out at 300 s, so anything still running
+  // after 60 minutes is a true orphan. status='scheduled' rows are intentionally
+  // excluded — they are waiting for this cron, not stuck.
+  const staleThreshold = new Date(Date.now() - 60 * 60 * 1000).toISOString()
   const { data: staleSweeps, error: staleErr } = await supabase
     .from('sweeps')
     .update({ status: 'failed', completed_at: new Date().toISOString() })
