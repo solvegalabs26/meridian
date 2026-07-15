@@ -159,9 +159,11 @@ async function writeAskEpisode(
       .eq('objective_id', objectiveId)
       .order('episode_number', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
     const nextEpisodeNumber = (existing?.episode_number ?? 0) + 1
+
+    console.log(`[ask:episode] writing episode ${nextEpisodeNumber} for objective ${objectiveId}`)
 
     const topSignals = matchedSignals.slice(0, 3).map(s => ({
       title: s.signal_text.slice(0, 120),
