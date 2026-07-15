@@ -125,7 +125,7 @@ export async function extractAskSignals(
     if (!perObjective.has(oid)) perObjective.set(oid, [])
     perObjective.get(oid)!.push(s)
   }
-  for (const [objectiveId, objSignals] of perObjective) {
+  for (const [objectiveId, objSignals] of Array.from(perObjective.entries())) {
     await writeAskEpisode(
       supabase,
       userId,
