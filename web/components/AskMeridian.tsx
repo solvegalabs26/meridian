@@ -29,6 +29,7 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
   const [webSearchUsed, setWebSearchUsed] = useState(false)
   const [suggestedActions, setSuggestedActions] = useState<string[]>([])
   const [askQueryId, setAskQueryId] = useState<string | null>(null)
+  const [matchedObjectiveIds, setMatchedObjectiveIds] = useState<string[]>([])
   const [confirmedActions, setConfirmedActions] = useState<Set<number>>(new Set())
 
   const remaining = usage.limit - usage.used
@@ -65,6 +66,7 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
       setWebSearchUsed(data.web_search_used ?? false)
       setSuggestedActions(data.suggested_actions ?? [])
       setAskQueryId(data.ask_query_id ?? null)
+      setMatchedObjectiveIds(data.matched_objective_ids ?? [])
       setConfirmedActions(new Set())
       if (data.usage) {
         setUsage((u) => ({
@@ -218,8 +220,7 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
             Suggested Actions
           </p>
           {suggestedActions.map((action, i) => {
-            // Matched objective IDs will be wired in a later phase; empty = no goal linked yet
-            const objectiveIds: string[] = []
+            const objectiveIds = matchedObjectiveIds
             const hasObjective = objectiveIds.length > 0
             return (
               <div

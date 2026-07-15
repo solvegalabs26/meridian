@@ -222,6 +222,24 @@ export async function POST(req: NextRequest) {
 
   const objectiveContext = objectives ?? []
 
+  // Sync keyword match for Phase C action surfacing — mirrors Phase A token logic.
+  // Only checks the 12 loaded objectives; Phase A async covers the full set.
+  function syncMatchObjectives(q: string, objs: typeof objectiveContext): string[] {
+    const ql = q.toLowerCase()
+    return objs
+      .filter(obj => {
+        const keywords: string[] = obj.signal_keywords ?? []
+        return keywords.some(kw => {
+          const tokens = kw.toLowerCase().split(/\s+/).filter((t: string) => t.length >= 4)
+          if (tokens.length === 0) return ql.includes(kw.toLowerCase())
+          return tokens.every((t: string) => ql.includes(t))
+        })
+      })
+      .map(obj => obj.id)
+  }
+
+  const matchedObjectiveIds = syncMatchObjectives(question, objectiveContext)
+
   // 7. Web search (optional, degrades gracefully)
   const searchSnippet = await braveSearch(question)
   const webSearchUsed = searchSnippet.length > 0
@@ -374,6 +392,7 @@ Guidelines:
     web_search_used: webSearchUsed,
     ask_query_id: insertedQuery?.id ?? null,
     suggested_actions: extractActionCandidates(responseText),
+    matched_objective_ids: matchedObjectiveIds,
     usage: {
       used: used + 1,
       limit: baseLimit,
