@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   // objective_id is NOT NULL in schema — skip insert if no objective linked.
   // The action is still captured by Phase B's extracted_signals on the ask_query.
   if (objective_ids.length === 0) {
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, skipped: true, reason: 'no_objective' })
   }
 
   const rows = objective_ids.map(objective_id => ({

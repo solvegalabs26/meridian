@@ -85,13 +85,17 @@ async function braveSearch(query: string): Promise<string> {
 
 // ── Phase C: synchronous action candidate extraction ──────────────────────
 function extractActionCandidates(text: string): string[] {
-  const sentences = text.split(/(?<=[.!?])\s+/)
+  const stripped = text
+    .replace(/\*\*/g, '')
+    .replace(/^[-*#]+\s*/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  const sentences = stripped.split(/(?<=[.!?])\s+/)
   const actionPatterns = [
-    /^(consider|check|contact|reach out|apply|submit|register|update|review|schedule|confirm|follow up)/i,
+    /^(consider|check|contact|reach out|apply|submit|register|update|review|schedule|confirm|follow up|go directly|set a reminder|monitor|visit)/i,
     /you should /i,
     /the next step is/i,
     /i recommend/i,
-    /action:/i,
+    /would be wise/i,
   ]
   return sentences
     .filter(s => actionPatterns.some(p => p.test(s.trim())))

@@ -83,12 +83,12 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
     }
   }
 
-  async function handleConfirmAction(action: string, index: number) {
+  async function handleConfirmAction(action: string, index: number, objectiveIds: string[]) {
     try {
       await fetch('/api/ask/confirm-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action_text: action, objective_ids: [], ask_query_id: askQueryId }),
+        body: JSON.stringify({ action_text: action, objective_ids: objectiveIds, ask_query_id: askQueryId }),
       })
     } catch {
       // Non-fatal — optimistically mark confirmed regardless
@@ -217,26 +217,35 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
           <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500">
             Suggested Actions
           </p>
-          {suggestedActions.map((action, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-3 rounded-lg border border-neutral-200 dark:border-neutral-700 px-4 py-3"
-            >
-              <p className="flex-1 text-sm text-neutral-700 dark:text-neutral-300">{action}</p>
-              {confirmedActions.has(i) ? (
-                <span className="shrink-0 text-xs font-semibold text-green-600 dark:text-green-400">
-                  Added ✓
-                </span>
-              ) : (
-                <button
-                  onClick={() => handleConfirmAction(action, i)}
-                  className="shrink-0 text-xs font-semibold text-[#C9A227] hover:text-[#b89220] transition"
-                >
-                  Add to list →
-                </button>
-              )}
-            </div>
-          ))}
+          {suggestedActions.map((action, i) => {
+            // Matched objective IDs will be wired in a later phase; empty = no goal linked yet
+            const objectiveIds: string[] = []
+            const hasObjective = objectiveIds.length > 0
+            return (
+              <div
+                key={i}
+                className="flex items-start gap-3 rounded-lg border border-neutral-200 dark:border-neutral-700 px-4 py-3"
+              >
+                <p className="flex-1 text-sm text-neutral-700 dark:text-neutral-300">{action}</p>
+                {confirmedActions.has(i) ? (
+                  <span className="shrink-0 text-xs font-semibold text-green-600 dark:text-green-400">
+                    Added ✓
+                  </span>
+                ) : hasObjective ? (
+                  <button
+                    onClick={() => handleConfirmAction(action, i, objectiveIds)}
+                    className="shrink-0 text-xs font-semibold text-[#C9A227] hover:text-[#b89220] transition"
+                  >
+                    Add to list →
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-xs text-neutral-400 dark:text-neutral-500 cursor-default">
+                    No matching goal
+                  </span>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
