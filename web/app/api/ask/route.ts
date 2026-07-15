@@ -31,7 +31,11 @@ function getEffectiveTier(profile: {
   ) {
     return 'explorer'
   }
-  return profile.pricing_tier ?? profile.tier ?? 'trial'
+  const raw = profile.pricing_tier ?? profile.tier ?? 'trial'
+  if (raw.includes('explorer')) return 'explorer'
+  if (raw.includes('accelerator')) return 'accelerator'
+  if (raw.includes('command')) return 'command'
+  return raw
 }
 
 // ── Optional Brave Search ──────────────────────────────────────────────────
@@ -109,7 +113,7 @@ export async function POST(req: NextRequest) {
   // 3. Load profile for tier + credit check
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('tier, pricing_tier, complimentary_expires_at, sweep_credits')
+    .select('tier, pricing_tier, complimentary_expires_at, ask_credits')
     .eq('id', user.id)
     .single()
 
@@ -156,7 +160,7 @@ export async function POST(req: NextRequest) {
   let useCredit = false
 
   if (used >= baseLimit) {
-    if (effectiveTier === 'accelerator' && (profile.sweep_credits ?? 0) > 0) {
+    if (effectiveTier === 'accelerator' && (profile.ask_credits ?? 0) > 0) {
       // Deduct a sweep credit for this extra query
       useCredit = true
     } else {
@@ -264,7 +268,7 @@ Guidelines:
   if (useCredit && !insertError) {
     const { error: creditError } = await supabase
       .from('profiles')
-      .update({ sweep_credits: Math.max(0, (profile.sweep_credits ?? 1) - 1) })
+      .update({ ask_credits: Math.max(0, (profile.ask_credits ?? 1) - 1) })
       .eq('id', user.id)
 
     if (creditError) {
@@ -281,8 +285,8 @@ Guidelines:
       limit: baseLimit,
       tier: effectiveTier,
       credits_remaining: useCredit
-        ? Math.max(0, (profile.sweep_credits ?? 1) - 1)
-        : profile.sweep_credits ?? 0,
+        ? Math.max(0, (profile.ask_credits ?? 1) - 1)
+        : profile.ask_credits ?? 0,
     },
   })
 }

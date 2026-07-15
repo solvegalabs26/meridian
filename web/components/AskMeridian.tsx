@@ -91,7 +91,27 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
           </h2>
         </div>
 
-        <UsagePill usage={usage} />
+        <div className="flex items-center gap-3">
+          <UsagePill usage={usage} />
+          {usage.used / Math.max(usage.limit, 1) >= 0.8 && (
+            <div className="flex items-center gap-1">
+              <a
+                href="/settings"
+                className="text-xs font-semibold text-[#C9A227] hover:text-[#b89220] transition"
+              >
+                Reload Credits
+              </a>
+              <div className="relative group">
+                <span className="flex h-3.5 w-3.5 cursor-default items-center justify-center rounded-full border border-neutral-400 dark:border-neutral-500 text-[9px] font-bold text-neutral-400 dark:text-neutral-500 leading-none">
+                  ?
+                </span>
+                <div className="pointer-events-none absolute right-0 top-5 z-10 w-48 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                  1 credit = 1 Ask query. Credits never expire.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Input */}
@@ -172,7 +192,7 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
           Ask {usage.limit === 1 ? 'query' : 'queries'} for this month.{' '}
           {usage.tier === 'explorer' && (
             <a
-              href="/settings/billing"
+              href="/settings"
               className="font-semibold underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300 transition"
             >
               Upgrade to Command for 10/month →
@@ -180,7 +200,7 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
           )}
           {usage.tier === 'accelerator' && (
             <a
-              href="/settings/billing"
+              href="/settings"
               className="font-semibold underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-300 transition"
             >
               Add sweep credits or upgrade to Command →
