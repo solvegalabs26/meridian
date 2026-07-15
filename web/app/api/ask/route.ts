@@ -31,7 +31,11 @@ function getEffectiveTier(profile: {
   ) {
     return 'explorer'
   }
-  return profile.pricing_tier ?? profile.tier ?? 'trial'
+  const raw = profile.pricing_tier ?? profile.tier ?? 'trial'
+  if (raw.includes('explorer')) return 'explorer'
+  if (raw.includes('accelerator')) return 'accelerator'
+  if (raw.includes('command')) return 'command'
+  return raw
 }
 
 // ── Optional Brave Search ──────────────────────────────────────────────────
