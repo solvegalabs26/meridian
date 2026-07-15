@@ -17,11 +17,12 @@ interface ObjectiveStateInput {
   openActions?: string[]
   comps?: CompsResult | null
   completedActionsContext?: string
+  askContext?: string
 }
 
 export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
   return {
-    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext }) => {
+    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext, askContext }) => {
       const obj = objective as Objective & {
         objective_type?: string | null
         deadline_type?: 'hard' | 'soft'
@@ -60,6 +61,11 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
       // Inject completed actions so Claude doesn't re-recommend already-done items
       if (completedActionsContext) {
         Object.assign(base, { completed_actions: completedActionsContext })
+      }
+
+      // Inject recent Ask Meridian questions the user has asked about this objective
+      if (askContext) {
+        Object.assign(base, { ask_context: askContext })
       }
 
       // Attach comps data for resale-type objectives
