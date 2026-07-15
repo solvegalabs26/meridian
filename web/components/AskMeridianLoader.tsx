@@ -15,9 +15,9 @@ import AskMeridian from '@/components/AskMeridian'
 import { createClient } from '@/lib/supabase/server'
 
 const ASK_LIMITS: Record<string, number> = {
-  command: 10,
-  accelerator: 3,
-  explorer: 1,
+  command: 20,
+  accelerator: 10,
+  explorer: 5,
   trial: 0,
 }
 
