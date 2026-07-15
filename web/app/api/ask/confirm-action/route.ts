@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     user_id: user.id,
     description: action_text.trim(),
     source: 'ask_suggested',
-    status: 'pending',
+    status: 'open',
     ask_query_id: ask_query_id ?? null,
   }))
 
