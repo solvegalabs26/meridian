@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
   // 3. Load profile for tier + credit check
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('tier, pricing_tier, complimentary_expires_at, ask_credits')
+    .select('tier, pricing_tier, complimentary_expires_at, sweep_credits, ask_credits')
     .eq('id', user.id)
     .single()
 
@@ -159,19 +159,23 @@ export async function POST(req: NextRequest) {
 
   const used = monthlyCount ?? 0
 
-  // 5. Enforce limit — Accelerator gets credit overflow
+  // 5. Enforce limit — ask_credits are overflow for all tiers;
+  //    sweep_credits are a secondary fallback for Accelerator only.
+  const askCredits = profile.ask_credits ?? 0
+  let useAskCredit = false
   let useCredit = false
 
   if (used >= baseLimit) {
-    if (effectiveTier === 'accelerator' && (profile.ask_credits ?? 0) > 0) {
-      // Deduct a sweep credit for this extra query
+    if (askCredits > 0) {
+      useAskCredit = true
+    } else if (effectiveTier === 'accelerator' && (profile.sweep_credits ?? 0) > 0) {
       useCredit = true
     } else {
       const upgradeHint =
         effectiveTier === 'explorer'
           ? ' Upgrade to Command for 10/month.'
           : effectiveTier === 'accelerator'
-          ? ' Additional queries use sweep credits — add credits in Settings or upgrade to Command.'
+          ? ' Add ask query credits in Settings or upgrade to Command.'
           : ''
 
       return NextResponse.json(
@@ -325,19 +329,26 @@ Guidelines:
     )
   }
 
-  // 13. Deduct ask credit if applicable (Accelerator overflow)
-  if (useCredit && !insertError) {
-    const { error: creditError } = await supabase
-      .from('profiles')
-      .update({ ask_credits: Math.max(0, (profile.ask_credits ?? 1) - 1) })
-      .eq('id', user.id)
-
-    if (creditError) {
-      console.error('[ask] Failed to deduct sweep credit:', creditError.message)
+  // 13. Deduct credits if applicable
+  if (!insertError) {
+    if (useAskCredit) {
+      const { error: askCreditError } = await supabase
+        .from('profiles')
+        .update({ ask_credits: Math.max(0, askCredits - 1) })
+        .eq('id', user.id)
+      if (askCreditError) console.error('[ask] Failed to deduct ask credit:', askCreditError.message)
+    } else if (useCredit) {
+      const { error: sweepCreditError } = await supabase
+        .from('profiles')
+        .update({ sweep_credits: Math.max(0, (profile.sweep_credits ?? 1) - 1) })
+        .eq('id', user.id)
+      if (sweepCreditError) console.error('[ask] Failed to deduct sweep credit:', sweepCreditError.message)
     }
   }
 
   // 14. Return response
+  const askCreditsRemaining = useAskCredit ? Math.max(0, askCredits - 1) : askCredits
+
   return NextResponse.json({
     response: responseText,
     web_search_used: webSearchUsed,
@@ -345,9 +356,8 @@ Guidelines:
       used: used + 1,
       limit: baseLimit,
       tier: effectiveTier,
-      credits_remaining: useCredit
-        ? Math.max(0, (profile.ask_credits ?? 1) - 1)
-        : profile.ask_credits ?? 0,
+      credits_remaining: askCreditsRemaining,
+      ask_credits_remaining: askCreditsRemaining,
     },
   })
 }
