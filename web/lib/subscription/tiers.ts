@@ -49,6 +49,12 @@ export const SWEEP_CREDIT_BUNDLES = [
   { credits: 50, price: 25, per_credit: 0.50 },
 ]
 
+export const ASK_CREDIT_BUNDLES = [
+  { credits: 5, price: 4, per_credit: 0.80 },
+  { credits: 15, price: 10, per_credit: 0.67, best_value: true },
+  { credits: 50, price: 25, per_credit: 0.50 },
+]
+
 export function isAlphaBetaAccount(account_type: string): boolean {
   return ['alpha_personal', 'alpha_business', 'beta'].includes(account_type)
 }
