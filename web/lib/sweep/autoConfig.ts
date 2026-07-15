@@ -14,6 +14,51 @@
 
 import { createServiceClient } from '@/lib/supabase/server'
 import { getAnthropicClient } from '@/lib/anthropic/client'
+import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
+
+// Static system prompts — cached across all autoConfig calls.
+const STATIC_CLASSIFY_SYSTEM = `You are an objective classification engine. Classify the user's objective into exactly one taxonomy key from the list below, or "none" if no key fits well.
+
+Taxonomy keys:
+- asset.resale.recreational_vehicle
+- asset.resale.real_estate
+- asset.resale.vehicle
+- asset.resale.boat
+- career.job_search
+- career.promotion
+- finance.debt_payoff
+- finance.savings_goal
+- finance.investment
+- health.fitness
+- health.medical
+- business.revenue
+- business.hiring
+- personal.travel
+- personal.education
+
+Rules:
+- Return ONLY the matching key (e.g. "asset.resale.recreational_vehicle") or the word "none"
+- asset.resale.recreational_vehicle = selling an RV, motorhome, camper, trailer, 5th wheel
+- asset.resale.real_estate = selling a house, condo, land, property
+- asset.resale.vehicle = selling a car, truck, motorcycle (not RV)
+- asset.resale.boat = selling a boat, watercraft
+- Use "none" when the objective is advisory, informational, or doesn't match
+
+Respond with just the key or "none". No other text.`
+
+const STATIC_EXTRACT_CONTEXT_SYSTEM = `You are a structured data extraction engine. Extract resale asset details from the user's objective text. Return ONLY valid JSON — no markdown, no explanation.
+
+Return this exact shape (use null for any field not mentioned):
+{
+  "year": "string or null — model year of the asset (e.g. '2022')",
+  "make": "string or null — brand/manufacturer (e.g. 'Grand Design', 'Toyota')",
+  "model": "string or null — model name or floorplan (e.g. '31MB', 'Tacoma')",
+  "condition": "string or null — 'excellent' | 'good' | 'fair' | 'poor' or descriptive phrase",
+  "region": "string or null — city, state, or region mentioned",
+  "listing_price": number or null — asking/listing price in USD if mentioned,
+  "floor_price": number or null — minimum acceptable price/floor in USD if mentioned,
+  "payoff": number or null — loan payoff amount in USD if mentioned
+}`
 
 // Closed taxonomy — extend as new types are seeded into objective_type_sources.
 const TAXONOMY_KEYS = [
@@ -66,24 +111,9 @@ async function classifyObjectiveType(
   objectiveId: string,
   input: ObjectiveInput
 ): Promise<TaxonomyKey | null> {
-  const prompt = `Classify this objective into exactly one taxonomy key from the list below, or "none" if no key fits well.
-
-Objective title: "${input.title}"
+  const userContent = `Objective title: "${input.title}"
 Outcome: "${input.outcome}"
-Category: "${input.category}"
-
-Taxonomy keys:
-${TAXONOMY_KEYS.map(k => `- ${k}`).join('\n')}
-
-Rules:
-- Return ONLY the matching key (e.g. "asset.resale.recreational_vehicle") or the word "none"
-- asset.resale.recreational_vehicle = selling an RV, motorhome, camper, trailer, 5th wheel
-- asset.resale.real_estate = selling a house, condo, land, property
-- asset.resale.vehicle = selling a car, truck, motorcycle (not RV)
-- asset.resale.boat = selling a boat, watercraft
-- Use "none" when the objective is advisory, informational, or doesn't match
-
-Respond with just the key or "none". No other text.`
+Category: "${input.category}"`
 
   console.log(`[autoConfig:classify] ${objectiveId} — calling Haiku for "${input.title}"`)
 
@@ -91,8 +121,12 @@ Respond with just the key or "none". No other text.`
     const msg = await getAnthropicClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 32,
-      messages: [{ role: 'user', content: prompt }],
+      system: [
+        { type: 'text', text: STATIC_CLASSIFY_SYSTEM, cache_control: { type: 'ephemeral' } },
+      ] satisfies TextBlockParam[],
+      messages: [{ role: 'user', content: userContent }],
     })
+    console.log('[autoConfig:classify:cache]', JSON.stringify(msg.usage))
     const raw = (msg.content[0].type === 'text' ? msg.content[0].text : '').trim().toLowerCase()
     console.log(`[autoConfig:classify] ${objectiveId} — Haiku returned: "${raw}"`)
 
@@ -115,24 +149,9 @@ async function extractResaleContext(
   const corpus = [input.title, input.outcome, input.notes ?? '', input.goal_context ?? '']
     .filter(Boolean).join('\n')
 
-  const prompt = `Extract structured resale asset details from the text below. Return ONLY valid JSON — no markdown, no explanation.
-
-Text:
-<objective_text>
+  const userContent = `<objective_text>
 ${corpus.slice(0, 1200)}
-</objective_text>
-
-Return this exact shape (use null for any field not mentioned):
-{
-  "year": "string or null — model year of the asset (e.g. '2022')",
-  "make": "string or null — brand/manufacturer (e.g. 'Grand Design', 'Toyota')",
-  "model": "string or null — model name or floorplan (e.g. '31MB', 'Tacoma')",
-  "condition": "string or null — 'excellent' | 'good' | 'fair' | 'poor' or descriptive phrase",
-  "region": "string or null — city, state, or region mentioned",
-  "listing_price": number or null — asking/listing price in USD if mentioned,
-  "floor_price": number or null — minimum acceptable price/floor in USD if mentioned,
-  "payoff": number or null — loan payoff amount in USD if mentioned
-}`
+</objective_text>`
 
   console.log(`[autoConfig:context] ${objectiveId} — calling Haiku for resale context extraction`)
 
@@ -140,8 +159,12 @@ Return this exact shape (use null for any field not mentioned):
     const msg = await getAnthropicClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 256,
-      messages: [{ role: 'user', content: prompt }],
+      system: [
+        { type: 'text', text: STATIC_EXTRACT_CONTEXT_SYSTEM, cache_control: { type: 'ephemeral' } },
+      ] satisfies TextBlockParam[],
+      messages: [{ role: 'user', content: userContent }],
     })
+    console.log('[autoConfig:context:cache]', JSON.stringify(msg.usage))
     const raw = msg.content[0].type === 'text' ? msg.content[0].text.trim() : '{}'
     console.log(`[autoConfig:context] ${objectiveId} — Haiku returned: ${raw.slice(0, 200)}`)
 
