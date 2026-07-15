@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { getAnthropicClient } from '@/lib/anthropic/client'
-import { buildSystemPrompt } from '@/lib/anthropic/prompts/system'
+import { STATIC_SWEEP_SYSTEM_PROMPT, buildDynamicSystemContext } from '@/lib/anthropic/prompts/system'
 import { buildObjectiveState } from '@/lib/anthropic/prompts/objective'
 import { parseAnthropicResponse } from '@/lib/anthropic/prompts/output'
 import { fetchNewsSignals } from '@/lib/signals/newsapi'
@@ -322,7 +322,12 @@ export async function runSweepForUser(
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — prompt built, calling Anthropic (model=claude-sonnet-4-6 max_tokens=8192)`)
 
     // 7. Call Anthropic API
-    const systemPrompt = buildSystemPrompt({
+    // System prompt is split into a cacheable static block (rules, output format,
+    // signal classes — identical across all users and sweeps) and a small dynamic
+    // block (name, tone, depth, date). The static block is ~900 tokens and hits
+    // the Anthropic prompt cache after the first call, cutting input token cost
+    // by ~90% on subsequent calls within the 5-minute TTL window.
+    const dynamicContext = buildDynamicSystemContext({
       userName: profile?.full_name ?? 'User',
       tone: (profile?.tone_pref as 'direct' | 'balanced' | 'encouraging') ?? 'balanced',
       depth: (profile?.depth_pref as 'brief' | 'standard' | 'detailed') ?? 'standard',
@@ -332,7 +337,11 @@ export async function runSweepForUser(
     const message = await getAnthropicClient().messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 8192,
-      system: systemPrompt,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      system: [
+        { type: 'text', text: STATIC_SWEEP_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: dynamicContext },
+      ] as any,
       messages: [{ role: 'user', content: JSON.stringify(userMessage) }],
     })
 
@@ -340,7 +349,10 @@ export async function runSweepForUser(
     const tokensUsed = message.usage.input_tokens + message.usage.output_tokens
     const costUsd = (message.usage.input_tokens * 0.000003) + (message.usage.output_tokens * 0.000015)
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const usage = message.usage as any
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — Anthropic responded (in=${message.usage.input_tokens} out=${message.usage.output_tokens} tokens)`)
+    console.log(`[sweep:cache] ${sweep.id} cache_creation=${usage.cache_creation_input_tokens ?? 0} cache_read=${usage.cache_read_input_tokens ?? 0}`)
 
     // 8. Parse Anthropic response
     const parsed = parseAnthropicResponse(responseText)

@@ -5,10 +5,15 @@
 // recommended actions, and sentiment. Writes signal rows to the signals
 // table and updates the ask_queries row with the extracted payload.
 
-import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropicClient } from '@/lib/anthropic/client'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const STATIC_EXTRACT_SYSTEM = `You are a signal extraction engine for Meridian Arc.
+Given a question and response about a user's objective, extract:
+1. Up to 5 factual claims relevant to the objective (one sentence each)
+2. Up to 3 recommended actions (imperative, specific, actionable)
+3. Overall sentiment on objective trajectory: "positive", "neutral", or "negative"
+Return JSON only, no prose. Schema: { "claims": string[], "actions": string[], "sentiment": "positive"|"neutral"|"negative" }`
 
 interface ResponseExtraction {
   claims: string[]
@@ -34,15 +39,13 @@ export async function extractResponseSignals(
   let extraction: ResponseExtraction
 
   try {
-    const message = await anthropic.messages.create({
+    const message = await getAnthropicClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 512,
-      system: `You are a signal extraction engine for Meridian Arc.
-Given a question and response about a user's objective, extract:
-1. Up to 5 factual claims relevant to the objective (one sentence each)
-2. Up to 3 recommended actions (imperative, specific, actionable)
-3. Overall sentiment on objective trajectory: "positive", "neutral", or "negative"
-Return JSON only, no prose. Schema: { "claims": string[], "actions": string[], "sentiment": "positive"|"neutral"|"negative" }`,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      system: [
+        { type: 'text', text: STATIC_EXTRACT_SYSTEM, cache_control: { type: 'ephemeral' } },
+      ] as any,
       messages: [
         {
           role: 'user',
