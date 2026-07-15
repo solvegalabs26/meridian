@@ -4,14 +4,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
-import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropicClient } from '@/lib/anthropic/client'
+import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import { createClient } from '@/lib/supabase/server'
 import { extractAskSignals } from '@/lib/ask/extractSignals'
 import { extractResponseSignals } from '@/lib/ask/extractResponseSignals'
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-})
 
 // ── Tier gate ──────────────────────────────────────────────────────────────
 // command=10, accelerator=3 (+credits), explorer=1 (teaser), trial/null=0
@@ -280,13 +278,16 @@ Guidelines:
     `## Question\n${question}`,
   ].join('\n\n---\n\n')
 
-  // 9. Claude API call
+  // 9. Claude API call — system prompt is fully static (no user data injected),
+  // so the entire block is marked for caching.
   let responseText: string
   try {
-    const message = await anthropic.messages.create({
+    const message = await getAnthropicClient().messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      system: systemPrompt,
+      system: [
+        { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
+      ] satisfies TextBlockParam[],
       messages: [{ role: 'user', content: contextBlock }],
     })
 

@@ -8,6 +8,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getAnthropicClient } from '@/lib/anthropic/client'
+import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 
 interface ActionInput {
   description: string
@@ -48,18 +49,10 @@ export async function recomputeConfidenceFromAction(
     ? `\n  Category: ${action.action_class}`
     : ''
 
-  const prompt = `You are a confidence scoring engine for a personal objective tracking system.
+  // Static rules block — cached across all recompute calls.
+  const STATIC_RECOMPUTE_SYSTEM = `You are a confidence scoring engine for a personal objective tracking system.
 
 A user just logged a real-world action they took. Use it as first-party ground truth — user-reported events are the most reliable signal you have.
-
-Current confidence: ${objective.confidence}%
-Objective: ${objective.title}
-Outcome: ${objective.outcome}
-Deadline type: ${objective.deadline_type === 'soft' ? 'soft (reservation/floor — "retained" at floor price is a valid success)' : 'hard (must complete by date)'}${reservationLine}${targetLine}
-
-User's logged action:
-  Date: ${action.action_date}
-  Description: ${action.description}${classLine}
 
 Scoring rules:
 - First-party action reports carry the highest evidential weight
@@ -77,6 +70,16 @@ Scoring rules:
 Return ONLY valid JSON — no markdown, no preamble:
 {"new_confidence": <integer>, "reasoning": "<one sentence citing the specific action>"}`
 
+  // Dynamic block — objective + action specifics, varies per call.
+  const dynamicContext = `Current confidence: ${objective.confidence}%
+Objective: ${objective.title}
+Outcome: ${objective.outcome}
+Deadline type: ${objective.deadline_type === 'soft' ? 'soft (reservation/floor — "retained" at floor price is a valid success)' : 'hard (must complete by date)'}${reservationLine}${targetLine}
+
+User's logged action:
+  Date: ${action.action_date}
+  Description: ${action.description}${classLine}`
+
   let newConfidence = objective.confidence
   let reasoning = 'Action logged; confidence unchanged.'
 
@@ -84,7 +87,11 @@ Return ONLY valid JSON — no markdown, no preamble:
     const msg = await getAnthropicClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 128,
-      messages: [{ role: 'user', content: prompt }],
+      system: [
+        { type: 'text', text: STATIC_RECOMPUTE_SYSTEM, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: dynamicContext },
+      ] satisfies TextBlockParam[],
+      messages: [{ role: 'user', content: 'Recompute confidence.' }],
     })
 
     const raw = msg.content[0].type === 'text' ? msg.content[0].text.trim() : ''
