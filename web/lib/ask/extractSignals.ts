@@ -53,12 +53,34 @@ export async function extractAskSignals(
     userId: string
     askQueryId: string
     question: string
-    objectiveContext: Objective[]   // already loaded in the route — reuse it
+    objectiveContext: Objective[]
   }
 ): Promise<AskSignalInsert[]> {
-  const { userId, askQueryId, question, objectiveContext } = params
+  const { userId, askQueryId, question } = params
   const signals: AskSignalInsert[] = []
   const signalType = classifyConcern(question)
+
+  // Fetch all active objectives with keywords directly — the route caps at 12
+  // which can exclude objectives that have signal_keywords populated.
+  const { data: allObjectives, error: objError } = await supabase
+    .from('objectives')
+    .select('id, title, signal_keywords')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .not('signal_keywords', 'is', null)
+
+  if (objError) {
+    console.error('[ask:extract] failed to load objectives:', objError.message)
+    return []
+  }
+
+  const objectiveContext: Objective[] = allObjectives ?? []
+  console.log(
+    '[ask:extract] objectives with keywords:',
+    objectiveContext.length,
+    '| sample:',
+    objectiveContext[0]?.signal_keywords?.slice(0, 2)
+  )
 
   for (const obj of objectiveContext) {
     const keywords = obj.signal_keywords ?? []
