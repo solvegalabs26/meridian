@@ -7,6 +7,7 @@ import SweepStatusStrip from '@/components/dashboard/SweepStatusStrip'
 import UpcomingStrip, { type UpcomingEvent } from '@/components/dashboard/UpcomingStrip'
 import ConfidenceGraph, { type ObjectiveSeries } from '@/components/dashboard/ConfidenceGraph'
 import AskMeridianBar from '@/components/ask/AskMeridianBar'
+import AskMeridianLoader from '@/components/AskMeridianLoader'
 import { getConfidenceStatus } from '@/lib/utils/confidenceStatus'
 
 const STATUS_RANK = { risk: 0, watch: 1, on_track: 2 }
@@ -151,6 +152,8 @@ export default async function DashboardPage() {
           </div>
         )}
       </div>
+
+      <AskMeridianLoader />
 
       <CrossDepBanner crossDeps={crossDeps} />
 
