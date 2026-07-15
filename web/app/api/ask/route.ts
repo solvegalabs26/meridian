@@ -100,6 +100,8 @@ function extractActionCandidates(text: string): string[] {
   const likely = sentences.filter(s => {
     if (nonImperativeStarters.test(s)) return false
     return /^[A-Z][a-z]/.test(s)
+      && s.split(' ').length > 5
+      && !/\(.*\)$/.test(s)
   })
 
   return likely.slice(0, 3)
