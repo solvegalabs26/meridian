@@ -217,13 +217,14 @@ export async function POST(req: NextRequest) {
   }
 
   // 6. Load active objectives as context (no raw_response guard mirrors dashboard)
-  const { data: objectives } = await supabase
+  const { data: objectives, error: objError } = await supabase
     .from('objectives')
     .select('id, title, description, status, deadline, objective_type, context, signal_keywords')
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(12)
 
+  if (objError) console.error('[ask:objectives] query error:', objError.message)
   const objectiveContext = objectives ?? []
 
   // Sync keyword match for Phase C action surfacing — mirrors Phase A token logic.
