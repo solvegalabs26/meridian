@@ -3,6 +3,7 @@
 // Solvega Labs LLC · Meridian Arc · Confidential
 
 import { NextRequest, NextResponse } from 'next/server'
+import { waitUntil } from '@vercel/functions'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { extractAskSignals } from '@/lib/ask/extractSignals'
@@ -274,37 +275,40 @@ Guidelines:
   // Runs after insert so we have the ask_query_id for provenance.
   // Fire-and-forget: errors are non-fatal, user already has their response.
   if (insertedQuery?.id) {
-    void (async () => {
-      try {
-        const signals = await extractAskSignals(supabase, {
-          userId: user.id,
-          askQueryId: insertedQuery.id,
-          question,
-          objectiveContext,
-        })
-
-        const extractedPayload = { signals_found: signals.length, matched_objectives: signals.map(s => s.objective_ids[0]) }
-
-        if (signals.length > 0) {
-          const { error: signalError } = await supabase.from('signals').insert(signals)
-          if (signalError) console.error('[ask:extract] signal insert failed:', signalError.message)
-        }
-
-        await supabase
-          .from('ask_queries')
-          .update({
-            extraction_status: signals.length > 0 ? 'complete' : 'no_match',
-            extracted_signals: extractedPayload,
+    const queryId = insertedQuery.id
+    waitUntil(
+      (async () => {
+        try {
+          const signals = await extractAskSignals(supabase, {
+            userId: user.id,
+            askQueryId: queryId,
+            question,
+            objectiveContext,
           })
-          .eq('id', insertedQuery.id)
-      } catch (err) {
-        console.error('[ask:extract] extraction failed:', err)
-        await supabase
-          .from('ask_queries')
-          .update({ extraction_status: 'failed' })
-          .eq('id', insertedQuery.id)
-      }
-    })()
+
+          const extractedPayload = { signals_found: signals.length, matched_objectives: signals.map(s => s.objective_ids[0]) }
+
+          if (signals.length > 0) {
+            const { error: signalError } = await supabase.from('signals').insert(signals)
+            if (signalError) console.error('[ask:extract] signal insert failed:', signalError.message)
+          }
+
+          await supabase
+            .from('ask_queries')
+            .update({
+              extraction_status: signals.length > 0 ? 'complete' : 'no_match',
+              extracted_signals: extractedPayload,
+            })
+            .eq('id', queryId)
+        } catch (err) {
+          console.error('[ask:extract] extraction failed:', err)
+          await supabase
+            .from('ask_queries')
+            .update({ extraction_status: 'failed' })
+            .eq('id', queryId)
+        }
+      })()
+    )
   }
 
   // 13. Deduct ask credit if applicable (Accelerator overflow)

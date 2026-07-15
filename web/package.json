@@ -14,6 +14,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
+    "@vercel/functions": "^3.7.5",
     "framer-motion": "^12.40.0",
     "ical.js": "^2.2.1",
     "lucide-react": "^1.21.0",
