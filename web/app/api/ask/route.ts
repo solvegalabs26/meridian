@@ -243,6 +243,7 @@ export async function POST(req: NextRequest) {
   }
 
   const matchedObjectiveIds = syncMatchObjectives(question, objectiveContext)
+  console.log('[ask:sync-match] objectives loaded:', objectiveContext.length, 'matched:', matchedObjectiveIds)
 
   // 7. Web search (optional, degrades gracefully)
   const searchSnippet = await braveSearch(question)
