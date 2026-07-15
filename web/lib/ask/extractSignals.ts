@@ -184,7 +184,7 @@ async function writeAskEpisode(
       cross_deps_detected: [],
       narrative: `User asked on ${date}: "${question.slice(0, 200)}${question.length > 200 ? '...' : ''}"`,
       sweep_id: null,
-    }, { onConflict: 'objective_id,episode_number', ignoreDuplicates: true })
+    })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[ask:episode] failed to write episode:', msg)
