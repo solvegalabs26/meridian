@@ -52,7 +52,7 @@ export default async function AskMeridianLoader() {
   // Profile for tier
   const { data: profile } = await supabase
     .from('profiles')
-    .select('tier, pricing_tier, complimentary_expires_at')
+    .select('tier, pricing_tier, complimentary_expires_at, ask_credits')
     .eq('id', user.id)
     .single()
 
@@ -81,6 +81,7 @@ export default async function AskMeridianLoader() {
         used: count ?? 0,
         limit,
         tier: effectiveTier,
+        askCredits: profile?.ask_credits ?? 0,
       }}
     />
   )

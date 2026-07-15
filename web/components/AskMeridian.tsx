@@ -13,6 +13,7 @@ interface UsageState {
   used: number
   limit: number
   tier: string
+  askCredits: number
 }
 
 interface AskMeridianProps {
@@ -28,7 +29,7 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
   const [webSearchUsed, setWebSearchUsed] = useState(false)
 
   const remaining = usage.limit - usage.used
-  const atLimit = remaining <= 0
+  const atLimit = remaining <= 0 && usage.askCredits <= 0
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -60,7 +61,13 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
       setResponse(data.response)
       setWebSearchUsed(data.web_search_used ?? false)
       if (data.usage) {
-        setUsage(data.usage)
+        setUsage((u) => ({
+          ...u,
+          used: data.usage.used ?? u.used,
+          limit: data.usage.limit ?? u.limit,
+          tier: data.usage.tier ?? u.tier,
+          askCredits: data.usage.ask_credits_remaining ?? u.askCredits,
+        }))
       }
       setQuestion('')
     } catch {
@@ -215,12 +222,25 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
 // ── Sub-components ─────────────────────────────────────────────────────────
 
 function UsagePill({ usage }: { usage: UsageState }) {
-  const { used, limit } = usage
-  const pct = Math.min(used / Math.max(limit, 1), 1)
-  const atLimit = used >= limit
-  const nearLimit = !atLimit && pct >= 0.67
+  const { used, limit, askCredits } = usage
+  const overMonthly = used >= limit
 
-  const barColor = atLimit
+  // When monthly queries are exhausted but credits remain, show credits count
+  if (overMonthly && askCredits > 0) {
+    return (
+      <div
+        className="flex items-center gap-1.5 text-xs font-medium text-amber-500 dark:text-amber-400"
+        aria-label={`${askCredits} ask credits remaining`}
+      >
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden />
+        {askCredits} {askCredits === 1 ? 'credit' : 'credits'} remaining
+      </div>
+    )
+  }
+
+  const pct = Math.min(used / Math.max(limit, 1), 1)
+  const nearLimit = !overMonthly && pct >= 0.67
+  const barColor = overMonthly
     ? 'bg-red-400'
     : nearLimit
     ? 'bg-amber-400'
