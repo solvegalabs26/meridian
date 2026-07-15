@@ -83,6 +83,22 @@ async function braveSearch(query: string): Promise<string> {
   }
 }
 
+// ── Phase C: synchronous action candidate extraction ──────────────────────
+function extractActionCandidates(text: string): string[] {
+  const sentences = text.split(/(?<=[.!?])\s+/)
+  const actionPatterns = [
+    /^(consider|check|contact|reach out|apply|submit|register|update|review|schedule|confirm|follow up)/i,
+    /you should /i,
+    /the next step is/i,
+    /i recommend/i,
+    /action:/i,
+  ]
+  return sentences
+    .filter(s => actionPatterns.some(p => p.test(s.trim())))
+    .map(s => s.trim())
+    .slice(0, 3)
+}
+
 // ── Route handler ──────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const supabase = createClient()
@@ -352,6 +368,8 @@ Guidelines:
   return NextResponse.json({
     response: responseText,
     web_search_used: webSearchUsed,
+    ask_query_id: insertedQuery?.id ?? null,
+    suggested_actions: extractActionCandidates(responseText),
     usage: {
       used: used + 1,
       limit: baseLimit,
