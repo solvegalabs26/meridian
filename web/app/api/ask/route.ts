@@ -1,16 +1,10 @@
 // app/api/ask/route.ts
 // FF-017 — Ask Meridian: On-Demand Intelligence Queries
 // Solvega Labs LLC · Meridian Arc · Confidential
-//
-// Security: uses anon key + RLS only — no service role client for user-scoped ops.
-// Auth-helpers: uses @supabase/ssr createServerClient.
-// If your project uses @supabase/auth-helpers-nextjs, swap createServerClient
-// for createRouteHandlerClient and drop the cookies adapter block.
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
+import { createClient } from '@/lib/supabase/server'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -84,24 +78,7 @@ async function braveSearch(query: string): Promise<string> {
 
 // ── Route handler ──────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  // --- Supabase client (user-scoped, RLS active) ---
-  const cookieStore = cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
+  const supabase = createClient()
 
   // 1. Authenticate
   const {
