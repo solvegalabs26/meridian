@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { getAnthropicClient } from '@/lib/anthropic/client'
 import { STATIC_SWEEP_SYSTEM_PROMPT, buildDynamicSystemContext } from '@/lib/anthropic/prompts/system'
+import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import { buildObjectiveState } from '@/lib/anthropic/prompts/objective'
 import { parseAnthropicResponse } from '@/lib/anthropic/prompts/output'
 import { fetchNewsSignals } from '@/lib/signals/newsapi'
@@ -337,11 +338,10 @@ export async function runSweepForUser(
     const message = await getAnthropicClient().messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 8192,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       system: [
         { type: 'text', text: STATIC_SWEEP_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
         { type: 'text', text: dynamicContext },
-      ] as any,
+      ] satisfies TextBlockParam[],
       messages: [{ role: 'user', content: JSON.stringify(userMessage) }],
     })
 
@@ -349,8 +349,7 @@ export async function runSweepForUser(
     const tokensUsed = message.usage.input_tokens + message.usage.output_tokens
     const costUsd = (message.usage.input_tokens * 0.000003) + (message.usage.output_tokens * 0.000015)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const usage = message.usage as any
+    const usage = message.usage as typeof message.usage & { cache_creation_input_tokens?: number; cache_read_input_tokens?: number }
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — Anthropic responded (in=${message.usage.input_tokens} out=${message.usage.output_tokens} tokens)`)
     console.log(`[sweep:cache] ${sweep.id} cache_creation=${usage.cache_creation_input_tokens ?? 0} cache_read=${usage.cache_read_input_tokens ?? 0}`)
 

@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { waitUntil } from '@vercel/functions'
 import { getAnthropicClient } from '@/lib/anthropic/client'
+import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import { createClient } from '@/lib/supabase/server'
 import { extractAskSignals } from '@/lib/ask/extractSignals'
 import { extractResponseSignals } from '@/lib/ask/extractResponseSignals'
@@ -284,10 +285,9 @@ Guidelines:
     const message = await getAnthropicClient().messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       system: [
         { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
-      ] as any,
+      ] satisfies TextBlockParam[],
       messages: [{ role: 'user', content: contextBlock }],
     })
 

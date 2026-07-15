@@ -8,6 +8,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getAnthropicClient } from '@/lib/anthropic/client'
+import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 
 interface ActionInput {
   description: string
@@ -86,11 +87,10 @@ User's logged action:
     const msg = await getAnthropicClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 128,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       system: [
         { type: 'text', text: STATIC_RECOMPUTE_SYSTEM, cache_control: { type: 'ephemeral' } },
         { type: 'text', text: dynamicContext },
-      ] as any,
+      ] satisfies TextBlockParam[],
       messages: [{ role: 'user', content: 'Recompute confidence.' }],
     })
 

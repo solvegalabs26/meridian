@@ -6,6 +6,7 @@
 // table and updates the ask_queries row with the extracted payload.
 
 import { getAnthropicClient } from '@/lib/anthropic/client'
+import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 const STATIC_EXTRACT_SYSTEM = `You are a signal extraction engine for Meridian Arc.
@@ -42,10 +43,9 @@ export async function extractResponseSignals(
     const message = await getAnthropicClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 512,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       system: [
         { type: 'text', text: STATIC_EXTRACT_SYSTEM, cache_control: { type: 'ephemeral' } },
-      ] as any,
+      ] satisfies TextBlockParam[],
       messages: [
         {
           role: 'user',
