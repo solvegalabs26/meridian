@@ -5,6 +5,7 @@ import { buildObjectiveState } from '@/lib/anthropic/prompts/objective'
 import { parseAnthropicResponse } from '@/lib/anthropic/prompts/output'
 import { fetchNewsSignals } from '@/lib/signals/newsapi'
 import { fetchComps, CompsResult } from '@/lib/sweep/fetchComps'
+import { getRecentAskContext } from '@/lib/sweep/getRecentAskContext'
 import { sendConfidenceAlert } from '@/lib/email/resend'
 import { tierAtLeast } from '@/lib/tiers'
 
@@ -186,6 +187,25 @@ export async function runSweepForUser(
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — completed actions + episodes loaded`)
 
+    // 4d. Fetch recent Ask Meridian context per objective (FF-018 Phase D)
+    const askContextMap: Record<string, string> = {}
+    await Promise.all(
+      objectives.map(async obj => {
+        try {
+          const ctx = await getRecentAskContext(supabase, userId, obj.id)
+          if (ctx) {
+            askContextMap[obj.id] = ctx
+            console.log(`[sweep] injected ask context for objective ${obj.id}`)
+          }
+        } catch (err) {
+          console.error(`[sweep] getRecentAskContext failed for objective ${obj.id}:`, err)
+          // Non-fatal — continue with empty context
+        }
+      })
+    )
+
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — ask context fetched (${Object.keys(askContextMap).length} objectives with recent questions)`)
+
     // 5. Fetch NewsAPI signals for each objective
     const newsSignalsMap: Record<string, Awaited<ReturnType<typeof fetchNewsSignals>>> = {}
     for (const obj of objectives) {
@@ -234,7 +254,8 @@ export async function runSweepForUser(
       }))
 
       const completedActionsContext = buildCompletedContext(obj.id, doneByObjectiveId, crossDepsByObjectiveId)
-      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined }
+      const askContext = askContextMap[obj.id]
+      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined, askContext: askContext || undefined }
     })
 
     // Inject upcoming calendar events for Explorer+ users who have a synced connection.
