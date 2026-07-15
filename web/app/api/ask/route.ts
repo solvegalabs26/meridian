@@ -87,20 +87,22 @@ async function braveSearch(query: string): Promise<string> {
 function extractActionCandidates(text: string): string[] {
   const stripped = text
     .replace(/\*\*/g, '')
-    .replace(/^[-*#]+\s*/gm, '')
+    .replace(/^[-*#\d.]+\s*/gm, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-  const sentences = stripped.split(/(?<=[.!?])\s+/)
-  const actionPatterns = [
-    /^(consider|check|contact|reach out|apply|submit|register|update|review|schedule|confirm|follow up|go directly|set a reminder|monitor|visit)/i,
-    /you should /i,
-    /the next step is/i,
-    /i recommend/i,
-    /would be wise/i,
-  ]
-  return sentences
-    .filter(s => actionPatterns.some(p => p.test(s.trim())))
+
+  const sentences = stripped
+    .split(/\n|(?<=[.!?])\s+/)
     .map(s => s.trim())
-    .slice(0, 3)
+    .filter(s => s.length > 15 && s.length < 200)
+
+  const nonImperativeStarters = /^(i |the |a |an |this |that |it |there |we |you |based |most |many |some |each |if |when |as |because|note|usually|typically|historically|often|since|while)/i
+
+  const likely = sentences.filter(s => {
+    if (nonImperativeStarters.test(s)) return false
+    return /^[A-Z][a-z]/.test(s)
+  })
+
+  return likely.slice(0, 3)
 }
 
 // ── Route handler ──────────────────────────────────────────────────────────
