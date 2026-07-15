@@ -16,9 +16,9 @@ const anthropic = new Anthropic({
 // ── Tier gate ──────────────────────────────────────────────────────────────
 // command=10, accelerator=3 (+credits), explorer=1 (teaser), trial/null=0
 const ASK_LIMITS: Record<string, number> = {
-  command: 10,
-  accelerator: 3,
-  explorer: 1,
+  command: 20,
+  accelerator: 10,
+  explorer: 5,
   trial: 0,
 }
 
