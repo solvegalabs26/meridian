@@ -118,8 +118,73 @@ export async function extractAskSignals(
     })
   }
 
+  // Write an ask episode for each matched objective (Phase E)
+  const perObjective = new Map<string, AskSignalInsert[]>()
+  for (const s of signals) {
+    const oid = s.objective_ids[0]
+    if (!perObjective.has(oid)) perObjective.set(oid, [])
+    perObjective.get(oid)!.push(s)
+  }
+  for (const [objectiveId, objSignals] of perObjective) {
+    await writeAskEpisode(
+      supabase,
+      userId,
+      objectiveId,
+      question,
+      objSignals.map(s => ({
+        signal_text: s.body,
+        relevance_score: s.relevance === 'high' ? 3 : s.relevance === 'medium' ? 2 : 1,
+        concern_class: s.signal_type,
+      }))
+    )
+  }
+
   return {
     signals,
     matchedObjectiveIds: signals.map(s => s.objective_ids[0]),
+  }
+}
+
+async function writeAskEpisode(
+  supabase: SupabaseClient,
+  userId: string,
+  objectiveId: string,
+  question: string,
+  matchedSignals: Array<{ signal_text: string; relevance_score: number; concern_class: string }>
+): Promise<void> {
+  try {
+    const { data: existing } = await supabase
+      .from('objective_episodes')
+      .select('episode_number')
+      .eq('objective_id', objectiveId)
+      .order('episode_number', { ascending: false })
+      .limit(1)
+      .single()
+
+    const nextEpisodeNumber = (existing?.episode_number ?? 0) + 1
+
+    const topSignals = matchedSignals.slice(0, 3).map(s => ({
+      title: s.signal_text.slice(0, 120),
+      relevance: s.relevance_score >= 3 ? 'high' : s.relevance_score === 2 ? 'medium' : 'low',
+      body_excerpt: s.signal_text,
+      signal_class: 'internal',
+    }))
+
+    const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+    await supabase.from('objective_episodes').insert({
+      user_id: userId,
+      objective_id: objectiveId,
+      episode_number: nextEpisodeNumber,
+      source: 'ask_query',
+      signal_count: matchedSignals.length,
+      top_signals: topSignals,
+      cross_deps_detected: [],
+      narrative: `User asked on ${date}: "${question.slice(0, 200)}${question.length > 200 ? '...' : ''}"`,
+      sweep_id: null,
+    })
+  } catch (err) {
+    console.error('[ask:episode] failed to write episode:', err)
+    // Non-fatal — never block signal extraction
   }
 }
