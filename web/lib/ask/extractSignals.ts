@@ -174,7 +174,7 @@ async function writeAskEpisode(
 
     const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
-    await supabase.from('objective_episodes').insert({
+    const { error: insertError } = await supabase.from('objective_episodes').insert({
       user_id: userId,
       objective_id: objectiveId,
       episode_number: nextEpisodeNumber,
@@ -185,6 +185,7 @@ async function writeAskEpisode(
       narrative: `User asked on ${date}: "${question.slice(0, 200)}${question.length > 200 ? '...' : ''}"`,
       sweep_id: null,
     })
+    if (insertError) console.error('[ask:episode] insert failed:', insertError.message, insertError.code)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[ask:episode] failed to write episode:', msg)
