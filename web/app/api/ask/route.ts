@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
+import { extractAskSignals } from '@/lib/ask/extractSignals'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -250,21 +251,63 @@ Guidelines:
   }
 
   // 10. Log to ask_queries (RLS write — user_id enforced by auth context)
-  const { error: insertError } = await supabase.from('ask_queries').insert({
-    user_id: user.id,
-    question,
-    response: responseText,
-    objective_context: objectiveContext,
-    web_search_used: webSearchUsed,
-    credits_used: 1,
-  })
+  const { data: insertedQuery, error: insertError } = await supabase
+    .from('ask_queries')
+    .insert({
+      user_id: user.id,
+      question,
+      response: responseText,
+      objective_context: objectiveContext,
+      web_search_used: webSearchUsed,
+      credits_used: 1,
+      extraction_status: 'pending',
+    })
+    .select('id')
+    .single()
 
   if (insertError) {
     // Non-fatal: response already generated — log and continue
     console.error('[ask] Failed to log query:', insertError.message)
   }
 
-  // 11. Deduct sweep credit if applicable (Accelerator overflow)
+  // 11. FF-018 Phase A — Layer 1 keyword extraction → signals
+  // Runs after insert so we have the ask_query_id for provenance.
+  // Fire-and-forget: errors are non-fatal, user already has their response.
+  if (insertedQuery?.id) {
+    void (async () => {
+      try {
+        const signals = await extractAskSignals(supabase, {
+          userId: user.id,
+          askQueryId: insertedQuery.id,
+          question,
+          objectiveContext,
+        })
+
+        const extractedPayload = { signals_found: signals.length, matched_objectives: signals.map(s => s.objective_ids[0]) }
+
+        if (signals.length > 0) {
+          const { error: signalError } = await supabase.from('signals').insert(signals)
+          if (signalError) console.error('[ask:extract] signal insert failed:', signalError.message)
+        }
+
+        await supabase
+          .from('ask_queries')
+          .update({
+            extraction_status: signals.length > 0 ? 'complete' : 'no_match',
+            extracted_signals: extractedPayload,
+          })
+          .eq('id', insertedQuery.id)
+      } catch (err) {
+        console.error('[ask:extract] extraction failed:', err)
+        await supabase
+          .from('ask_queries')
+          .update({ extraction_status: 'failed' })
+          .eq('id', insertedQuery.id)
+      }
+    })()
+  }
+
+  // 13. Deduct ask credit if applicable (Accelerator overflow)
   if (useCredit && !insertError) {
     const { error: creditError } = await supabase
       .from('profiles')
@@ -276,7 +319,7 @@ Guidelines:
     }
   }
 
-  // 12. Return response
+  // 14. Return response
   return NextResponse.json({
     response: responseText,
     web_search_used: webSearchUsed,
