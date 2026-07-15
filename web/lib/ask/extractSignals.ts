@@ -33,10 +33,17 @@ function normalise(s: string): string {
   return s.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
-// Returns the subset of keywords that appear in the question
+// Returns the subset of keywords that appear in the question.
+// Splits each keyword into tokens and checks that all significant tokens
+// (>= 4 chars) are present individually — exact substring matching breaks
+// on partial phrases like "boeing max 10" vs "boeing 737 max 10 certification".
 function matchKeywords(question: string, keywords: string[]): string[] {
   const q = normalise(question)
-  return keywords.filter(kw => q.includes(normalise(kw)))
+  return keywords.filter(kw => {
+    const tokens = normalise(kw).split(/\s+/).filter(t => t.length >= 4)
+    if (tokens.length === 0) return q.includes(normalise(kw))
+    return tokens.every(t => q.includes(t))
+  })
 }
 
 // Classify the concern type from the question for signal_type
