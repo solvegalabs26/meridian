@@ -52,7 +52,11 @@ Return JSON only, no prose. Schema: { "claims": string[], "actions": string[], "
     })
 
     const raw = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-    extraction = JSON.parse(raw) as ResponseExtraction
+    const rawJson = raw
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```\s*$/i, '')
+      .trim()
+    extraction = JSON.parse(rawJson) as ResponseExtraction
   } catch (err) {
     console.error('[ask:extract-b] Haiku call or JSON parse failed:', err)
     await supabase
