@@ -29,35 +29,19 @@ export async function POST(request: NextRequest) {
   if (!invite) return NextResponse.json({ error: 'invalid_code' }, { status: 400 })
   if (invite.status === 'expired') return NextResponse.json({ error: 'code_expired' }, { status: 400 })
 
+  const useCount = (invite.use_count as number) ?? 0
+
   if (invite.is_multi_use) {
     // Multi-use: enforce max_uses cap if set
-    const useCount = (invite.use_count as number) ?? 0
     if (invite.max_uses != null && useCount >= (invite.max_uses as number)) {
       return NextResponse.json({ error: 'code_already_used' }, { status: 400 })
     }
-    // Increment use_count — leave status as 'unused'
-    const { error: codeError } = await service
-      .from('invite_codes')
-      .update({ use_count: useCount + 1 })
-      .eq('code', code)
-    if (codeError) {
-      console.error('[redeem] code increment failed:', codeError)
-      return NextResponse.json({ error: 'redeem_failed' }, { status: 500 })
-    }
   } else {
-    // Single-use: must be unused; flip status to redeemed
+    // Single-use: must be unused
     if (invite.status === 'redeemed') return NextResponse.json({ error: 'code_already_used' }, { status: 400 })
-    const { error: codeError } = await service
-      .from('invite_codes')
-      .update({ status: 'redeemed', redeemed_by: user.id, redeemed_at: new Date().toISOString() })
-      .eq('code', code)
-    if (codeError) {
-      console.error('[redeem] code redeem failed:', codeError)
-      return NextResponse.json({ error: 'redeem_failed' }, { status: 500 })
-    }
   }
 
-  // Build profile update
+  // Profile update first — if this fails the invite code is untouched
   const tier = PRICING_TIER_TO_TIER[invite.pricing_tier_grant as string ?? ''] ?? 'trial'
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const profileUpdate: Record<string, any> = { tier }
@@ -83,6 +67,25 @@ export async function POST(request: NextRequest) {
   if (profileError) {
     console.error('[redeem] profile update failed:', profileError)
     return NextResponse.json({ error: 'profile_update_failed' }, { status: 500 })
+  }
+
+  // Profile confirmed — now mark the code as consumed
+  const codeUpdate: Record<string, unknown> = { use_count: useCount + 1 }
+  if (!invite.is_multi_use) {
+    codeUpdate.status = 'redeemed'
+    codeUpdate.redeemed_by = user.id
+    codeUpdate.redeemed_at = new Date().toISOString()
+  }
+
+  const { error: codeError } = await service
+    .from('invite_codes')
+    .update(codeUpdate)
+    .eq('code', code)
+
+  if (codeError) {
+    // Profile already updated — log but don't fail the request.
+    // Worst case: code can be reused once; ops can correct manually.
+    console.error('[redeem] code update failed after profile write:', codeError)
   }
 
   return NextResponse.json({ success: true, requires_idme: !!(invite.requires_idme) })

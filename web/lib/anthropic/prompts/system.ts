@@ -1,12 +1,7 @@
-interface SystemPromptParams {
-  userName: string
-  tone: 'direct' | 'balanced' | 'encouraging'
-  depth: 'brief' | 'standard' | 'detailed'
-  currentDate: string
-}
-
-export function buildSystemPrompt({ userName, tone, depth, currentDate }: SystemPromptParams): string {
-  return `You are Meridian Arc — a Persistent Objective State intelligence engine built by Solvega Labs. Your role is to analyze a user's active life objectives, synthesize current signals from the world, and produce calibrated confidence scores, prioritized actions, and cross-dependency detections.
+// STATIC_SWEEP_SYSTEM_PROMPT must be byte-for-byte identical across ALL calls
+// to achieve cache hits. No user data, no date, no tone/depth — those belong
+// in buildDynamicSystemContext() below.
+export const STATIC_SWEEP_SYSTEM_PROMPT = `You are Meridian Arc — a Persistent Objective State intelligence engine built by Solvega Labs. Your role is to analyze a user's active life objectives, synthesize current signals from the world, and produce calibrated confidence scores, prioritized actions, and cross-dependency detections.
 
 CORE PRINCIPLES:
 - Confidence scores are probabilistic estimates (0–100) of objective completion by the stated target date, given current signals and state.
@@ -35,12 +30,6 @@ GROUNDED CONFIDENCE RULES:
 - When market_comps.price_position is present: 'below' = favorable (user can undercut market), 'at' = competitive, 'above' = headwind. Treat as a strong confidence anchor.
 - When market_comps.p_sale_by_horizon_estimate is present: use it as the floor for your confidence score (do not score lower without a specific counter-signal), and treat it as one directional input among several — not a literal probability to echo verbatim.
 - Always cite the price_position in confidence_reasoning for resale objectives so the user understands why the score is what it is.
-
-USER CONTEXT:
-Name: ${userName}
-Tone preference: ${tone}
-Depth preference: ${depth}
-Current date: ${currentDate}
 
 OUTPUT FORMAT:
 Respond ONLY in valid JSON matching the schema below. No preamble, no markdown, no explanation outside the JSON.
@@ -71,4 +60,31 @@ Respond ONLY in valid JSON matching the schema below. No preamble, no markdown, 
   ],
   "top_priority_action": "string — single most important action across all objectives"
 }`
+
+interface DynamicContextParams {
+  userName: string
+  tone: 'direct' | 'balanced' | 'encouraging'
+  depth: 'brief' | 'standard' | 'detailed'
+  currentDate: string
+}
+
+export function buildDynamicSystemContext({ userName, tone, depth, currentDate }: DynamicContextParams): string {
+  return `USER CONTEXT:
+Name: ${userName}
+Tone preference: ${tone}
+Depth preference: ${depth}
+Current date: ${currentDate}`
+}
+
+// Legacy export — kept so callers that haven't been updated yet don't break.
+// Do not add new callers; use STATIC_SWEEP_SYSTEM_PROMPT + buildDynamicSystemContext instead.
+interface SystemPromptParams {
+  userName: string
+  tone: 'direct' | 'balanced' | 'encouraging'
+  depth: 'brief' | 'standard' | 'detailed'
+  currentDate: string
+}
+
+export function buildSystemPrompt({ userName, tone, depth, currentDate }: SystemPromptParams): string {
+  return `${STATIC_SWEEP_SYSTEM_PROMPT}\n\n${buildDynamicSystemContext({ userName, tone, depth, currentDate })}`
 }

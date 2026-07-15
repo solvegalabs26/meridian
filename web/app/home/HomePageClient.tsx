@@ -105,7 +105,8 @@ nav{
   opacity:0;animation:fadeUp .7s ease .4s both;
 }
 .hero .sub strong{color:var(--text);font-weight:400}
-.hero-cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;opacity:0;animation:fadeUp .7s ease .56s both}
+.hero-cta{display:flex;gap:28px;justify-content:center;align-items:stretch;flex-wrap:wrap;opacity:0;animation:fadeUp .7s ease .56s both}
+.hero-cta .btn-primary,.hero-cta .btn-ghost{flex:0 0 auto;min-width:220px;display:inline-flex;align-items:center;justify-content:center}
 .btn-primary{
   display:inline-flex;align-items:center;gap:9px;
   padding:15px 30px;border-radius:8px;font-size:15px;font-weight:500;

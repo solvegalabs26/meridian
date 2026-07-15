@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { SWEEP_CREDIT_BUNDLES } from '@/lib/subscription/tiers'
+import { SWEEP_CREDIT_BUNDLES, ASK_CREDIT_BUNDLES } from '@/lib/subscription/tiers'
 
 interface Profile {
   full_name: string | null
@@ -275,6 +275,37 @@ export default function SettingsClient({ email, profile }: Props) {
                   ))}
                 </div>
               </div>
+
+              {/* Ask query credit bundles */}
+              <div className="mt-5 pt-4 border-t border-[var(--border)]">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text3)] mb-3">Add ask query credits</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {ASK_CREDIT_BUNDLES.map(b => (
+                    <div
+                      key={b.credits}
+                      className={`relative rounded-xl border p-3 text-center ${
+                        b.best_value ? 'border-amber-300 bg-amber-50' : 'border-[var(--border)] bg-[var(--gray-lt)]'
+                      }`}
+                    >
+                      {b.best_value && (
+                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-amber-500 text-[8px] font-bold tracking-widest uppercase text-white px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                          Best value
+                        </span>
+                      )}
+                      <p className="text-[16px] font-medium text-[var(--text)]">{b.credits}</p>
+                      <p className="text-[10px] text-[var(--text3)] mb-1">queries</p>
+                      <p className="text-[13px] font-medium text-[var(--text)]">${b.price}</p>
+                      <button
+                        disabled
+                        className="mt-2 w-full py-1 rounded-lg border border-[var(--border)] text-[10px] text-[var(--text3)] cursor-not-allowed opacity-50"
+                      >
+                        Coming soon
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
             </div>
           )
         })()}

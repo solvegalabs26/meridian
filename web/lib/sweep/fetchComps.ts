@@ -209,6 +209,8 @@ Return ONLY valid JSON (no markdown):
       betas: ['web-search-2025-03-05'],
     })
 
+    console.log('[fetchComps:cache]', JSON.stringify(response.usage))
+
     // Collect text from all content blocks
     const allText = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')

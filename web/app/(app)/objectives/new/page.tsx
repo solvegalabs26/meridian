@@ -19,9 +19,60 @@ const schema = z.object({
   success_condition: z.string().optional(),
   target_date:       z.string().optional(),
   notes:             z.string().optional(),
+  key_risk:          z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
+
+interface Placeholders {
+  title: string
+  outcome: string
+  success_condition: string
+  target_date: string
+  notes: string
+  key_risk: string
+}
+
+function getPlaceholdersByContext(context: string | null): Placeholders {
+  switch (context) {
+    case 'career_transition':
+      return {
+        title:             'Example: Land a Program Manager role at a defense contractor by December 2026',
+        outcome:           "Describe what success looks like and what factors matter most. Include:\n · Target role title(s) you're open to\n · 1–3 specific companies or employers you're targeting\n · Location requirement or constraint\n · Minimum salary or compensation floor\n · Any credential, clearance, or certification relevant to this objective\n · Your biggest concern or risk you want the system to watch",
+        success_condition: 'Example: Signed offer letter at or above $95K base salary, hybrid or remote schedule,\n in the Denver-Colorado Springs corridor, by December 31, 2026.',
+        target_date:       'Set a realistic target date. For career transitions: your ETS/separation date + 60–90 days\n is a common first-job horizon. Hard deadlines (benefit enrollment cutoffs, credential\n expiration dates) should be separate objectives.',
+        notes:             "Optional but powerful. Add anything the system should know that doesn't fit above:\n · Family or location constraints\n · A referral or connection inside a target company\n · A certification you're mid-way through\n · A competing offer or alternative path you're weighing\n · How this objective connects to another goal (financial, relocation, family)",
+        key_risk:          "Example: My military job titles don't translate directly — I'm worried\n  employers won't see the equivalency. / I have a coverage gap between separation\n  and my first paycheck. / I'm not sure which certification to pursue first.",
+      }
+    case 'business_owner':
+      return {
+        title:             'Example: Reach $50K MRR by Q4 2026',
+        outcome:           'Describe the business result — revenue target, team size, market position,\n  client count, or operational milestone. Include your industry and any key constraints.',
+        success_condition: 'Example: $50K MRR sustained for two consecutive months, three enterprise\n  clients signed, team of five fully onboarded.',
+        target_date:       'Set a realistic target date. Quarterly milestones work well for business goals.',
+        notes:             'Add context: current MRR, team size, key competitors, biggest risk,\n  or any dependency on another objective (funding, hiring, a product launch).',
+        key_risk:          "Example: Our largest client is 40% of revenue — churn risk is the thing\n  I'm most worried about.",
+      }
+    case 'personal':
+      return {
+        title:             'Example: Pay off $18K in credit card debt by March 2027',
+        outcome:           'Describe the personal result — financial target, health goal, family milestone,\n  or life change. Include any hard deadline or constraint.',
+        success_condition: 'Example: Balance at zero, no new revolving debt, emergency fund at $5K.',
+        target_date:       'When does this need to be done by? Or when would you like it done by?',
+        notes:             "Add context: current status, what's working, what's in the way,\n  and how this connects to other things you're working toward.",
+        key_risk:          'Example: An irregular income month could knock me off the payoff schedule.',
+      }
+    default:
+      return {
+        title:             'What do you want to achieve?',
+        outcome:           "Describe the specific result you're working toward...",
+        success_condition: 'What does done look like?',
+        target_date:       '',
+        notes:             'Context, blockers, relationships, open actions...',
+        key_risk:          "What's the one thing most likely to get in your way?",
+      }
+  }
+}
 
 export default function NewObjectivePage() {
   const router = useRouter()
@@ -29,16 +80,21 @@ export default function NewObjectivePage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [accountType, setAccountType] = useState<string | null>(null)
+  const [onboardingContext, setOnboardingContext] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
-      supabase.from('profiles').select('account_type').eq('id', user.id).single()
-        .then(({ data }) => setAccountType(data?.account_type ?? 'personal'))
+      supabase.from('profiles').select('account_type, onboarding_context').eq('id', user.id).single()
+        .then(({ data }) => {
+          setAccountType(data?.account_type ?? 'personal')
+          setOnboardingContext(data?.onboarding_context ?? 'general')
+        })
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const categories = getCategoriesForAccount(accountType)
+  const ph = getPlaceholdersByContext(onboardingContext)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -52,9 +108,6 @@ export default function NewObjectivePage() {
   const [assessing, setAssessing] = useState(false)
 
   async function onSubmit(data: FormData) {
-    // First submit — ask the AI whether this objective needs clarification
-    // before actually creating it. Skip re-assessing once questions are
-    // already showing (Continue/Skip below handles that path).
     if (clarifyQuestions === null) {
       setAssessing(true)
       setError(null)
@@ -86,6 +139,9 @@ export default function NewObjectivePage() {
     setSaving(true)
     setError(null)
 
+    // Append key_risk to notes context so sweep engine sees it
+    const notesWithRisk = [data.notes, data.key_risk ? `Key risk: ${data.key_risk}` : ''].filter(Boolean).join('\n\n')
+
     const res = await fetch('/api/objectives', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -95,7 +151,7 @@ export default function NewObjectivePage() {
         outcome:           data.outcome,
         success_condition: data.success_condition || null,
         target_date:       data.target_date || null,
-        notes:             data.notes || null,
+        notes:             notesWithRisk || null,
         goal_description:  data.outcome,
         goal_context:      goalContext,
       }),
@@ -214,7 +270,7 @@ export default function NewObjectivePage() {
           <label className="block text-[12px] font-semibold text-[var(--text2)] mb-1.5 uppercase tracking-wide">Title</label>
           <input
             {...register('title')}
-            placeholder="What do you want to achieve?"
+            placeholder={ph.title}
             className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors"
           />
           {errors.title && <p className="text-[11px] text-[var(--red)] mt-1">{errors.title.message}</p>}
@@ -238,8 +294,8 @@ export default function NewObjectivePage() {
           </label>
           <textarea
             {...register('outcome')}
-            rows={3}
-            placeholder="Describe the specific result you're working toward..."
+            rows={4}
+            placeholder={ph.outcome}
             className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors resize-none"
           />
           {errors.outcome && <p className="text-[11px] text-[var(--red)] mt-1">{errors.outcome.message}</p>}
@@ -253,7 +309,7 @@ export default function NewObjectivePage() {
           <textarea
             {...register('success_condition')}
             rows={2}
-            placeholder="What does done look like?"
+            placeholder={ph.success_condition}
             className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors resize-none"
           />
         </div>
@@ -267,6 +323,9 @@ export default function NewObjectivePage() {
             min={new Date().toISOString().split('T')[0]}
             className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] bg-white focus:outline-none focus:border-[var(--blue)] transition-colors"
           />
+          {ph.target_date && (
+            <p className="text-[11px] text-[var(--text3)] mt-1.5">{ph.target_date}</p>
+          )}
           {errors.target_date && <p className="text-[11px] text-[var(--red)] mt-1">{errors.target_date.message}</p>}
         </div>
 
@@ -276,7 +335,21 @@ export default function NewObjectivePage() {
           <textarea
             {...register('notes')}
             rows={3}
-            placeholder="Context, blockers, relationships, open actions..."
+            placeholder={ph.notes}
+            className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors resize-none"
+          />
+        </div>
+
+        {/* Key Risk */}
+        <div>
+          <label className="block text-[12px] font-semibold text-[var(--text2)] mb-1 uppercase tracking-wide">
+            Key risk <span className="font-normal normal-case tracking-normal text-[var(--text3)]">— optional</span>
+          </label>
+          <p className="text-[11px] text-[var(--text3)] mb-1.5">What&apos;s the one thing you&apos;re most worried about?</p>
+          <textarea
+            {...register('key_risk')}
+            rows={2}
+            placeholder={ph.key_risk}
             className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors resize-none"
           />
         </div>

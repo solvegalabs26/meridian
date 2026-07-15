@@ -8,7 +8,10 @@ export function getAnthropicClient(): Anthropic {
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error('ANTHROPIC_API_KEY environment variable is not set')
     }
-    _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    _client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      defaultHeaders: { 'anthropic-beta': 'prompt-caching-2024-07-31' },
+    })
   }
   return _client
 }
