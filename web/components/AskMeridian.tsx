@@ -27,6 +27,10 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
   const [error, setError] = useState<string | null>(null)
   const [usage, setUsage] = useState<UsageState>(initialUsage)
   const [webSearchUsed, setWebSearchUsed] = useState(false)
+  const [suggestedActions, setSuggestedActions] = useState<string[]>([])
+  const [askQueryId, setAskQueryId] = useState<string | null>(null)
+  const [matchedObjectiveIds, setMatchedObjectiveIds] = useState<string[]>([])
+  const [confirmedActions, setConfirmedActions] = useState<Set<number>>(new Set())
 
   const remaining = usage.limit - usage.used
   const atLimit = remaining <= 0 && usage.askCredits <= 0
@@ -60,6 +64,10 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
 
       setResponse(data.response)
       setWebSearchUsed(data.web_search_used ?? false)
+      setSuggestedActions(data.suggested_actions ?? [])
+      setAskQueryId(data.ask_query_id ?? null)
+      setMatchedObjectiveIds(data.matched_objective_ids ?? [])
+      setConfirmedActions(new Set())
       if (data.usage) {
         setUsage((u) => ({
           ...u,
@@ -75,6 +83,19 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleConfirmAction(action: string, index: number, objectiveIds: string[]) {
+    try {
+      await fetch('/api/ask/confirm-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action_text: action, objective_ids: objectiveIds, ask_query_id: askQueryId }),
+      })
+    } catch {
+      // Non-fatal — optimistically mark confirmed regardless
+    }
+    setConfirmedActions(prev => new Set(prev).add(index))
   }
 
   return (
@@ -189,6 +210,43 @@ export default function AskMeridian({ initialUsage }: AskMeridianProps) {
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-800 dark:text-neutral-200">
             {response}
           </p>
+        </div>
+      )}
+
+      {/* Suggested actions */}
+      {suggestedActions.length > 0 && (
+        <div className="mt-3 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500">
+            Suggested Actions
+          </p>
+          {suggestedActions.map((action, i) => {
+            const objectiveIds = matchedObjectiveIds
+            const hasObjective = objectiveIds.length > 0
+            return (
+              <div
+                key={i}
+                className="flex items-start gap-3 rounded-lg border border-neutral-200 dark:border-neutral-700 px-4 py-3"
+              >
+                <p className="flex-1 text-sm text-neutral-700 dark:text-neutral-300">{action}</p>
+                {confirmedActions.has(i) ? (
+                  <span className="shrink-0 text-xs font-semibold text-green-600 dark:text-green-400">
+                    Added ✓
+                  </span>
+                ) : hasObjective ? (
+                  <button
+                    onClick={() => handleConfirmAction(action, i, objectiveIds)}
+                    className="shrink-0 text-xs font-semibold text-[#C9A227] hover:text-[#b89220] transition"
+                  >
+                    Add to list →
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-xs text-neutral-400 dark:text-neutral-500 cursor-default">
+                    No matching goal
+                  </span>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

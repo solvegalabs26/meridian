@@ -83,6 +83,30 @@ async function braveSearch(query: string): Promise<string> {
   }
 }
 
+// ── Phase C: synchronous action candidate extraction ──────────────────────
+function extractActionCandidates(text: string): string[] {
+  const stripped = text
+    .replace(/\*\*/g, '')
+    .replace(/^[-*#\d.]+\s*/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+
+  const sentences = stripped
+    .split(/\n|(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 15 && s.length < 200)
+
+  const nonImperativeStarters = /^(i |the |a |an |this |that |it |there |we |you |based |most |many |some |each |if |when |as |because|note|usually|typically|historically|often|since|while)/i
+
+  const likely = sentences.filter(s => {
+    if (nonImperativeStarters.test(s)) return false
+    return /^[A-Z][a-z]/.test(s)
+      && s.split(' ').length > 5
+      && !/\(.*\)$/.test(s)
+  })
+
+  return likely.slice(0, 3)
+}
+
 // ── Route handler ──────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const supabase = createClient()
@@ -193,14 +217,34 @@ export async function POST(req: NextRequest) {
   }
 
   // 6. Load active objectives as context (no raw_response guard mirrors dashboard)
-  const { data: objectives } = await supabase
+  const { data: objectives, error: objError } = await supabase
     .from('objectives')
-    .select('id, title, description, status, deadline, objective_type, context, signal_keywords')
+    .select('id, title, outcome, goal_description, status, target_date, objective_type, context, signal_keywords')
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(12)
 
+  if (objError) console.error('[ask:objectives] query error:', objError.message)
   const objectiveContext = objectives ?? []
+
+  // Sync keyword match for Phase C action surfacing — mirrors Phase A token logic.
+  // Only checks the 12 loaded objectives; Phase A async covers the full set.
+  function syncMatchObjectives(q: string, objs: typeof objectiveContext): string[] {
+    const ql = q.toLowerCase()
+    return objs
+      .filter(obj => {
+        const keywords: string[] = obj.signal_keywords ?? []
+        return keywords.some(kw => {
+          const tokens = kw.toLowerCase().split(/\s+/).filter((t: string) => t.length >= 4)
+          if (tokens.length === 0) return ql.includes(kw.toLowerCase())
+          return tokens.every((t: string) => ql.includes(t))
+        })
+      })
+      .map(obj => obj.id)
+  }
+
+  const matchedObjectiveIds = syncMatchObjectives(question, objectiveContext)
+  console.log('[ask:sync-match] objectives loaded:', objectiveContext.length, 'matched:', matchedObjectiveIds)
 
   // 7. Web search (optional, degrades gracefully)
   const searchSnippet = await braveSearch(question)
@@ -211,7 +255,7 @@ export async function POST(req: NextRequest) {
     objectiveContext.length > 0
       ? objectiveContext
           .map((o) => {
-            const deadline = o.deadline ? ` · deadline ${o.deadline}` : ''
+            const deadline = o.target_date ? ` · deadline ${o.target_date}` : ''
             const type = o.objective_type ? ` [${o.objective_type}]` : ''
             return `- ${o.title}${type}${deadline}`
           })
@@ -352,6 +396,9 @@ Guidelines:
   return NextResponse.json({
     response: responseText,
     web_search_used: webSearchUsed,
+    ask_query_id: insertedQuery?.id ?? null,
+    suggested_actions: extractActionCandidates(responseText),
+    matched_objective_ids: matchedObjectiveIds,
     usage: {
       used: used + 1,
       limit: baseLimit,
