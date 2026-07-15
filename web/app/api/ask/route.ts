@@ -7,6 +7,7 @@ import { waitUntil } from '@vercel/functions'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { extractAskSignals } from '@/lib/ask/extractSignals'
+import { extractResponseSignals } from '@/lib/ask/extractResponseSignals'
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -271,35 +272,48 @@ Guidelines:
     console.error('[ask] Failed to log query:', insertError.message)
   }
 
-  // 11. FF-018 Phase A — Layer 1 keyword extraction → signals
+  // 11. FF-018 Phase A + B — keyword extraction then Haiku response extraction.
   // Runs after insert so we have the ask_query_id for provenance.
-  // Fire-and-forget: errors are non-fatal, user already has their response.
+  // Phase A runs first to get matched objective IDs; Phase B consumes them.
+  // Fire-and-forget via waitUntil: errors are non-fatal, user already has response.
   if (insertedQuery?.id) {
     const queryId = insertedQuery.id
     waitUntil(
       (async () => {
         try {
-          const signals = await extractAskSignals(supabase, {
+          // Phase A — keyword match question → signals
+          const { signals, matchedObjectiveIds } = await extractAskSignals(supabase, {
             userId: user.id,
             askQueryId: queryId,
             question,
             objectiveContext,
           })
 
-          const extractedPayload = { signals_found: signals.length, matched_objectives: signals.map(s => s.objective_ids[0]) }
-
           if (signals.length > 0) {
             const { error: signalError } = await supabase.from('signals').insert(signals)
-            if (signalError) console.error('[ask:extract] signal insert failed:', signalError.message)
+            if (signalError) console.error('[ask:extract-a] signal insert failed:', signalError.message)
           }
 
-          await supabase
-            .from('ask_queries')
-            .update({
-              extraction_status: signals.length > 0 ? 'complete' : 'no_match',
-              extracted_signals: extractedPayload,
+          // Phase B — Haiku extracts claims/actions/sentiment from the response.
+          // Also owns the final extraction_status write; if no objectives matched
+          // Phase A, Phase B skips and we write no_match here instead.
+          if (matchedObjectiveIds.length > 0) {
+            await extractResponseSignals(supabase, {
+              userId: user.id,
+              askQueryId: queryId,
+              question,
+              response: responseText,
+              objectiveIds: matchedObjectiveIds,
             })
-            .eq('id', queryId)
+          } else {
+            await supabase
+              .from('ask_queries')
+              .update({
+                extraction_status: 'no_match',
+                extracted_signals: { signals_found: 0, matched_objectives: [] },
+              })
+              .eq('id', queryId)
+          }
         } catch (err) {
           console.error('[ask:extract] extraction failed:', err)
           await supabase

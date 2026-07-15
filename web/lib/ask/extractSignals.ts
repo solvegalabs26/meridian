@@ -54,6 +54,11 @@ function classifyConcern(question: string): string {
   return 'neutral'
 }
 
+export interface ExtractAskSignalsResult {
+  signals: AskSignalInsert[]
+  matchedObjectiveIds: string[]
+}
+
 export async function extractAskSignals(
   supabase: SupabaseClient,
   params: {
@@ -62,7 +67,7 @@ export async function extractAskSignals(
     question: string
     objectiveContext: Objective[]
   }
-): Promise<AskSignalInsert[]> {
+): Promise<ExtractAskSignalsResult> {
   const { userId, askQueryId, question } = params
   const signals: AskSignalInsert[] = []
   const signalType = classifyConcern(question)
@@ -78,7 +83,7 @@ export async function extractAskSignals(
 
   if (objError) {
     console.error('[ask:extract] failed to load objectives:', objError.message)
-    return []
+    return { signals: [], matchedObjectiveIds: [] }
   }
 
   const objectiveContext: Objective[] = allObjectives ?? []
@@ -113,5 +118,8 @@ export async function extractAskSignals(
     })
   }
 
-  return signals
+  return {
+    signals,
+    matchedObjectiveIds: signals.map(s => s.objective_ids[0]),
+  }
 }
