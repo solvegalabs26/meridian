@@ -189,7 +189,7 @@ export async function POST(req: NextRequest) {
   // 6. Load active objectives as context (no raw_response guard mirrors dashboard)
   const { data: objectives } = await supabase
     .from('objectives')
-    .select('id, name, description, status, deadline, objective_type, context')
+    .select('id, title, description, status, deadline, objective_type, context, signal_keywords')
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(12)
@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
           .map((o) => {
             const deadline = o.deadline ? ` · deadline ${o.deadline}` : ''
             const type = o.objective_type ? ` [${o.objective_type}]` : ''
-            return `- ${o.name}${type}${deadline}`
+            return `- ${o.title}${type}${deadline}`
           })
           .join('\n')
       : 'No active objectives on file.'
