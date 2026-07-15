@@ -33,10 +33,17 @@ function normalise(s: string): string {
   return s.toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
-// Returns the subset of keywords that appear in the question
+// Returns the subset of keywords that appear in the question.
+// Splits each keyword into tokens and checks that all significant tokens
+// (>= 4 chars) are present individually — exact substring matching breaks
+// on partial phrases like "boeing max 10" vs "boeing 737 max 10 certification".
 function matchKeywords(question: string, keywords: string[]): string[] {
   const q = normalise(question)
-  return keywords.filter(kw => q.includes(normalise(kw)))
+  return keywords.filter(kw => {
+    const tokens = normalise(kw).split(/\s+/).filter(t => t.length >= 4)
+    if (tokens.length === 0) return q.includes(normalise(kw))
+    return tokens.every(t => q.includes(t))
+  })
 }
 
 // Classify the concern type from the question for signal_type
@@ -53,12 +60,34 @@ export async function extractAskSignals(
     userId: string
     askQueryId: string
     question: string
-    objectiveContext: Objective[]   // already loaded in the route — reuse it
+    objectiveContext: Objective[]
   }
 ): Promise<AskSignalInsert[]> {
-  const { userId, askQueryId, question, objectiveContext } = params
+  const { userId, askQueryId, question } = params
   const signals: AskSignalInsert[] = []
   const signalType = classifyConcern(question)
+
+  // Fetch all active objectives with keywords directly — the route caps at 12
+  // which can exclude objectives that have signal_keywords populated.
+  const { data: allObjectives, error: objError } = await supabase
+    .from('objectives')
+    .select('id, title, signal_keywords')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .not('signal_keywords', 'is', null)
+
+  if (objError) {
+    console.error('[ask:extract] failed to load objectives:', objError.message)
+    return []
+  }
+
+  const objectiveContext: Objective[] = allObjectives ?? []
+  console.log(
+    '[ask:extract] objectives with keywords:',
+    objectiveContext.length,
+    '| sample:',
+    objectiveContext[0]?.signal_keywords?.slice(0, 2)
+  )
 
   for (const obj of objectiveContext) {
     const keywords = obj.signal_keywords ?? []
