@@ -10,6 +10,12 @@ interface RecentSignal {
   signal_class?: 'market' | 'news' | 'dependency' | 'internal'
 }
 
+interface EpisodeHistoryEntry {
+  episode_number: number
+  narrative: string | null
+  signal_count: number
+}
+
 interface ObjectiveStateInput {
   objective: Objective
   confidenceHistory: number[]
@@ -18,11 +24,13 @@ interface ObjectiveStateInput {
   comps?: CompsResult | null
   completedActionsContext?: string
   askContext?: string
+  episodeHistory?: EpisodeHistoryEntry[]
+  signalAbsenceCount?: number
 }
 
 export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
   return {
-    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext, askContext }) => {
+    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext, askContext, episodeHistory, signalAbsenceCount }) => {
       const obj = objective as Objective & {
         objective_type?: string | null
         deadline_type?: 'hard' | 'soft'
@@ -66,6 +74,24 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
       // Inject recent Ask Meridian questions the user has asked about this objective
       if (askContext) {
         Object.assign(base, { ask_context: askContext })
+      }
+
+      // Inject episode narrative history for absence_signal inference
+      // (up to 3 most recent episodes, most recent first)
+      if (episodeHistory && episodeHistory.length > 0) {
+        Object.assign(base, {
+          episode_history: episodeHistory.map(ep => ({
+            episode: ep.episode_number,
+            signal_count: ep.signal_count,
+            narrative_excerpt: ep.narrative ? ep.narrative.slice(0, 250) : null,
+          })),
+        })
+      }
+
+      // Signal absence count: how many of the recent episodes had zero signals
+      // Used by R-5 (absence of signal is evidence)
+      if (signalAbsenceCount !== undefined && signalAbsenceCount > 0) {
+        Object.assign(base, { consecutive_zero_signal_episodes: signalAbsenceCount })
       }
 
       // Attach comps data for resale-type objectives

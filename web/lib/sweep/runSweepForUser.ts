@@ -169,22 +169,38 @@ export async function runSweepForUser(
       doneByObjectiveId.get(action.objective_id)!.push(action)
     }
 
-    // 4c. Fetch latest episode per objective to get cross-dep IDs
+    // 4c. Fetch recent episodes per objective:
+    //   - cross-dep IDs for the completed-actions context builder
+    //   - narrative + signal_count history for inference_block absence_signal
+    //   - up to 3 episodes so we can detect consecutive signal-absence runs
     const { data: latestEpisodes } = await supabase
       .from('objective_episodes')
-      .select('objective_id, cross_deps_detected, episode_number')
+      .select('objective_id, cross_deps_detected, episode_number, narrative, signal_count')
       .in('objective_id', objectives.map(o => o.id))
       .order('episode_number', { ascending: false })
+      .limit(objectives.length * 3) // up to 3 per objective for absence detection
 
     const crossDepsByObjectiveId = new Map<string, string[]>()
+    // For inference context: recent narrative history + signal counts per objective
+    const episodeHistoryByObjId = new Map<string, { episode_number: number; narrative: string | null; signal_count: number }[]>()
     const seenEpisodeObj = new Set<string>()
     for (const ep of latestEpisodes ?? []) {
-      if (seenEpisodeObj.has(ep.objective_id)) continue
-      seenEpisodeObj.add(ep.objective_id)
-      const ids = ((ep.cross_deps_detected as { objective_id?: string }[] | null) ?? [])
-        .map(d => d.objective_id)
-        .filter((id): id is string => Boolean(id))
-      crossDepsByObjectiveId.set(ep.objective_id, ids)
+      // Build cross-dep map from the latest episode only
+      if (!seenEpisodeObj.has(ep.objective_id)) {
+        seenEpisodeObj.add(ep.objective_id)
+        const ids = ((ep.cross_deps_detected as { objective_id?: string }[] | null) ?? [])
+          .map(d => d.objective_id)
+          .filter((id): id is string => Boolean(id))
+        crossDepsByObjectiveId.set(ep.objective_id, ids)
+      }
+      // Accumulate narrative history (up to 3 most recent)
+      if (!episodeHistoryByObjId.has(ep.objective_id)) {
+        episodeHistoryByObjId.set(ep.objective_id, [])
+      }
+      const hist = episodeHistoryByObjId.get(ep.objective_id)!
+      if (hist.length < 3) {
+        hist.push({ episode_number: ep.episode_number, narrative: ep.narrative ?? null, signal_count: ep.signal_count ?? 0 })
+      }
     }
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — completed actions + episodes loaded`)
@@ -254,7 +270,10 @@ export async function runSweepForUser(
 
       const completedActionsContext = buildCompletedContext(obj.id, doneByObjectiveId, crossDepsByObjectiveId)
       const askContext = askContextMap[obj.id]
-      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined, askContext: askContext || undefined }
+      const episodeHistory = episodeHistoryByObjId.get(obj.id) ?? []
+      const signalAbsenceCount = episodeHistory.filter(ep => ep.signal_count === 0).length
+
+      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined, askContext: askContext || undefined, episodeHistory, signalAbsenceCount }
     })
 
     // Inject upcoming calendar events for Explorer+ users who have a synced connection.
@@ -644,6 +663,7 @@ export async function runSweepForUser(
             recommended_actions: result.actions ?? null,
             signal_gap: result.signal_gap ?? null,
             cross_deps_detected: crossDeps,
+            inference_block: result.inference_block ?? null,
             source: 'sweep',
           })
         } catch (err) {
