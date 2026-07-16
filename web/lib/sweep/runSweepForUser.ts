@@ -8,6 +8,7 @@ import { fetchComps, CompsResult } from '@/lib/sweep/fetchComps'
 import { getRecentAskContext } from '@/lib/sweep/getRecentAskContext'
 import { sendConfidenceAlert } from '@/lib/email/resend'
 import { tierAtLeast } from '@/lib/tiers'
+import { autoLogPredictions, ObjectiveWithConfidenceDelta } from '@/lib/sweep/autoLogPredictions'
 
 export interface SweepObjectiveResult {
   id: string
@@ -536,6 +537,7 @@ export async function runSweepForUser(
     }
 
     const objResults: SweepObjectiveResult[] = []
+    const deltaCandidates: ObjectiveWithConfidenceDelta[] = []
     for (let i = 0; i < objectives.length; i++) {
       const obj = objectives[i]
       const result = parsed.objectives[i]
@@ -646,6 +648,19 @@ export async function runSweepForUser(
           cross_deps: result.cross_dependencies,
           signal_gap: result.signal_gap,
         })
+
+        // FF-021: accumulate delta data for auto-prediction logging after the loop
+        deltaCandidates.push({
+          id: obj.id,
+          obj_id: obj.obj_id,
+          title: obj.title,
+          category: obj.category ?? '',
+          confidence: scoreToWrite,
+          confidence_prev: obj.confidence,
+          target_date: obj.target_date ?? null,
+          status: obj.status ?? 'active',
+          confidence_reasoning: result.confidence_reasoning,
+        })
       } catch (err) {
         console.error(`[sweep] confidence write failed for objective ${obj.id} (${obj.obj_id}):`, err)
         // Continue — one failure must not block remaining objectives
@@ -653,6 +668,14 @@ export async function runSweepForUser(
     }
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — confidence scores + episodes written for ${objResults.length}/${objectives.length} objectives`)
+
+    // FF-021: Auto-log predictions for objectives with confidence delta >= threshold.
+    // Wrapped in try/catch — prediction logging failure must NOT break the sweep.
+    try {
+      await autoLogPredictions(supabase, sweep.id, userId, deltaCandidates, parsed.sweep_summary ?? '')
+    } catch (err) {
+      console.error('[FF-021] autoLogPredictions threw unexpectedly', err)
+    }
 
     // 11. Update sweep record as complete
     await supabase.from('sweeps').update({
