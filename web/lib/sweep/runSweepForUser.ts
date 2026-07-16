@@ -359,7 +359,7 @@ export async function runSweepForUser(
 
     const message = await getAnthropicClient().messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 8192,
+      max_tokens: 16000,
       system: [
         { type: 'text', text: STATIC_SWEEP_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
         { type: 'text', text: dynamicContext },
