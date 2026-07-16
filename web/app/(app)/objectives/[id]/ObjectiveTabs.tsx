@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import ActionsList from './ActionsList'
+import InferencePanel from '@/components/objectives/InferencePanel'
 import type { Factor } from './page'
 
 interface TabSignal {
@@ -26,6 +27,7 @@ export interface Episode {
   signal_gap: string | null
   top_signals: { title: string; signal_class: string; relevance: string; body_excerpt: string | null }[] | null
   cross_deps_detected: { obj_id: string; objective_id: string | null; title: string | null; relationship: string | null }[] | null
+  inference_block: import('@/lib/anthropic/prompts/output').InferenceBlock | null
   source: string
   signal_count: number
   created_at: string
@@ -69,7 +71,7 @@ const ACTION_CLASSES = [
   { value: 'other', label: 'Other' },
 ]
 
-const TABS = ["What's affecting it", 'What to do', 'Signals', 'History', 'Goal'] as const
+const TABS = ["What's affecting it", 'What this implies', 'What to do', 'Signals', 'History', 'Goal'] as const
 
 export default function ObjectiveTabs({ factors, actions, objId, objectiveId, signals, goalDescription, goalContext, tier, hasCalendar, episodes }: ObjectiveTabsProps) {
   const [active, setActive] = useState<typeof TABS[number]>(TABS[0])
@@ -214,6 +216,24 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                 </div>
               )}
             </div>
+          )
+        })()}
+
+        {active === 'What this implies' && (() => {
+          // Find the most recent episode that has an inference_block
+          const latestWithInference = episodes.find(ep => ep.inference_block)
+          if (!latestWithInference?.inference_block) {
+            return (
+              <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>
+                Run a scan to generate inferences for this goal. Meridian will surface the blind spots and forward-looking conclusions you may be missing.
+              </p>
+            )
+          }
+          return (
+            <InferencePanel
+              inferenceBlock={latestWithInference.inference_block}
+              defaultExpanded={true}
+            />
           )
         })()}
 
