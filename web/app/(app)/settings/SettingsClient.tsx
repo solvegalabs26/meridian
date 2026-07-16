@@ -16,6 +16,8 @@ interface Profile {
   trial_ends_at: string | null
   account_type: string | null
   onboarded_at: string | null
+  org_source: string | null
+  cohort_data_consent: boolean | null
   created_at: string | null
 }
 
@@ -49,6 +51,23 @@ export default function SettingsClient({ email, profile }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [consent, setConsent] = useState<boolean>(profile?.cohort_data_consent ?? true)
+  const [consentSaving, setConsentSaving] = useState(false)
+
+
+  async function handleConsentToggle() {
+    setConsentSaving(true)
+    const next = !consent
+    const res = await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cohort_data_consent: next }),
+    })
+    if (res.ok) {
+      setConsent(next)
+    }
+    setConsentSaving(false)
+  }
 
   async function handleSave() {
     setSaving(true)
@@ -309,6 +328,38 @@ export default function SettingsClient({ email, profile }: Props) {
             </div>
           )
         })()}
+
+
+        {/* Cohort Data Sharing */}
+        {profile?.org_source && (
+          <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
+            <h2 className="text-[13px] font-semibold text-[var(--text)] uppercase tracking-wider mb-3">
+              Cohort Data Sharing
+            </h2>
+            <p className="text-[13px] text-[var(--text3)] mb-4">
+              You joined via an organization invite ({profile.org_source}). Aggregated, anonymized
+              objective tracking data may be shared with your sponsoring organization and Solvega Labs
+              for program insight. Individual data is never sold to third parties.
+            </p>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div
+                onClick={handleConsentToggle}
+                className={`relative w-10 h-6 rounded-full transition-colors ${
+                  consent ? 'bg-navy' : 'bg-gray-300'
+                } ${consentSaving ? 'opacity-50 pointer-events-none' : ''}`}
+              >
+                <span
+                  className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                    consent ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </div>
+              <span className="text-[13px] text-[var(--text2)]">
+                {consent ? 'Sharing enabled' : 'Sharing disabled'}
+              </span>
+            </label>
+          </div>
+        )}
 
         {/* Sign out */}
         <button

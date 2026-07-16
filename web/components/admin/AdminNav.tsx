@@ -7,6 +7,7 @@ const NAV = [
   { label: 'Overview', href: '/admin' },
   { label: 'Users', href: '/admin/users' },
   { label: 'Sweeps', href: '/admin/sweeps' },
+  { label: 'Cohorts', href: '/admin/cohorts' },
 ]
 
 export default function AdminNav() {
