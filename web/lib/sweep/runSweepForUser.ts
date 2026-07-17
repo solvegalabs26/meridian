@@ -221,12 +221,15 @@ export async function runSweepForUser(
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — news signals fetched (${objectives.filter(o => (o.signal_keywords ?? []).length > 0).length} objectives with keywords)`)
 
-    // 5b. Fetch market comps for resale-type objectives
+    // 5b. Fetch market comps for resale-type objectives — parallelized via Promise.all
     const compsMap: Record<string, CompsResult | null> = {}
     const currentDate = new Date().toISOString().split('T')[0]
-    for (const obj of objectives) {
-      const objectiveType = (obj as { objective_type?: string | null }).objective_type ?? null
-      if (objectiveType?.startsWith('asset.resale')) {
+    const resaleObjectives = objectives.filter(obj =>
+      ((obj as { objective_type?: string | null }).objective_type ?? null)?.startsWith('asset.resale')
+    )
+    await Promise.all(
+      resaleObjectives.map(async obj => {
+        const objectiveType = (obj as { objective_type?: string | null }).objective_type!
         compsMap[obj.id] = await fetchComps({
           objectiveType,
           context: (obj as { context?: Record<string, unknown> }).context ?? {},
@@ -235,10 +238,11 @@ export async function runSweepForUser(
           reservationPrice: (obj as { reservation_price?: number | null }).reservation_price ?? null,
           targetDate: obj.target_date ?? null,
         })
-      }
-    }
+      })
+    )
 
-    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — market comps fetched (${Object.keys(compsMap).length} resale objectives)`)
+    console.log(`[sweep:fetchComps:parallel] fetched ${resaleObjectives.length} comps concurrently`)
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — market comps fetched (${resaleObjectives.length} resale objectives)`)
 
     // 6. Build objective state JSON
     const objectiveInputs = objectives.map(obj => {
