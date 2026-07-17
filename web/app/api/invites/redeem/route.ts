@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
   }
   if (invite.org_source) {
     profileUpdate.org_source = invite.org_source
+    // FF-022: org invite redemptions explicitly consent to cohort reporting
+    profileUpdate.cohort_data_consent = true
   }
   const complimentaryMonths = (invite.complimentary_months as number) ?? 0
   if (complimentaryMonths > 0) {

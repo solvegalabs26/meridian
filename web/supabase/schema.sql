@@ -470,3 +470,48 @@ alter table public.objectives
 
 comment on column public.objectives.context is
   'Structured per-type context, e.g. resale: {listing_price, floor_price, payoff, year, make, model, condition, region}.';
+
+-- ── FF-022 Cohort Reporting Dashboard ──────────────────────────────────────
+-- Applied via MCP migrations:
+--   ff022_cohort_report_configs
+--   ff022_profiles_cohort_data_consent
+
+create table public.cohort_report_configs (
+  id              uuid primary key default gen_random_uuid(),
+  org_name        text not null,
+  org_code        text not null unique,  -- matches invite_codes.org_source
+
+  -- Report sections (checkbox config — true = include)
+  section_cohort_overview     boolean not null default true,
+  section_objective_tracking  boolean not null default true,
+  section_confidence_trends   boolean not null default true,
+  section_sweep_activity      boolean not null default true,
+  section_cross_dep_flags     boolean not null default false,
+  section_engagement_summary  boolean not null default true,
+  section_predictions_active  boolean not null default false,
+  section_top_signals         boolean not null default false,
+
+  -- Delivery
+  delivery_email    boolean not null default true,
+  delivery_drive    boolean not null default false,
+  recipient_emails  text[],
+  drive_folder_id   text,
+  drive_folder_name text,
+
+  -- Schedule
+  send_frequency    text not null default 'manual',
+  send_day          text,
+  last_sent_at      timestamptz,
+
+  -- Meta
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+alter table public.cohort_report_configs enable row level security;
+create policy "service_only" on public.cohort_report_configs using (false);
+
+-- profiles.cohort_data_consent — true = user consents to cohort reporting
+-- Explicitly set true on org invite redemption; user can opt out in Settings
+alter table public.profiles
+  add column if not exists cohort_data_consent boolean not null default true;
