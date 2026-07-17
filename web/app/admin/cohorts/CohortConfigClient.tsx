@@ -12,7 +12,7 @@ const SECTION_LABELS: { key: keyof CohortConfig; label: string; desc: string }[]
   { key: 'section_cohort_overview',    label: 'Cohort Overview',       desc: 'Enrollment totals, sweep completion rate, avg objectives/user' },
   { key: 'section_objective_tracking', label: 'Objective Tracking',    desc: 'Category distribution, avg confidence, % with target dates' },
   { key: 'section_confidence_trends',  label: 'Confidence Trends',     desc: 'Avg confidence over last 4 sweep cycles' },
-  { key: 'section_sweep_activity',     label: 'Sweep Activity',        desc: 'Sweeps run, % users with ≥1 sweep, missed sweep count' },
+  { key: 'section_sweep_activity',     label: 'Sweep Activity',        desc: 'Sweeps run, % users with >=1 sweep, missed sweep count' },
   { key: 'section_cross_dep_flags',    label: 'Cross-Dep Flags',       desc: 'Cross-objective dependencies surfaced (anonymized)' },
   { key: 'section_engagement_summary', label: 'Engagement Summary',    desc: 'Ask Meridian usage, action logging, last-active distribution' },
   { key: 'section_predictions_active', label: 'Active Predictions',    desc: 'Auto-logged predictions, avg horizon date, % pending outcome' },
