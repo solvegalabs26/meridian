@@ -35,7 +35,7 @@ export async function fetchEngagementSummary(
   const buckets: Record<string, number> = {
     'This week': 0,
     'Last 30 days': 0,
-    '30–90 days': 0,
+    '30-90 days': 0,
     '90+ days': 0,
     'Never': 0,
   }
@@ -45,7 +45,7 @@ export async function fetchEngagementSummary(
     const daysAgo = (now - new Date(p.last_sweep_at as string).getTime()) / 86400000
     if (daysAgo <= 7) buckets['This week']++
     else if (daysAgo <= 30) buckets['Last 30 days']++
-    else if (daysAgo <= 90) buckets['30–90 days']++
+    else if (daysAgo <= 90) buckets['30-90 days']++
     else buckets['90+ days']++
   }
 

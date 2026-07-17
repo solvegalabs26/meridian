@@ -43,7 +43,7 @@ export async function generateCohortReport(
   // 3. Period: last 30 days
   const periodStart = new Date()
   periodStart.setDate(periodStart.getDate() - 30)
-  const periodLabel = `${periodStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+  const periodLabel = `${periodStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
 
   // 4. Fetch sections in parallel (only enabled ones)
   const [
