@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { requireAdminUser } from '@/lib/admin/requireAdminUser'
+import { generateCohortReport } from '@/lib/reporting/generateCohortReport'
 
 export const dynamic = 'force-dynamic'
 
-// FF-022 Session 2: replace stub with generateCohortReport call
 export async function GET(
   _req: NextRequest,
   { params }: { params: { orgCode: string } }
@@ -13,8 +13,21 @@ export async function GET(
   const admin = await requireAdminUser(supabase)
   if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  return NextResponse.json(
-    { error: `Report generation not yet implemented for ${params.orgCode}. Build in Session 2.` },
-    { status: 501 }
-  )
+  try {
+    const service = createServiceClient()
+    const pdfBuffer = await generateCohortReport(service, params.orgCode.toUpperCase())
+
+    return new NextResponse(pdfBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="MeridianArc_${params.orgCode}_Report_Preview.pdf"`,
+        'Content-Length': String(pdfBuffer.length),
+      },
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('[report/preview]', msg)
+    return NextResponse.json({ error: msg }, { status: 400 })
+  }
 }
