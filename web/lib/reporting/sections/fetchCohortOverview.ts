@@ -1,5 +1,4 @@
 import type { ReportingClient, CohortOverviewData } from '../types'
-import { ACTIVE_ACCOUNT_TYPES } from '../types'
 
 export async function fetchCohortOverview(
   service: ReportingClient,
