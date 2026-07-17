@@ -41,7 +41,7 @@ export default async function AdminCohortsPage() {
 
   // Per-org enrolled user counts (consent = true)
   const orgCodes = (configs ?? []).map(c => (c as CohortConfig).org_code)
-  let enrolledCounts: Record<string, number> = {}
+  const enrolledCounts: Record<string, number> = {}
 
   if (orgCodes.length > 0) {
     const { data: profileRows } = await service
