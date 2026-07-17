@@ -45,8 +45,7 @@ function sectionHeader(ctx: DrawCtx, title: string) {
   drawRect(ctx, ML, ctx.y - 2, 3, 18, GOLD)
   ctx.page.drawText(title.toUpperCase(), {
     x: ML + 10, y: ctx.y,
-    size: 9, color: NAVY, font: ctx.bold,
-    letterSpacing: 1.2,
+    size: 9, color: NAVY, font: ctx.bold
   })
   ctx.y -= 22
   // Hairline
@@ -67,7 +66,7 @@ function tableHeader(ctx: DrawCtx, cols: { label: string; x: number }[]) {
   for (const col of cols) {
     ctx.page.drawText(col.label.toUpperCase(), {
       x: col.x, y: ctx.y,
-      size: 8, color: SLATE, font: ctx.bold, letterSpacing: 0.8,
+      size: 8, color: SLATE, font: ctx.bold,
     })
   }
   ctx.y -= 18
@@ -129,7 +128,7 @@ export async function renderCohortPdf(
   ctx.page.drawRectangle({ x: 0, y: H - 90, width: W, height: 90, color: NAVY })
   // Gold accent line
   ctx.page.drawRectangle({ x: 0, y: H - 93, width: W, height: 3, color: GOLD })
-  ctx.page.drawText('MERIDIAN ARC', { x: ML, y: H - 36, size: 11, color: GOLD, font: bold, letterSpacing: 2 })
+  ctx.page.drawText('MERIDIAN ARC', { x: ML, y: H - 36, size: 11, color: GOLD, font: bold })
   ctx.page.drawText('Outcome Intelligence Platform', { x: ML, y: H - 52, size: 9, color: rgb(0.7, 0.76, 0.84), font })
   ctx.page.drawText(orgName, { x: ML, y: H - 70, size: 18, color: WHITE, font: bold })
   ctx.page.drawText(periodLabel, { x: W - MR - 130, y: H - 70, size: 9, color: rgb(0.7, 0.76, 0.84), font })
