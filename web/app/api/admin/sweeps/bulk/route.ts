@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { requireAdminUser } from '@/lib/admin/requireAdminUser'
-import { executeBulkSweepJob } from '@/lib/sweep/executeBulkSweepJob'
 
 export const dynamic = 'force-dynamic'
-// "Run now" jobs execute synchronously within this request (see below) —
-// extend Vercel's default timeout to cover a full cohort. Fine for
-// tonight's ~12-account alpha cohort; if cohort sizes grow much larger,
-// this should move to a real background-job/queue setup instead of an
-// inline await.
-export const maxDuration = 300
 
 type CohortFilter = 'alpha' | 'beta' | 'veteran' | 'all' | 'custom'
 
@@ -110,19 +103,17 @@ export async function POST(request: NextRequest) {
   }
 
   if (!isFuture) {
+    // Mark the job running immediately so the account-queue worker picks it up
+    // on its next invocation (every 5 min). We no longer process inline because
+    // large cohorts (9+ accounts x ~180s each) blow past Vercel's 300s limit.
     await service.from('bulk_sweep_jobs')
       .update({ status: 'running', started_at: new Date().toISOString() })
       .eq('id', job.id)
-
-    // executeBulkSweepJob never throws — every account and the final
-    // failure-alert send are individually try/caught — so this await is
-    // safe to run inline within the request.
-    await executeBulkSweepJob(job.id)
   }
 
   return NextResponse.json({
     job_id: job.id,
     account_count: userIds.length,
-    status: isFuture ? 'scheduled' : 'complete',
+    status: isFuture ? 'scheduled' : 'queued',
   })
 }

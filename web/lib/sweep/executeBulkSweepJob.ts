@@ -8,6 +8,72 @@ interface JobFailure {
   error: string
 }
 
+// Processes a single bulk_sweep_job_accounts row and sends the email.
+// Called by the account-queue worker (one account per cron invocation) so
+// that each account gets its own 300 s Vercel budget regardless of cohort size.
+export async function processSingleJobAccount(
+  accountId: string,
+  jobId: string,
+  userId: string
+): Promise<{ success: boolean; userEmail: string | null; error?: string }> {
+  const supabase = createServiceClient()
+
+  await supabase.from('bulk_sweep_job_accounts')
+    .update({ sweep_status: 'running' })
+    .eq('id', accountId)
+
+  try {
+    const result = await runSweepForUser(userId, { triggerType: 'scheduled' })
+
+    if (!result.success) {
+      const errorMsg = result.error ?? 'Unknown sweep error'
+      await supabase.from('bulk_sweep_job_accounts')
+        .update({ sweep_status: 'failed', sweep_error: errorMsg, email_status: 'skipped' })
+        .eq('id', accountId)
+      return { success: false, userEmail: result.userEmail, error: errorMsg }
+    }
+
+    await supabase.from('bulk_sweep_job_accounts')
+      .update({ sweep_status: 'complete', sweep_id: result.sweepId })
+      .eq('id', accountId)
+
+    if (!result.userEmail) {
+      await supabase.from('bulk_sweep_job_accounts')
+        .update({ email_status: 'skipped', email_error: 'No email on account' })
+        .eq('id', accountId)
+      return { success: true, userEmail: null }
+    }
+
+    try {
+      await sendSweepReportEmail({
+        toEmail: result.userEmail,
+        summary: result.summary,
+        topPriorityAction: result.topPriorityAction,
+        objectives: result.objectives,
+      })
+      await supabase.from('bulk_sweep_job_accounts')
+        .update({ email_status: 'sent', email_sent_at: new Date().toISOString() })
+        .eq('id', accountId)
+    } catch (emailErr) {
+      await supabase.from('bulk_sweep_job_accounts')
+        .update({
+          email_status: 'failed',
+          email_error: emailErr instanceof Error ? emailErr.message : 'Email send failed',
+        })
+        .eq('id', accountId)
+    }
+
+    return { success: true, userEmail: result.userEmail }
+
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : 'Unexpected error'
+    await supabase.from('bulk_sweep_job_accounts')
+      .update({ sweep_status: 'failed', sweep_error: errorMsg, email_status: 'skipped' })
+      .eq('id', accountId)
+    return { success: false, userEmail: null, error: errorMsg }
+  }
+}
+
 // Runs every pending account row on a bulk_sweep_jobs job, one at a time.
 // Callable both immediately (from the admin trigger route) and from the
 // scheduled-job cron poller. Each account is wrapped in its own try/catch

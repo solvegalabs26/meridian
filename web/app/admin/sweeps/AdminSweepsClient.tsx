@@ -207,7 +207,9 @@ export default function AdminSweepsClient({ accounts, jobs }: Props) {
           <div className="p-3 rounded-lg bg-[var(--green-lt)] text-[var(--green)] text-[13px]">
             {result.status === 'scheduled'
               ? `Sweep scheduled for ${result.count} account${result.count !== 1 ? 's' : ''}.`
-              : `Sweep ${result.status} for ${result.count} account${result.count !== 1 ? 's' : ''}.`}
+              : result.status === 'queued'
+                ? `Queued ${result.count} account${result.count !== 1 ? 's' : ''} — queue worker processes one every 5 min.`
+                : `Sweep ${result.status} for ${result.count} account${result.count !== 1 ? 's' : ''}.`}
           </div>
         )}
 
