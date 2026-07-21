@@ -3,10 +3,6 @@
     {
       "path": "/api/admin/sweeps/process-scheduled",
       "schedule": "35 12 * * *"
-    },
-    {
-      "path": "/api/admin/sweeps/process-account-queue",
-      "schedule": "*/5 * * * *"
     }
   ]
 }
