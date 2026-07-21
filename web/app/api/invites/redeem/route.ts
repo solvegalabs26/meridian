@@ -3,12 +3,6 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
-const PRICING_TIER_TO_TIER: Record<string, string> = {
-  lifetime_explorer:    'explorer',
-  lifetime_accelerator: 'accelerator',
-  lifetime_command:     'command',
-}
-
 export async function POST(request: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -22,7 +16,7 @@ export async function POST(request: NextRequest) {
 
   const { data: invite } = await service
     .from('invite_codes')
-    .select('status, is_multi_use, use_count, max_uses, pricing_tier_grant, requires_idme, onboarding_context_grant, org_source, complimentary_months')
+    .select('status, is_multi_use, use_count, max_uses, account_type_grant, pricing_tier_grant, requires_idme, onboarding_context_grant, org_source, complimentary_months')
     .eq('code', code)
     .maybeSingle()
 
@@ -32,26 +26,27 @@ export async function POST(request: NextRequest) {
   const useCount = (invite.use_count as number) ?? 0
 
   if (invite.is_multi_use) {
-    // Multi-use: enforce max_uses cap if set
     if (invite.max_uses != null && useCount >= (invite.max_uses as number)) {
       return NextResponse.json({ error: 'code_already_used' }, { status: 400 })
     }
   } else {
-    // Single-use: must be unused
     if (invite.status === 'redeemed') return NextResponse.json({ error: 'code_already_used' }, { status: 400 })
   }
 
-  // Profile update first — if this fails the invite code is untouched
-  const tier = PRICING_TIER_TO_TIER[invite.pricing_tier_grant as string ?? ''] ?? 'trial'
+  // Build profile update with correct column names.
+  // account_type: veteran codes park at 'veteran_pending' until ID.me verification.
+  // pricing_tier: the raw grant value (e.g. 'lifetime_explorer'), not the short alias.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const profileUpdate: Record<string, any> = { tier }
+  const profileUpdate: Record<string, any> = {
+    account_type: invite.requires_idme ? 'veteran_pending' : (invite.account_type_grant ?? null),
+    pricing_tier: invite.pricing_tier_grant ?? null,
+  }
 
   if (invite.onboarding_context_grant) {
     profileUpdate.onboarding_context = invite.onboarding_context_grant
   }
   if (invite.org_source) {
     profileUpdate.org_source = invite.org_source
-    // FF-022: org invite redemptions explicitly consent to cohort reporting
     profileUpdate.cohort_data_consent = true
   }
   const complimentaryMonths = (invite.complimentary_months as number) ?? 0
@@ -61,6 +56,7 @@ export async function POST(request: NextRequest) {
     profileUpdate.complimentary_expires_at = expires.toISOString()
   }
 
+  // Profile write first — if this fails the invite code is untouched.
   const { error: profileError } = await service
     .from('profiles')
     .update(profileUpdate)
@@ -71,7 +67,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'profile_update_failed' }, { status: 500 })
   }
 
-  // Profile confirmed — now mark the code as consumed
+  // Profile confirmed — mark code consumed. use_count increments on every
+  // redemption (single-use and multi-use) so the counter is always accurate.
   const codeUpdate: Record<string, unknown> = { use_count: useCount + 1 }
   if (!invite.is_multi_use) {
     codeUpdate.status = 'redeemed'
