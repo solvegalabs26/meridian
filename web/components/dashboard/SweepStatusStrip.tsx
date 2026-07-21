@@ -15,9 +15,11 @@ export default function SweepStatusStrip({ lastSweepAt }: SweepStatusStripProps)
   const router = useRouter()
   const [running, setRunning] = useState(false)
   const [msgIdx, setMsgIdx] = useState(0)
+  const [sweepError, setSweepError] = useState<string | null>(null)
 
   async function handleGetUpdate() {
     setRunning(true)
+    setSweepError(null)
     setMsgIdx(0)
     const interval = setInterval(() => {
       setMsgIdx(prev => Math.min(prev + 1, SCANNING_MESSAGES.length - 1))
@@ -29,14 +31,17 @@ export default function SweepStatusStrip({ lastSweepAt }: SweepStatusStripProps)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       })
-      const data = await res.json() as { sweep_id?: string }
+      const data = await res.json() as { sweep_id?: string; error?: string }
       clearInterval(interval)
       if (data.sweep_id) {
         router.push(`/sweep/${data.sweep_id}`)
         return
       }
+      // Sweep returned but failed (no sweep_id)
+      setSweepError(data.error ?? 'Sweep failed — please retry')
     } catch {
       clearInterval(interval)
+      setSweepError('Sweep failed — please retry')
     }
     setRunning(false)
   }
@@ -46,17 +51,23 @@ export default function SweepStatusStrip({ lastSweepAt }: SweepStatusStripProps)
       className="rounded-xl px-4 py-3 flex items-center justify-between gap-3"
       style={{ backgroundColor: 'rgba(46,124,184,0.08)', border: '1px solid rgba(46,124,184,0.18)' }}
     >
-      <span className="text-[12px] flex items-center gap-2" style={{ color: 'var(--ov-text-mid)' }}>
+      <span className="text-[12px] flex items-center gap-2" style={{ color: sweepError ? 'var(--ov-red, #e05252)' : 'var(--ov-text-mid)' }}>
         {running && <MeridianBeacon size={16} variant="gold" animate={true} />}
-        {running ? SCANNING_MESSAGES[msgIdx] : lastSweepAt ? `Last update ${timeAgo(lastSweepAt)}` : 'No scan yet'}
+        {running
+          ? SCANNING_MESSAGES[msgIdx]
+          : sweepError
+            ? `Scan failed — ${sweepError}`
+            : lastSweepAt
+              ? `Last update ${timeAgo(lastSweepAt)}`
+              : 'No scan yet'}
       </span>
       <button
         onClick={handleGetUpdate}
         disabled={running}
         className="text-[12px] font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
-        style={{ backgroundColor: 'var(--blue)', color: '#fff' }}
+        style={{ backgroundColor: sweepError ? 'var(--ov-red, #c04040)' : 'var(--blue)', color: '#fff' }}
       >
-        {running ? 'Scanning…' : 'Get my update'}
+        {running ? 'Scanning…' : sweepError ? 'Retry' : 'Get my update'}
       </button>
     </div>
   )

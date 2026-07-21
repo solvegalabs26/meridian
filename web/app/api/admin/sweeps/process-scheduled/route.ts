@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   // them failed. Vercel functions max out at 300 s, so anything still running
   // after 60 minutes is a true orphan. status='scheduled' rows are intentionally
   // excluded — they are waiting for this cron, not stuck.
-  const staleThreshold = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const staleThreshold = new Date(Date.now() - 10 * 60 * 1000).toISOString() // 10 min — Vercel max is 300s
   const { data: staleSweeps, error: staleErr } = await supabase
     .from('sweeps')
     .update({ status: 'failed', completed_at: new Date().toISOString() })
