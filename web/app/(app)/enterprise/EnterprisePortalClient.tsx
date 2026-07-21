@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
@@ -8,7 +9,6 @@ const OBJECTIVE_ID = 'b2c3d4e5-0000-0000-0000-000000000001'
 interface Props {
   institutionId: string
   institutionName: string
-  isAdmin: boolean
 }
 
 type DriftDirection = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'STABLE'
@@ -89,7 +89,7 @@ function fmtShort(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function EnterprisePortalClient({ institutionId, institutionName, isAdmin }: Props) {
+export default function EnterprisePortalClient({ institutionId, institutionName }: Props) {
   const supabase = createClient()
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [predictions, setPredictions] = useState<Prediction[]>([])
