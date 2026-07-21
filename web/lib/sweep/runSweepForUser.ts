@@ -208,23 +208,20 @@ export async function runSweepForUser(
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — ask context fetched (${Object.keys(askContextMap).length} objectives with recent questions)`)
 
-    // 5. Fetch NewsAPI signals for each objective
+    // 5. Fetch NewsAPI signals for each objective — in parallel to avoid
+    // sequential latency that scales linearly with objective count.
     const newsSignalsMap: Record<string, Awaited<ReturnType<typeof fetchNewsSignals>>> = {}
-    for (const obj of objectives) {
+    await Promise.all(objectives.map(async obj => {
       const keywords = obj.signal_keywords ?? []
-      if (keywords.length > 0) {
-        newsSignalsMap[obj.id] = await fetchNewsSignals(keywords, 3)
-      } else {
-        newsSignalsMap[obj.id] = []
-      }
-    }
+      newsSignalsMap[obj.id] = keywords.length > 0 ? await fetchNewsSignals(keywords, 3) : []
+    }))
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — news signals fetched (${objectives.filter(o => (o.signal_keywords ?? []).length > 0).length} objectives with keywords)`)
 
-    // 5b. Fetch market comps for resale-type objectives
+    // 5b. Fetch market comps for resale-type objectives — in parallel.
     const compsMap: Record<string, CompsResult | null> = {}
     const currentDate = new Date().toISOString().split('T')[0]
-    for (const obj of objectives) {
+    await Promise.all(objectives.map(async obj => {
       const objectiveType = (obj as { objective_type?: string | null }).objective_type ?? null
       if (objectiveType?.startsWith('asset.resale')) {
         compsMap[obj.id] = await fetchComps({
@@ -236,7 +233,7 @@ export async function runSweepForUser(
           targetDate: obj.target_date ?? null,
         })
       }
-    }
+    }))
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — market comps fetched (${Object.keys(compsMap).length} resale objectives)`)
 
@@ -724,18 +721,20 @@ export async function runSweepForUser(
     }
 
   } catch (err) {
-    // Mark sweep as failed
+    const errMsg = err instanceof Error ? err.message : 'Sweep failed'
+    // Mark sweep as failed — write error_message so the UI can surface it
     await supabase.from('sweeps').update({
       status: 'failed',
       completed_at: new Date().toISOString(),
+      error_message: errMsg,
     }).eq('id', sweep.id)
 
-    console.error('Sweep error:', err)
+    console.error('[sweep:error]', sweep.id, errMsg)
     return {
       ...empty,
       sweepId: sweep.id,
       userEmail,
-      error: err instanceof Error ? err.message : 'Sweep failed',
+      error: errMsg,
     }
   }
 }

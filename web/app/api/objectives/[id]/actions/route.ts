@@ -131,6 +131,7 @@ export async function POST(
         { description, action_date, action_class, signal_id: signal.id },
         {
           id: objective.id,
+          user_id: user.id,
           title: objective.title,
           outcome: objective.outcome,
           confidence: objective.confidence,

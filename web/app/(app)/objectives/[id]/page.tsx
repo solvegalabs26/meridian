@@ -59,8 +59,12 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
   })
 
   const latestScoreEntry = scores?.[0] ?? null
+  // The most recent confidence_scores row may be from a user_action recompute,
+  // which writes recommended_actions: []. Use the latest entry that actually has
+  // recommendations (i.e., from a real sweep) so we don't blank out the action list.
+  const latestScoreWithRecs = scores?.find(s => (s.recommended_actions as string[] | null)?.length) ?? null
   const doneDescriptions = new Set((doneEngineActions ?? []).map(a => a.description as string))
-  const recommendedActions = ((latestScoreEntry?.recommended_actions as string[] | null) ?? [])
+  const recommendedActions = ((latestScoreWithRecs?.recommended_actions as string[] | null) ?? [])
     .filter(a => !doneDescriptions.has(a))
   const sparklineScores = [...(scores ?? [])].reverse() // chronological order
 

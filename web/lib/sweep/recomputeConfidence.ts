@@ -19,6 +19,7 @@ interface ActionInput {
 
 interface ObjectiveSnapshot {
   id: string
+  user_id: string
   title: string
   outcome: string
   confidence: number
@@ -112,9 +113,12 @@ User's logged action:
     // Return unchanged confidence — never block the action log on this
   }
 
-  // Write confidence_scores row — signal_id is the grounding source
+  // Write confidence_scores row — signal_id is the grounding source.
+  // user_id is NOT NULL in the schema; omitting it caused a silent NOT NULL
+  // violation that threw before objectives.update() was reached (Bug 3).
   await supabase.from('confidence_scores').insert({
     objective_id: objective.id,
+    user_id: objective.user_id,
     sweep_id: sweepId,
     score: newConfidence,
     factors: {
