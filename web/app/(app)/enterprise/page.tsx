@@ -40,7 +40,6 @@ export default async function EnterprisePage() {
     <EnterprisePortalClient
       institutionId={institutionId}
       institutionName={institutionName}
-      isAdmin={isAdmin}
     />
   )
 }
