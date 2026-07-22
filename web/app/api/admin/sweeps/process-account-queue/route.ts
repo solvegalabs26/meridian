@@ -7,7 +7,13 @@ export const dynamic = 'force-dynamic'
 // Each invocation handles exactly one account — budget is the full 300 s.
 export const maxDuration = 300
 
-// Vercel Cron only — secured with CRON_SECRET.
+function getBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+  return 'http://localhost:3000'
+}
+
+// Secured with CRON_SECRET. Can be called by the Vercel cron or by self-chaining.
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
   if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -77,6 +83,15 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`[queue-worker] job ${nextAccount.job_id} complete`)
+  } else if ((remaining ?? 0) > 0) {
+    // Self-chain: fire next invocation without blocking this response.
+    const baseUrl = getBaseUrl()
+    const secret = process.env.CRON_SECRET ?? ''
+    fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${secret}` },
+    }).catch(err => console.error('[queue-worker] self-chain failed:', err))
+    console.log(`[queue-worker] ${remaining} account(s) remaining — self-chain fired`)
   }
 
   return NextResponse.json({
