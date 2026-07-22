@@ -521,7 +521,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
             <div className="text-blue-400 text-xl mt-0.5 flex-shrink-0">◈</div>
             <div>
               <div className="text-xs font-bold text-blue-400 tracking-widest mb-2">MERIDIAN FUSION INSIGHT</div>
-              <p className="text-sm text-gray-300 leading-relaxed">{fusionInsight}</p>
+              <p className="text-sm text-blue-900 leading-relaxed">{fusionInsight}</p>
             </div>
           </div>
         </div>
