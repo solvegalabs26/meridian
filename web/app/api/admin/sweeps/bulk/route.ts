@@ -99,19 +99,24 @@ export async function POST(request: NextRequest) {
   }
 
   if (!isFuture) {
-    // Mark running immediately, then kick off the queue worker so the first
-    // account starts processing without waiting for the daily cron.
     await service.from('bulk_sweep_jobs')
       .update({ status: 'running', started_at: new Date().toISOString() })
       .eq('id', job.id)
 
+    // Kick off the queue worker. We await with a short abort so the request
+    // is guaranteed to be sent before this function returns, but we don't wait
+    // for the queue worker to finish (it takes ~5 min per account).
+    // Aborting client-side does NOT cancel the queue worker — it keeps running.
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ??
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
     const secret = process.env.CRON_SECRET ?? ''
-    fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), 500)
+    await fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${secret}` },
-    }).catch(err => console.error('[bulk] queue worker kick-off failed:', err))
+      signal: controller.signal,
+    }).catch(() => {}) // AbortError expected — queue worker is running independently
   }
 
   return NextResponse.json({
