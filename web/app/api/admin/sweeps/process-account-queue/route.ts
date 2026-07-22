@@ -13,8 +13,10 @@ function getBaseUrl(): string {
 }
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronSecret = request.headers.get('x-cron-secret')
+  const expectedSecret = process.env.CRON_SECRET?.trim() ?? ''
+  if (!expectedSecret || cronSecret?.trim() !== expectedSecret) {
+    console.error('[queue-worker] auth failed — x-cron-secret mismatch')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -79,15 +81,13 @@ export async function GET(request: NextRequest) {
 
     console.log(`[queue-worker] job ${nextAccount.job_id} complete`)
   } else if ((remaining ?? 0) > 0) {
-    // Self-chain: send the next invocation and abort waiting after 500ms.
-    // The next queue worker invocation runs independently on Vercel.
     const baseUrl = getBaseUrl()
-    const secret = process.env.CRON_SECRET ?? ''
+    const secret = process.env.CRON_SECRET?.trim() ?? ''
     const controller = new AbortController()
     setTimeout(() => controller.abort(), 500)
     await fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
       method: 'GET',
-      headers: { 'Authorization': `Bearer ${secret}` },
+      headers: { 'X-Cron-Secret': secret },
       signal: controller.signal,
     }).catch(() => {})
     console.log(`[queue-worker] ${remaining} account(s) remaining — self-chain fired`)
