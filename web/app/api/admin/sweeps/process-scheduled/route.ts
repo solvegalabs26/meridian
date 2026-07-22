@@ -54,9 +54,9 @@ export async function GET(request: NextRequest) {
   }
 
   // Kick off the queue worker once — it self-chains until the queue is empty.
-  fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
+ fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
     method: 'GET',
-    headers: { 'Authorization': `Bearer ${secret}` },
+    headers: { 'X-Cron-Secret': secret },
   }).catch(err => console.error('[cron:kick-off] queue worker invoke failed:', err))
 
   return NextResponse.json({ kicked_off: dueJobs.length, stale_reaped: staleSweeps?.length ?? 0 })
