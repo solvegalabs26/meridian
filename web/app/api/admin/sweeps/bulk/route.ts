@@ -53,10 +53,6 @@ export async function POST(request: NextRequest) {
 
   const service = createServiceClient()
 
-  // Resolve the target account list now and snapshot it into
-  // bulk_sweep_job_accounts immediately — cohort membership is not
-  // re-resolved at execution time, so a signup between scheduling and
-  // execution is correctly excluded from a job scheduled before they existed.
   let userIds: string[]
   try {
     userIds = await resolveCohort(service, body.cohort_filter, body.user_ids)
@@ -103,12 +99,19 @@ export async function POST(request: NextRequest) {
   }
 
   if (!isFuture) {
-    // Mark the job running immediately so the account-queue worker picks it up
-    // on its next invocation (every 5 min). We no longer process inline because
-    // large cohorts (9+ accounts x ~180s each) blow past Vercel's 300s limit.
+    // Mark running immediately, then kick off the queue worker so the first
+    // account starts processing without waiting for the daily cron.
     await service.from('bulk_sweep_jobs')
       .update({ status: 'running', started_at: new Date().toISOString() })
       .eq('id', job.id)
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ??
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    const secret = process.env.CRON_SECRET ?? ''
+    fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${secret}` },
+    }).catch(err => console.error('[bulk] queue worker kick-off failed:', err))
   }
 
   return NextResponse.json({
