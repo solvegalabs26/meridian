@@ -311,8 +311,9 @@ export async function runSweepForUser(
     }
 
     const objectiveState = buildObjectiveState(objectiveInputs)
-    const userMessage = {
-      ...objectiveState,
+    // Dynamic sweep params are kept in a separate block so they don't bust
+    // the cache on the objective state block above.
+    const dynamicParams = {
       manual_signals: options.manualSignals ?? '',
       calendar_context: calendarContext || undefined,
       sweep_instructions: 'Focus on cross-dependencies. Flag any signal that changes urgency on open actions. If calendar events are provided, factor upcoming events into recommendations — identify which objectives have relevant events approaching and surface time-sensitive actions.',
@@ -326,6 +327,10 @@ export async function runSweepForUser(
     // block (name, tone, depth, date). The static block is ~900 tokens and hits
     // the Anthropic prompt cache after the first call, cutting input token cost
     // by ~90% on subsequent calls within the 5-minute TTL window.
+    //
+    // The user message is also split: objective state (near-static per session)
+    // is cached as the first content block; manual_signals and calendar_context
+    // (dynamic per sweep) are in the second uncached block.
     const dynamicContext = buildDynamicSystemContext({
       userName: profile?.full_name ?? 'User',
       tone: (profile?.tone_pref as 'direct' | 'balanced' | 'encouraging') ?? 'balanced',
@@ -340,7 +345,13 @@ export async function runSweepForUser(
         { type: 'text', text: STATIC_SWEEP_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
         { type: 'text', text: dynamicContext },
       ] satisfies TextBlockParam[],
-      messages: [{ role: 'user', content: JSON.stringify(userMessage) }],
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: JSON.stringify(objectiveState), cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: JSON.stringify(dynamicParams) },
+        ] satisfies TextBlockParam[],
+      }],
     })
 
     const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
