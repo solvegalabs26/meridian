@@ -4,7 +4,6 @@ import { processSingleJobAccount } from '@/lib/sweep/executeBulkSweepJob'
 import { sendBulkSweepFailureAlert } from '@/lib/email/resend'
 
 export const dynamic = 'force-dynamic'
-// Each invocation handles exactly one account — budget is the full 300 s.
 export const maxDuration = 300
 
 function getBaseUrl(): string {
@@ -13,7 +12,6 @@ function getBaseUrl(): string {
   return 'http://localhost:3000'
 }
 
-// Secured with CRON_SECRET. Can be called by the Vercel cron or by self-chaining.
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
   if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -22,7 +20,6 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServiceClient()
 
-  // Pick the oldest pending account across all running jobs.
   const { data: nextAccount } = await supabase
     .from('bulk_sweep_job_accounts')
     .select('id, job_id, user_id')
@@ -43,7 +40,6 @@ export async function GET(request: NextRequest) {
     nextAccount.user_id
   )
 
-  // Check if the job is now fully complete (no pending or running accounts remain).
   const { count: remaining } = await supabase
     .from('bulk_sweep_job_accounts')
     .select('id', { count: 'exact', head: true })
@@ -55,7 +51,6 @@ export async function GET(request: NextRequest) {
       .update({ status: 'complete', completed_at: new Date().toISOString() })
       .eq('id', nextAccount.job_id)
 
-    // Send a single consolidated failure alert if any accounts failed.
     const { data: failedAccounts } = await supabase
       .from('bulk_sweep_job_accounts')
       .select('user_id, sweep_error')
@@ -84,13 +79,17 @@ export async function GET(request: NextRequest) {
 
     console.log(`[queue-worker] job ${nextAccount.job_id} complete`)
   } else if ((remaining ?? 0) > 0) {
-    // Self-chain: fire next invocation without blocking this response.
+    // Self-chain: send the next invocation and abort waiting after 500ms.
+    // The next queue worker invocation runs independently on Vercel.
     const baseUrl = getBaseUrl()
     const secret = process.env.CRON_SECRET ?? ''
-    fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), 500)
+    await fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${secret}` },
-    }).catch(err => console.error('[queue-worker] self-chain failed:', err))
+      signal: controller.signal,
+    }).catch(() => {})
     console.log(`[queue-worker] ${remaining} account(s) remaining — self-chain fired`)
   }
 
