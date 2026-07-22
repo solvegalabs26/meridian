@@ -355,10 +355,12 @@ export async function runSweepForUser(
     })
 
     const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
-    const tokensUsed = message.usage.input_tokens + message.usage.output_tokens
-    const costUsd = (message.usage.input_tokens * 0.000003) + (message.usage.output_tokens * 0.000015)
-
-    const usage = message.usage as typeof message.usage & { cache_creation_input_tokens?: number; cache_read_input_tokens?: number }
+const usage = message.usage as typeof message.usage & { cache_creation_input_tokens?: number; cache_read_input_tokens?: number }
+const tokensUsed = message.usage.input_tokens + message.usage.output_tokens
+const cacheWrite = (usage.cache_creation_input_tokens ?? 0) * 0.00000375
+const cacheRead  = (usage.cache_read_input_tokens  ?? 0)  * 0.0000003
+const regularIn  = (message.usage.input_tokens - (usage.cache_creation_input_tokens ?? 0) - (usage.cache_read_input_tokens ?? 0)) * 0.000003
+const costUsd    = cacheWrite + cacheRead + regularIn + (message.usage.output_tokens * 0.000015)
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — Anthropic responded (in=${message.usage.input_tokens} out=${message.usage.output_tokens} tokens)`)
     console.log(`[sweep:cache] ${sweep.id} cache_creation=${usage.cache_creation_input_tokens ?? 0} cache_read=${usage.cache_read_input_tokens ?? 0}`)
 
