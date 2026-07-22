@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     setTimeout(() => controller.abort(), 500)
     await fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
       method: 'GET',
-      headers: { 'Authorization': `Bearer ${secret}` },
+      headers: { 'X-Cron-Secret': secret },
       signal: controller.signal,
     }).catch(() => {}) // AbortError expected — queue worker is running independently
   }
