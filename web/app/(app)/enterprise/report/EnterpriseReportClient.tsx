@@ -95,11 +95,6 @@ function fmtDate(iso: string | null) {
 }
 
 function fmtLTV(r: number | null) { return r ? `${Math.round(r * 100)}%` : '—' }
-function fmtDTI(r: number | null) { return r ? `${Math.round(r * 100)}%` : '—' }
-function fmtUSD(n: number | null) {
-  if (!n) return '—'
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
-}
 
 function parseSignal(s: Signal): { label: string; value: string; delta: string; isNeg: boolean } {
   const text = s.event_text || ''
@@ -199,11 +194,6 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
   )
 
   const insight = buildInsight(signals, sweep)
-
-  const allCases: Array<{ pred?: Prediction; stable?: StableCase }> = [
-    ...predictions.map(p => ({ pred: p })),
-    ...stableCases.map(c => ({ stable: c })),
-  ]
 
   return (
     <div style={{ background: C.bg, minHeight: '100vh', fontFamily: "'Segoe UI', system-ui, sans-serif", color: C.text }}>
