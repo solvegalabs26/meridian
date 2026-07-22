@@ -17,22 +17,8 @@ export default async function EnterprisePage() {
     .eq('status', 'active')
     .single()
 
-  // Solvega admins can view any institution
-  const isAdmin = user.email?.endsWith('@solvegalabs.com') || user.email === 'ghostnet5x5@gmail.com'
-
-  if (!institution && !isAdmin) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-200 mb-2">Enterprise Access Required</h2>
-          <p className="text-gray-400 text-sm">Your account is not associated with an enterprise institution.</p>
-          <p className="text-gray-500 text-xs mt-2">Contact support@solvegalabs.com to get access.</p>
-        </div>
-      </div>
-    )
-  }
-
-  // Admin fallback: show Conquer Group
+  // Pilot mode: any authenticated user sees enterprise portal
+  // Institution lookup determines whose data to show; fall back to Conquer Group
   const institutionId = institution?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
   const institutionName = institution?.name ?? 'Conquer Group / DefaultShield'
 
