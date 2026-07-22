@@ -28,9 +28,9 @@ interface Prediction {
     loan_status: string
     ltv_ratio: number
     dti_ratio: number
-    loan_balance_usd: number
-    payments_made: number
-    monthly_payment_usd: number
+    current_balance: number
+    payments_remaining: number
+    loan_data: any
   }
 }
 
@@ -43,8 +43,8 @@ interface StableCase {
   loan_status: string
   ltv_ratio: number
   dti_ratio: number
-  loan_balance_usd: number
-  payments_made: number
+  current_balance: number
+  payments_remaining: number
 }
 
 interface Sweep {
@@ -94,7 +94,7 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
-function fmtLTV(r: number | null) { return r ? `${Math.round(r * 100)}%` : '—' }
+function fmtLTV(r: number | null) { return r ? `${Math.round(r)}%` : '—' }
 
 function parseSignal(s: Signal): { label: string; value: string; delta: string; isNeg: boolean } {
   const text = s.event_text || ''
@@ -151,7 +151,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
       if (s) {
         const { data: preds } = await supabase
           .from('enterprise_predictions')
-          .select('*, enterprise_cases(case_ref,region,fico_band,vehicle_class,loan_status,ltv_ratio,dti_ratio,loan_balance_usd,payments_made,monthly_payment_usd)')
+          .select('*, enterprise_cases(case_ref,region,fico_band,vehicle_class,loan_status,ltv_ratio,dti_ratio,current_balance,payments_remaining,loan_data)')
           .eq('institution_id', institutionId).eq('sweep_id', s.id)
           .order('drift_score', { ascending: false })
         setPredictions((preds ?? []) as Prediction[])
@@ -272,8 +272,8 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
           {predictions.map(p => {
             const c = p.enterprise_cases
             const color = DIR[p.predicted_direction]
-            const ltvHigh = (c?.ltv_ratio ?? 0) > 1.1
-            const dtiHigh = (c?.dti_ratio ?? 0) > 0.40
+            const ltvHigh = (c?.ltv_ratio ?? 0) > 110
+            const dtiHigh = (c?.dti_ratio ?? 0) > 40
             return (
               <div key={p.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${color}` }}>
                 {/* Header row */}

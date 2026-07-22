@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'institution_id and objective_id required' }, { status: 400 })
   }
 
-  // Proxy to enterprise-sweep Edge Function (service role not needed — DPA gate is inside the function)
+  // Proxy to enterprise-sweep Edge Function — DPA gate is enforced inside the function
   const res = await fetch(
     `https://${SUPABASE_PROJECT}.supabase.co/functions/v1/enterprise-sweep`,
     {
