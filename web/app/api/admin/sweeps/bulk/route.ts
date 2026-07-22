@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { unstable_after as after } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { requireAdminUser } from '@/lib/admin/requireAdminUser'
 
@@ -99,19 +100,21 @@ export async function POST(request: NextRequest) {
   }
 
   if (!isFuture) {
-    // Mark running immediately, then kick off the queue worker so the first
-    // account starts processing without waiting for the daily cron.
     await service.from('bulk_sweep_jobs')
       .update({ status: 'running', started_at: new Date().toISOString() })
       .eq('id', job.id)
 
+    // after() keeps the function alive after the response is sent,
+    // ensuring the fetch actually fires reliably on Vercel.
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ??
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
     const secret = process.env.CRON_SECRET ?? ''
-    fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${secret}` },
-    }).catch(err => console.error('[bulk] queue worker kick-off failed:', err))
+    after(async () => {
+      await fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${secret}` },
+      }).catch(err => console.error('[bulk] queue worker kick-off failed:', err))
+    })
   }
 
   return NextResponse.json({
