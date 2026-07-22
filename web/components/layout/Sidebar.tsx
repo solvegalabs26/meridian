@@ -11,6 +11,7 @@ import {
   Settings,
   ChevronRight,
   X,
+  Building2,
 } from 'lucide-react'
 import MeridianArcWordmark from '@/components/brand/MeridianArcWordmark'
 
@@ -20,6 +21,7 @@ const navItems = [
   { href: '/objectives', label: 'Your goals', icon: Target },
   { href: '/predictions', label: 'Predictions', icon: TrendingUp },
   { href: '/ask', label: 'Ask Meridian Arc', icon: MessageCircle },
+  { href: '/enterprise', label: 'Enterprise', icon: Building2 },
 ]
 
 interface SidebarProps {
