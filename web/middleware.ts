@@ -31,7 +31,10 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/auth') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/_next') ||
-    pathname === '/favicon.ico'
+    pathname === '/favicon.ico' ||
+    // Internal cron/queue routes authenticate via CRON_SECRET header, not session
+    pathname.startsWith('/api/admin/sweeps/process-account-queue') ||
+    pathname.startsWith('/api/admin/sweeps/process-scheduled')
 
   // Unauthenticated → login
   if (!user && !isPublicPath) {
