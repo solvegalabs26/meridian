@@ -355,12 +355,18 @@ export async function runSweepForUser(
     })
 
     const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
-    const tokensUsed = message.usage.input_tokens + message.usage.output_tokens
-    const costUsd = (message.usage.input_tokens * 0.000003) + (message.usage.output_tokens * 0.000015)
-
     const usage = message.usage as typeof message.usage & { cache_creation_input_tokens?: number; cache_read_input_tokens?: number }
+    const cacheCreation = usage.cache_creation_input_tokens ?? 0
+    const cacheRead = usage.cache_read_input_tokens ?? 0
+    const tokensUsed = message.usage.input_tokens + cacheCreation + cacheRead + message.usage.output_tokens
+    // Cache writes are billed at $3.75/MTok, cache reads at $0.30/MTok, regular input at $3/MTok.
+    const costUsd =
+      (message.usage.input_tokens * 0.000003) +
+      (cacheCreation * 0.000003750) +
+      (cacheRead * 0.0000003) +
+      (message.usage.output_tokens * 0.000015)
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — Anthropic responded (in=${message.usage.input_tokens} out=${message.usage.output_tokens} tokens)`)
-    console.log(`[sweep:cache] ${sweep.id} cache_creation=${usage.cache_creation_input_tokens ?? 0} cache_read=${usage.cache_read_input_tokens ?? 0}`)
+    console.log(`[sweep:cache] ${sweep.id} cache_creation=${cacheCreation} cache_read=${cacheRead}`)
 
     // 8. Parse Anthropic response
     const parsed = parseAnthropicResponse(responseText)
