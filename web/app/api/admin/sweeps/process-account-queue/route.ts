@@ -36,12 +36,13 @@ export async function GET(request: NextRequest) {
 
   // Pick the oldest pending account across all running jobs.
   const { data: nextAccount } = await supabase
-    .from('bulk_sweep_job_accounts')
-    .select('id, job_id, user_id')
-    .eq('sweep_status', 'pending')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
+  .from('bulk_sweep_job_accounts')
+  .select('id, job_id, user_id, bulk_sweep_jobs!inner(status)')
+  .eq('sweep_status', 'pending')
+  .eq('bulk_sweep_jobs.status', 'running')
+  .order('created_at', { ascending: true })
+  .limit(1)
+  .maybeSingle()
 
   if (!nextAccount) {
     return NextResponse.json({ processed: 0, message: 'Queue empty' })
