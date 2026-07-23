@@ -24,21 +24,24 @@ export default function OnboardingSweepPage() {
       setMsgIdx(prev => Math.min(prev + 1, MESSAGES.length - 1))
     }, 1800)
 
-    // Mark onboarding complete — fire-and-forget, doesn't block the sweep
-    fetch('/api/profile', {
+    // Run the profile PATCH and the sweep concurrently. Both must resolve before
+    // showing the completion screen — the PATCH sets onboarded_at, which the
+    // (app) layout guards on. Fire-and-forget would leave a race where the user
+    // navigates to /dashboard before onboarded_at is written, bouncing them back.
+    const profilePatch = fetch('/api/profile', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ onboarded_at: new Date().toISOString() }),
-    }).catch(() => {})
+    })
 
-    // Run first sweep
-    fetch('/api/sweep', {
+    const sweep = fetch('/api/sweep', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
-    })
-      .then(r => r.json())
-      .then((data: { objectives?: Array<{ confidence_new: number }> }) => {
+    }).then(r => r.json() as Promise<{ objectives?: Array<{ confidence_new: number }> }>)
+
+    Promise.all([profilePatch, sweep])
+      .then(([, data]) => {
         clearInterval(interval)
         setMsgIdx(3) // "Compiling confidence score..."
         const avgScore = data.objectives
