@@ -54,6 +54,11 @@ export async function middleware(request: NextRequest) {
     if (isEnterpriseOnly && !isEnterpriseRoute && !isPublicPath) {
       return NextResponse.redirect(new URL('/enterprise', request.url))
     }
+
+    // Non-enterprise users: block access to /enterprise routes
+    if (!isEnterpriseOnly && isEnterpriseRoute) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
   }
 
   return supabaseResponse
