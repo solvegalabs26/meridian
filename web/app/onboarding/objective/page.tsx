@@ -112,7 +112,7 @@ function OnboardingObjectivePageInner() {
       setUserId(user.id)
 
       const [profileResult, countResult] = await Promise.all([
-        supabase.from('profiles').select('account_type, onboarding_context').eq('id', user.id).single(),
+        supabase.from('profiles').select('account_type, onboarding_context, onboarded_at').eq('id', user.id).single(),
         supabase.from('objectives').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
       ])
 
@@ -120,10 +120,36 @@ function OnboardingObjectivePageInner() {
       setOnboardingContext(profileResult.data?.onboarding_context ?? null)
 
       const existingCount = countResult.count ?? 0
+      const alreadyOnboarded = !!profileResult.data?.onboarded_at
 
-      if (existingCount > 0) {
-        // User already has objectives — skip template creation and go to dashboard
+      if (existingCount > 0 && alreadyOnboarded) {
+        // Fully onboarded user revisiting this URL — send them to the dashboard
         router.replace('/dashboard')
+        return
+      }
+
+      // Mid-onboarding with existing goals (e.g. abandoned after template activation,
+      // or StrictMode double-invoke in dev): skip re-creation and let them review
+      // what's already there so they can continue to the sweep step.
+      if (existingCount > 0 && !alreadyOnboarded) {
+        const { data: existingGoals } = await supabase
+          .from('objectives')
+          .select('id, title, category, outcome, target_date')
+          .eq('user_id', user.id)
+          .order('sort_order')
+        if (existingGoals && existingGoals.length > 0) {
+          setGoals(existingGoals.map(g => ({
+            title: g.title,
+            category: g.category,
+            outcome: g.outcome ?? '',
+            target_date: g.target_date ?? null,
+          })))
+          setSelected(existingGoals.map(() => true))
+          setSavedIds(existingGoals.map(g => g.id))
+          setClarifyQuestions(existingGoals.map(() => undefined))
+          setClarifyAnswers(existingGoals.map(() => []))
+          setClarifyDone(existingGoals.map(() => false))
+        }
         return
       }
 
@@ -139,11 +165,14 @@ function OnboardingObjectivePageInner() {
       ;(async () => {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
+        const { data: profile } = await supabase.from('profiles').select('onboarded_at').eq('id', user.id).single()
         const { count } = await supabase.from('objectives').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
-        if ((count ?? 0) > 0) {
+        if ((count ?? 0) > 0 && profile?.onboarded_at) {
           router.replace('/dashboard')
           return
         }
+        // Goals already exist from a prior pass — skip re-creation
+        if ((count ?? 0) > 0) return
         for (let i = 0; i < CAREER_TRANSITION_TEMPLATE.length; i++) {
           await createGoal(i, CAREER_TRANSITION_TEMPLATE[i])
         }

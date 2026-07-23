@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .select('onboarded_at, account_type, last_sweep_at, tutorial_views_count')
     .eq('id', user.id)
     .single()
-  if (!profile?.onboarded_at) redirect('/onboarding/welcome')
+  if (!profile?.onboarded_at) redirect('/onboarding/sweep')
 
   // Last sweep time for display in TopBar
   const { data: lastSweep } = await supabase
