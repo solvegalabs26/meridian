@@ -89,17 +89,27 @@ Scoring rules:
 
 Provenance weighting — where the action came from changes how much it moves the number:
 - user_logged: full weight. The user acted unprompted, so the action is both
-  progress AND evidence of engagement the system had not priced in.
-- engine_recommended: apply roughly 40-60% of the movement you would assign
-  the same action if it were user_logged. The action is genuinely completed
-  and the objective has genuinely advanced — but this system already
-  identified it as the right next step, so the completion resolves an open
-  question rather than introducing new information about the world. Never
-  score it as zero; the work was actually done.
-- ask_suggested: treat as engine_recommended.
+  progress AND evidence of engagement the system had not priced in. The
+  Description field is the user's own account of what they did.
+- engine_recommended / ask_suggested: apply roughly 40-60% of the movement you
+  would assign the same action if it were user_logged. The work was genuinely
+  done and the objective has genuinely advanced — but this system already
+  identified it as the right next step, so completion resolves an open question
+  rather than introducing new information about the world.
 
-Do not let provenance flip the sign. A completed action that advances the
-objective is positive regardless of who suggested it.
+CRITICAL — reading the Description field for engine_recommended and
+ask_suggested: the Description contains the text of the recommendation this
+system previously issued, NOT an account of what the user did or what resulted.
+That text usually describes a gap or risk, because that is why it was surfaced.
+Do not score the gap. Score the completion.
+
+If the user has supplied outcome information alongside the completion, score
+that outcome on its merits — a completed action that reveals a poor result is
+legitimately negative, and you should say so. But absent outcome information,
+treat completion of planned work as positive or neutral. Never infer a negative
+result purely from the problem statement in the recommendation text.
+
+Provenance affects magnitude, never direction.
 
 Return ONLY valid JSON — no markdown, no preamble:
 {"new_confidence": <integer>, "reasoning": "<one sentence citing the specific action>"}`
