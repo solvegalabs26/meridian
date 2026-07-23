@@ -119,34 +119,34 @@ export async function POST(
 
   if (actionError) return NextResponse.json({ error: actionError.message }, { status: 500 })
 
-  // 4. Lightweight confidence recompute — Haiku only, no external calls
-  // Only run for user_logged actions (engine_recommended completions don't
-  // need an immediate recompute — they were already scored at sweep time)
+  // 4. Lightweight confidence recompute — Haiku only, no external calls.
+  // Runs for every action source. Provenance is passed through and weighted
+  // inside the scoring prompt: completing an engine recommendation is real
+  // evidence, but carries less weight than an unprompted first-party action,
+  // because the engine already anticipated it as a possibility.
   let newConfidence: number = objective.confidence
   let reasoning: string | null = null
 
-  if (source === 'user_logged') {
-    try {
-      const result = await recomputeConfidenceFromAction(
-        { description, action_date, action_class, signal_id: signal.id },
-        {
-          id: objective.id,
-          user_id: user.id,
-          title: objective.title,
-          outcome: objective.outcome,
-          confidence: objective.confidence,
-          deadline_type: (objective as { deadline_type?: string }).deadline_type ?? 'hard',
-          reservation_price: (objective as { reservation_price?: number | null }).reservation_price ?? null,
-          target_date: objective.target_date ?? null,
-        },
-        sweep.id
-      )
-      newConfidence = result.newConfidence
-      reasoning = result.reasoning
-    } catch (err) {
-      console.error('[actions POST] recompute failed:', err)
-      // Non-fatal — the action is already logged
-    }
+  try {
+    const result = await recomputeConfidenceFromAction(
+      { description, action_date, action_class, signal_id: signal.id, source },
+      {
+        id: objective.id,
+        user_id: user.id,
+        title: objective.title,
+        outcome: objective.outcome,
+        confidence: objective.confidence,
+        deadline_type: (objective as { deadline_type?: string }).deadline_type ?? 'hard',
+        reservation_price: (objective as { reservation_price?: number | null }).reservation_price ?? null,
+        target_date: objective.target_date ?? null,
+      },
+      sweep.id
+    )
+    newConfidence = result.newConfidence
+    reasoning = result.reasoning
+  } catch (err) {
+    console.error('[actions POST] recompute failed:', err)
+    // Non-fatal — the action is already logged
   }
 
   return NextResponse.json({

@@ -4,17 +4,27 @@
  *
  * Does NOT make external web-search calls. Not subject to the 23h sweep
  * rate limit — fires immediately on action log.
+ *
+ * Jul 23 2026: now runs for ALL action sources, not just user_logged.
+ * Provenance is weighted inside the prompt instead of gating the call.
+ * Previously engine_recommended completions were skipped on the reasoning
+ * that they were "already scored at sweep time" — but the sweep scored the
+ * objective in a state where the recommendation had not yet been acted on.
+ * 50 of 90 logged actions produced no confidence movement as a result.
  */
 
 import { createClient } from '@/lib/supabase/server'
 import { getAnthropicClient } from '@/lib/anthropic/client'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 
+export type ActionSource = 'user_logged' | 'engine_recommended' | 'ask_suggested'
+
 interface ActionInput {
   description: string
   action_date: string
   action_class: string | null
   signal_id: string
+  source: string
 }
 
 interface ObjectiveSnapshot {
@@ -31,6 +41,15 @@ interface ObjectiveSnapshot {
 interface RecomputeResult {
   newConfidence: number
   reasoning: string
+}
+
+const SOURCE_DESCRIPTION: Record<string, string> = {
+  user_logged:
+    'user_logged — the user did this on their own initiative and reported it unprompted',
+  engine_recommended:
+    'engine_recommended — the user completed an action this system had previously recommended',
+  ask_suggested:
+    'ask_suggested — the user completed an action surfaced by an Ask query',
 }
 
 export async function recomputeConfidenceFromAction(
@@ -68,6 +87,30 @@ Scoring rules:
 - Never move more than 20 points in either direction from a single action
 - Floor: 5. Ceiling: 95. Stay within [5, 95] after the update.
 
+Provenance weighting — where the action came from changes how much it moves the number:
+- user_logged: full weight. The user acted unprompted, so the action is both
+  progress AND evidence of engagement the system had not priced in. The
+  Description field is the user's own account of what they did.
+- engine_recommended / ask_suggested: apply roughly 40-60% of the movement you
+  would assign the same action if it were user_logged. The work was genuinely
+  done and the objective has genuinely advanced — but this system already
+  identified it as the right next step, so completion resolves an open question
+  rather than introducing new information about the world.
+
+CRITICAL — reading the Description field for engine_recommended and
+ask_suggested: the Description contains the text of the recommendation this
+system previously issued, NOT an account of what the user did or what resulted.
+That text usually describes a gap or risk, because that is why it was surfaced.
+Do not score the gap. Score the completion.
+
+If the user has supplied outcome information alongside the completion, score
+that outcome on its merits — a completed action that reveals a poor result is
+legitimately negative, and you should say so. But absent outcome information,
+treat completion of planned work as positive or neutral. Never infer a negative
+result purely from the problem statement in the recommendation text.
+
+Provenance affects magnitude, never direction.
+
 Return ONLY valid JSON — no markdown, no preamble:
 {"new_confidence": <integer>, "reasoning": "<one sentence citing the specific action>"}`
 
@@ -79,7 +122,8 @@ Deadline type: ${objective.deadline_type === 'soft' ? 'soft (reservation/floor �
 
 User's logged action:
   Date: ${action.action_date}
-  Description: ${action.description}${classLine}`
+  Description: ${action.description}${classLine}
+  Provenance: ${SOURCE_DESCRIPTION[action.source] ?? action.source}`
 
   let newConfidence = objective.confidence
   let reasoning = 'Action logged; confidence unchanged.'
@@ -123,6 +167,7 @@ User's logged action:
     score: newConfidence,
     factors: {
       source: 'user_action',
+      action_source: action.source,
       signal_id: action.signal_id,
       action_class: action.action_class,
       confidence_blocked: false,
