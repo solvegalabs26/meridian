@@ -2,8 +2,8 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import MeridianArcWordmark from '@/components/brand/MeridianArcWordmark'
 import Link from 'next/link'
@@ -24,12 +24,13 @@ const REDEMPTION_ERRORS: Record<string, string> = {
   code_expired: 'That invite code has expired.',
 }
 
-export default function AlphaEntryPage() {
+function AlphaEntryForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   const [phase, setPhase] = useState<Phase>('code')
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState(searchParams.get('code')?.toUpperCase() ?? '')
 
   // Stage 1 state
   const [codeError, setCodeError] = useState<string | null>(null)
@@ -342,5 +343,13 @@ export default function AlphaEntryPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function AlphaEntryPage() {
+  return (
+    <Suspense>
+      <AlphaEntryForm />
+    </Suspense>
   )
 }

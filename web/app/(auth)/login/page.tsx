@@ -139,6 +139,12 @@ export default function LoginPage() {
           </button>
 
           <p className="text-center text-[12px] text-[var(--text3)] mt-5">
+            Have an invite code?{' '}
+            <Link href="/alpha" className="text-[var(--blue)] hover:underline">
+              Sign up here →
+            </Link>
+          </p>
+          <p className="text-center text-[12px] text-[var(--text3)] mt-2">
             Don&apos;t have an account?{' '}
             {SIGNUP_ENABLED ? (
               <Link href="/onboarding" className="text-[var(--blue)] hover:underline">

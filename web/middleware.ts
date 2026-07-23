@@ -29,9 +29,12 @@ export async function middleware(request: NextRequest) {
   const isPublicPath =
     pathname === '/' ||
     pathname.startsWith('/home') ||
+    pathname.startsWith('/alpha') ||
+    pathname.startsWith('/cohort') ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/invites') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico' ||
     // Internal cron/queue routes authenticate via CRON_SECRET header, not session
