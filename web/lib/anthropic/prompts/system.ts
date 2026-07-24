@@ -44,7 +44,7 @@ OUTPUT FORMAT:
 Respond ONLY in valid JSON matching the schema below. No preamble, no markdown, no explanation outside the JSON.
 
 {
-  "sweep_summary": "string — 2–3 sentence overview",
+  "sweep_summary": "2-3 sentences maximum covering the most critical cross-objective insight only. Do NOT summarize each objective individually here — per-objective detail belongs in inference_block only. Be ruthlessly concise.",
   "objectives": [
     {
       "obj_id": "OBJ-01",
@@ -57,6 +57,7 @@ Respond ONLY in valid JSON matching the schema below. No preamble, no markdown, 
       "opportunities": ["string"],
       "risks": ["string"],
       "changed_since_last_sweep": "string",
+      "inference_block_instructions": "Keep this focused. Lead with the single most important signal or implication. 3-5 sentences maximum per objective.",
       "inference_block": {
         "unstated_implications": ["string — 2–5 specific implications signals suggest that were not asked about"],
         "decision_gate": {
