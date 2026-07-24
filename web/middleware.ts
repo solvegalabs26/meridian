@@ -46,7 +46,9 @@ export async function middleware(request: NextRequest) {
 
     const isEnterpriseRoute =
       pathname.startsWith('/enterprise') ||
-      pathname.startsWith('/api/enterprise')
+      pathname.startsWith('/api/enterprise') ||
+      pathname.startsWith('/onboarding') ||
+      pathname.startsWith('/sweep')
 
     // Enterprise-only users: wall off everything outside /enterprise
     if (isEnterpriseOnly && !isEnterpriseRoute && !isPublicPath) {
