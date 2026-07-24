@@ -3,7 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { runSweepForUser } from '@/lib/sweep/runSweepForUser'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300 // Vercel Pro limit — needed for 5+ objective sweeps
+export const maxDuration = 600 // Vercel Pro — 12000 token budget at ~267s leaves 333s runway
 
 const RATE_LIMITED_TYPES = new Set(['alpha_personal', 'alpha_business', 'beta', 'personal'])
 const RATE_LIMIT_MS = 23 * 60 * 60 * 1000
