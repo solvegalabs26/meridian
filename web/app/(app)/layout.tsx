@@ -10,6 +10,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!user) redirect('/login')
 
+  if (user.app_metadata?.enterprise_only === true) {
+    return <>{children}</>
+  }
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('onboarded_at, account_type, last_sweep_at, tutorial_views_count')
