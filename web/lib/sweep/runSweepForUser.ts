@@ -338,7 +338,7 @@ export async function runSweepForUser(
       sweep_instructions: 'Focus on cross-dependencies. Flag any signal that changes urgency on open actions. If calendar events are provided, factor upcoming events into recommendations — identify which objectives have relevant events approaching and surface time-sensitive actions.',
     }
 
-    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — prompt built, calling Anthropic (model=claude-sonnet-4-6 max_tokens=12000)`)
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — prompt built, calling Anthropic (model=claude-sonnet-4-6 max_tokens=16000)`)
 
     // 7. Call Anthropic API
     // System prompt is split into a cacheable static block (rules, output format,
@@ -359,7 +359,7 @@ export async function runSweepForUser(
 
     const message = await getAnthropicClient().messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 12000,
+      max_tokens: 16000,
       system: [
         { type: 'text', text: STATIC_SWEEP_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
         { type: 'text', text: dynamicContext },
