@@ -61,19 +61,34 @@ export default function AlphaEntryPage() {
     setValidating(true)
     setCodeError(null)
 
-    const res = await fetch('/api/invites/validate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: normalized }),
-    })
-    const data = await res.json() as { status: CodeStatus }
-    setValidating(false)
+    try {
+      const res = await fetch('/api/invites/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: normalized }),
+      })
 
-    if (data.status === 'valid') {
-      setCode(normalized)
-      setPhase('account')
-    } else {
-      setCodeError(CODE_ERRORS[data.status] ?? CODE_ERRORS.invalid)
+      if (!res.ok) {
+        const text = await res.text()
+        console.error('[validate] non-OK response', res.status, text.slice(0, 300))
+        setCodeError('Code not found or invalid.')
+        return
+      }
+
+      const data = await res.json() as { status: CodeStatus }
+      console.log('[validate] response for', normalized, data)
+
+      if (data.status === 'valid') {
+        setCode(normalized)
+        setPhase('account')
+      } else {
+        setCodeError(CODE_ERRORS[data.status] ?? CODE_ERRORS.invalid)
+      }
+    } catch (err) {
+      console.error('[validate] fetch/parse error', err)
+      setCodeError('Something went wrong — please try again.')
+    } finally {
+      setValidating(false)
     }
   }
 
