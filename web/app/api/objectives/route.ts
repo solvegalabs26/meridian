@@ -56,12 +56,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'objective_limit_reached', max }, { status: 403 })
   }
 
-  // Reject a target_date that is already in the past — almost always an input
-  // error (most commonly a wrong-year extraction from the AI goal parser).
-  if (body.target_date) {
+  // Clamp a past target_date forward to 6 months rather than rejecting the
+  // write. The AI goal extractor occasionally hallucinates past dates; a goal
+  // with a clamped date is recoverable — a silently dropped goal is not.
+  let resolvedTargetDate = body.target_date ?? null
+  if (resolvedTargetDate) {
     const today = new Date().toISOString().split('T')[0]
-    if (body.target_date < today) {
-      return NextResponse.json({ error: 'past_target_date', target_date: body.target_date }, { status: 400 })
+    if (resolvedTargetDate < today) {
+      const sixMonths = new Date()
+      sixMonths.setMonth(sixMonths.getMonth() + 6)
+      resolvedTargetDate = sixMonths.toISOString().split('T')[0]
     }
   }
 
@@ -82,7 +86,7 @@ export async function POST(request: NextRequest) {
       category: body.category,
       outcome: body.outcome,
       success_condition: body.success_condition ?? null,
-      target_date: body.target_date ?? null,
+      target_date: resolvedTargetDate,
       notes: body.notes ?? null,
       goal_description: body.goal_description ?? null,
       goal_context: body.goal_context ?? null,
