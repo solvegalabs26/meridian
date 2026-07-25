@@ -19,8 +19,10 @@ export async function POST(request: NextRequest) {
     .maybeSingle()
 
   if (!data) return NextResponse.json({ status: 'invalid' })
-  if (data.status === 'unused') return NextResponse.json({ status: 'valid' })
   if (data.status === 'redeemed') return NextResponse.json({ status: 'already_used' })
   if (data.status === 'expired') return NextResponse.json({ status: 'expired' })
-  return NextResponse.json({ status: 'invalid' })
+  if (data.status === 'revoked') return NextResponse.json({ status: 'invalid' })
+  // Any other status (unused, active, multi_use, org, etc.) is valid —
+  // the database is the authoritative validator, not a status whitelist.
+  return NextResponse.json({ status: 'valid' })
 }
