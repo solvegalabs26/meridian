@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import ActionsList from './ActionsList'
 import InferencePanel from '@/components/objectives/InferencePanel'
 import type { Factor } from './page'
@@ -74,6 +75,7 @@ const ACTION_CLASSES = [
 const TABS = ["What's affecting it", 'What this implies', 'What to do', 'Signals', 'History', 'Goal'] as const
 
 export default function ObjectiveTabs({ factors, actions, objId, objectiveId, signals, goalDescription, goalContext, tier, hasCalendar, episodes }: ObjectiveTabsProps) {
+  const router = useRouter()
   const [active, setActive] = useState<typeof TABS[number]>(TABS[0])
   const [expandedEpisodes, setExpandedEpisodes] = useState<Set<string>>(new Set())
 
@@ -119,6 +121,7 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
         newConfidence: data.new_confidence ?? 0,
         reasoning: data.confidence_reasoning ?? '',
       })
+      router.refresh()
       setLogDesc('')
       setLogClass('')
       setLogDate(new Date().toISOString().split('T')[0])

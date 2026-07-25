@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { CheckCircle, X, CalendarPlus, CalendarDays, Download } from 'lucide-react'
 import { tierAtLeast } from '@/lib/tiers'
 import { googleCalendarLink } from '@/lib/calendar/googleCalendarLink'
@@ -67,6 +68,7 @@ const ICS_HELP = [
 ]
 
 export default function ActionsList({ actions, objId, objectiveId, tier, hasCalendar }: ActionsListProps) {
+  const router = useRouter()
   const [completed, setCompleted] = useState<Set<number>>(new Set())
   const [hovering, setHovering] = useState<number | null>(null)
   const [activeForm, setActiveForm] = useState<number | null>(null)
@@ -177,6 +179,7 @@ export default function ActionsList({ actions, objId, objectiveId, tier, hasCale
       setActiveForm(null)
       setNotes('')
       setCompletedDate(new Date().toISOString().split('T')[0])
+      router.refresh()
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Something went wrong — please try again.')
     } finally {
