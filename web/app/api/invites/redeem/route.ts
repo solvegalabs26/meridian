@@ -36,10 +36,17 @@ export async function POST(request: NextRequest) {
   // Build profile update with correct column names.
   // account_type: veteran codes park at 'veteran_pending' until ID.me verification.
   // pricing_tier: the raw grant value (e.g. 'lifetime_explorer'), not the short alias.
+  // tier: the short TierKey alias derived from pricing_tier_grant — strip 'lifetime_'
+  //   prefix if present. Must stay in sync with pricing_tier so getMaxObjectives
+  //   enforces the correct limit. Without this, tier stays null → defaults to 'trial'
+  //   → max 3 objectives, silently dropping goals 4+ during onboarding.
+  const rawTierGrant = (invite.pricing_tier_grant as string) ?? null
+  const tierKey = rawTierGrant ? rawTierGrant.replace(/^lifetime_/, '') : null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const profileUpdate: Record<string, any> = {
     account_type: invite.requires_idme ? 'veteran_pending' : (invite.account_type_grant ?? null),
     pricing_tier: invite.pricing_tier_grant ?? null,
+    ...(tierKey ? { tier: tierKey } : {}),
   }
 
   if (invite.onboarding_context_grant) {
