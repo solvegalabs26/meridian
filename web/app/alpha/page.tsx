@@ -13,7 +13,7 @@ type Phase = 'code' | 'account' | 'redeem_error'
 type CodeStatus = 'valid' | 'invalid' | 'already_used' | 'expired'
 
 const CODE_ERRORS: Record<Exclude<CodeStatus, 'valid'>, string> = {
-  invalid: "That code isn't valid. Check your invitation email and try again.",
+  invalid: 'Code not found or invalid.',
   already_used: 'That code has already been used.',
   expired: 'That code has expired. Please contact support.',
 }
@@ -30,6 +30,7 @@ export default function AlphaEntryPage() {
 
   const [phase, setPhase] = useState<Phase>('code')
   const [code, setCode] = useState('')
+  const [isOrgContext, setIsOrgContext] = useState(false)
 
   // Stage 1 state
   const [codeError, setCodeError] = useState<string | null>(null)
@@ -56,11 +57,7 @@ export default function AlphaEntryPage() {
   // Stage 1 — lightweight pre-validation before account creation.
   // Uses a server route (service role) because invite_codes has no
   // public RLS policies and cannot be read by anon/authenticated clients.
-  async function handleCodeSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const normalized = code.trim().toUpperCase()
-    if (!normalized) return
-
+  async function validateCode(normalized: string) {
     setValidating(true)
     setCodeError(null)
 
@@ -78,6 +75,27 @@ export default function AlphaEntryPage() {
     } else {
       setCodeError(CODE_ERRORS[data.status] ?? CODE_ERRORS.invalid)
     }
+  }
+
+  // Pre-fill and auto-validate if ?code= is present in the URL.
+  // Uses window.location.search instead of useSearchParams to avoid
+  // the Suspense boundary requirement on this already-dynamic page.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const urlCode = params.get('code')
+    if (urlCode) {
+      const normalized = urlCode.trim().toUpperCase()
+      setCode(normalized)
+      setIsOrgContext(true)
+      validateCode(normalized)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleCodeSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const normalized = code.trim().toUpperCase()
+    if (!normalized) return
+    await validateCode(normalized)
   }
 
   // Stage 2b — redemption via server route (handles multi-use codes, org fields,
@@ -165,7 +183,9 @@ export default function AlphaEntryPage() {
             <p className="text-[11px] text-[var(--text3)] uppercase tracking-widest font-semibold mb-1">Step 1 of 6</p>
             <h2 className="text-[18px] font-medium text-[var(--text)] mb-1">Enter your invite code</h2>
             <p className="text-[13px] text-[var(--text3)] mb-5">
-              Check your invitation email for your personal alpha access code.
+              {isOrgContext
+                ? 'Enter your access code to get started.'
+                : 'Check your invitation email for your personal alpha access code.'}
             </p>
 
             {codeError && (
@@ -190,7 +210,7 @@ export default function AlphaEntryPage() {
                   autoComplete="off"
                   autoCapitalize="characters"
                   spellCheck={false}
-                  placeholder="ALPHA-XXXXXX"
+                  placeholder={isOrgContext ? 'YOUR-CODE' : 'ALPHA-XXXXXX'}
                   className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] font-mono tracking-wider focus:outline-none focus:border-[var(--blue)] transition-colors uppercase"
                 />
               </div>
