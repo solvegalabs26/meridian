@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     feature_tags?: string[] | null
     feature_note?: string | null
   }
+  console.log('[checkin POST] body received:', JSON.stringify(body))
 
   // week_of = Monday of the current ISO week (UTC)
   const now = new Date()

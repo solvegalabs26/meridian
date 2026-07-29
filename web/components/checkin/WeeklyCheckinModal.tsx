@@ -82,19 +82,19 @@ export default function WeeklyCheckinModal({
     setSaving(true)
     setError(null)
 
+    const foundObjLabel = foundObjectiveId
+      ? (objectives.find(o => o.id === foundObjectiveId)?.title ?? null)
+      : null
+
     const res = await fetch('/api/checkin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        sweep_id:                      sweepId ?? null,
-        missed_signal:                 missedSignal.trim() || null,
-        found_signal_source:           foundSource || null,
-        found_signal_content:          foundContent.trim() || null,
-        found_signal_objective_id:     foundObjectiveId || null,
-        unlogged_action:               unloggedAction.trim() || null,
-        unlogged_action_objective_id:  unloggedObjectiveId || null,
-        briefing_rating:               briefingRating > 0 ? briefingRating : null,
-        other_notes:                   otherNotes.trim() || null,
+        reflection:       missedSignal.trim() || null,
+        signal_content:   foundContent.trim() || null,
+        signal_objective: foundObjLabel,
+        briefing_rating:  briefingRating > 0 ? briefingRating : null,
+        briefing_note:    otherNotes.trim() || null,
       }),
     })
 
