@@ -2,10 +2,13 @@
 
 import { useState } from 'react'
 import type { CohortConfig } from './page'
+import type { CheckinStatsData } from '@/lib/reporting/types'
+import { CheckinEngagementCard } from '@/components/admin/CheckinEngagementCard'
 
 interface Props {
   configs: CohortConfig[]
   enrolledCounts: Record<string, number>
+  checkinStatsByOrg: Record<string, CheckinStatsData>
 }
 
 const SECTION_LABELS: { key: keyof CohortConfig; label: string; desc: string }[] = [
@@ -41,7 +44,7 @@ const EMPTY_FORM: Omit<CohortConfig, 'id' | 'created_at' | 'updated_at' | 'last_
   send_day: null,
 }
 
-export default function CohortConfigClient({ configs: initialConfigs, enrolledCounts }: Props) {
+export default function CohortConfigClient({ configs: initialConfigs, enrolledCounts, checkinStatsByOrg }: Props) {
   const [configs, setConfigs] = useState(initialConfigs)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -204,6 +207,13 @@ export default function CohortConfigClient({ configs: initialConfigs, enrolledCo
                     </p>
                   </div>
                 </div>
+
+                {checkinStatsByOrg[config.org_code] && (
+                  <CheckinEngagementCard
+                    orgSource={config.org_code}
+                    stats={checkinStatsByOrg[config.org_code]}
+                  />
+                )}
 
                 <div className="flex items-center gap-2 mt-4 pt-4 border-t border-[var(--border)]">
                   <button

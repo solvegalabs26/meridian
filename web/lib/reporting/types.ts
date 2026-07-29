@@ -45,6 +45,19 @@ export interface TopSignalsData {
   keywords: { keyword: string; count: number }[]
 }
 
+export interface CheckinStatsData {
+  totalEligible: number
+  totalSubmitted: number
+  overallCompletionRate: number
+  weeklyRows: Array<{
+    weekOf: string
+    submitted: number
+    eligible: number
+    completionPct: number
+    avgRating: number | null
+  }>
+}
+
 export interface CohortReportSections {
   cohortOverview?: CohortOverviewData
   objectiveTracking?: ObjectiveTrackingData
@@ -54,6 +67,7 @@ export interface CohortReportSections {
   engagementSummary?: EngagementSummaryData
   predictionsActive?: PredictionsActiveData
   topSignals?: TopSignalsData
+  checkinStats?: CheckinStatsData
 }
 
 export const ACTIVE_ACCOUNT_TYPES = [
