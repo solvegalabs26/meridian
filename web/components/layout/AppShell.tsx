@@ -5,6 +5,7 @@ import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import TutorialModal from '@/components/tutorial/TutorialModal'
 import KeyTermsModal from '@/components/tutorial/KeyTermsModal'
+import CheckinWrapper from '@/components/checkin/CheckinWrapper'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -89,6 +90,8 @@ export default function AppShell({
         open={keyTermsOpen}
         onClose={() => setKeyTermsOpen(false)}
       />
+
+      <CheckinWrapper />
     </div>
   )
 }
