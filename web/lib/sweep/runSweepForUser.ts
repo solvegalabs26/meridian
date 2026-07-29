@@ -731,6 +731,9 @@ export async function runSweepForUser(
       tokens_used: tokensUsed,
       cost_usd: costUsd,
       completed_at: new Date().toISOString(),
+      inference_block: parsed.objectives
+        .filter(o => o.inference_block)
+        .map(o => ({ obj_id: o.obj_id, ...o.inference_block })),
     }).eq('id', sweep.id)
 
     // Increment user sweep count
