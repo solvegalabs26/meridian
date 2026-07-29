@@ -160,6 +160,11 @@ export default async function DashboardPage() {
       <p className="text-[10px] text-center pt-2" style={{ color: 'var(--ov-text-dim)' }}>
         Meridian Arc surfaces AI-generated insights — always use your own judgment for major decisions.
       </p>
+      <p className="text-[10px] text-center pt-1 pb-3" style={{ color: 'var(--ov-text-dim)' }}>
+        <a href="/legal#tos" className="hover:underline" style={{ color: 'inherit' }}>Terms of Service</a>
+        <span className="mx-1.5">·</span>
+        <a href="/legal#privacy" className="hover:underline" style={{ color: 'inherit' }}>Privacy Policy</a>
+      </p>
     </div>
 
     <AskMeridianBar
