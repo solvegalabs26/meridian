@@ -69,7 +69,7 @@ export default function KeyTermsModal({ open, onClose }: KeyTermsModalProps) {
 
         {/* ── Scrollable terms ─────────────────────────────────────────────── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 22px' }}>
-          {TERMS.map(({ term, definition }, i) => (
+          {TERMS.map(({ term, definition }) => (
             <div key={term} style={{ padding: '16px 0', borderBottom: `1px solid ${P.line}` }}>
               <p style={{ fontFamily: "'EB Garamond', serif", fontSize: 16, fontWeight: 500, color: P.ink, margin: '0 0 6px' }}>{term}</p>
               <p style={{ fontSize: 12.5, lineHeight: 1.65, color: P.body, margin: 0 }}>{definition}</p>
