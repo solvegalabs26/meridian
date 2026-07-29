@@ -36,6 +36,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/admin/sweeps/process-account-queue') ||
     pathname.startsWith('/api/invites/validate') ||
     pathname.startsWith('/reset-password') ||
+    pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/legal') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico'
