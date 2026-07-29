@@ -154,8 +154,10 @@ export default function AlphaObjectivePage() {
     })
 
     if (!res.ok) {
+      const errBody = await res.json().catch(() => ({})) as { error?: string }
+      console.error('[createGoal] failed for goal', i, errBody)
       setSyncError('Could not save a goal — please try re-checking it.')
-      return
+      return  // savedIds[i] stays null; saveClarifyAnswers no-ops via null check
     }
 
     const data = await res.json() as { objective: { id: string } }
