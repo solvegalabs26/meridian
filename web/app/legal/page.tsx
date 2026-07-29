@@ -1,4 +1,5 @@
-import type { Metadata, CSSProperties } from 'next'
+import type { Metadata } from 'next'
+import type { CSSProperties } from 'react'
 import type { Block, LegalClause, LegalSection, Segment } from './legal-content'
 import { SECTIONS } from './legal-content'
 
