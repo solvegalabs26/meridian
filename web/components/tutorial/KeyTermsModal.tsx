@@ -70,11 +70,33 @@ export default function KeyTermsModal({ open, onClose }: KeyTermsModalProps) {
         {/* ── Scrollable terms ─────────────────────────────────────────────── */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '4px 22px' }}>
           {TERMS.map(({ term, definition }, i) => (
-            <div key={term} style={{ padding: '16px 0', borderBottom: i < TERMS.length - 1 ? `1px solid ${P.line}` : 'none' }}>
+            <div key={term} style={{ padding: '16px 0', borderBottom: `1px solid ${P.line}` }}>
               <p style={{ fontFamily: "'EB Garamond', serif", fontSize: 16, fontWeight: 500, color: P.ink, margin: '0 0 6px' }}>{term}</p>
               <p style={{ fontSize: 12.5, lineHeight: 1.65, color: P.body, margin: 0 }}>{definition}</p>
             </div>
           ))}
+
+          {/* ── Legal links ── */}
+          <div style={{ padding: '16px 0' }}>
+            <p style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: P.body, margin: '0 0 10px', opacity: .5 }}>Legal</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[
+                { label: 'Terms of Service',      href: '/legal#tos' },
+                { label: 'Privacy Policy',         href: '/legal#privacy' },
+                { label: 'Acceptable Use Policy',  href: '/legal#aup' },
+              ].map(({ label, href }) => (
+                <a
+                  key={href}
+                  href={href}
+                  style={{ fontSize: 12.5, color: P.navy, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                  onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline' }}
+                  onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none' }}
+                >
+                  {label} <span style={{ fontSize: 10, opacity: .5 }}>↗</span>
+                </a>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* ── Footer ───────────────────────────────────────────────────────── */}
