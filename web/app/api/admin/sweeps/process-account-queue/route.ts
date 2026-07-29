@@ -4,7 +4,7 @@ import { processSingleJobAccount } from '@/lib/sweep/executeBulkSweepJob'
 import { sendBulkSweepFailureAlert } from '@/lib/email/resend'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300
+export const maxDuration = 600
 
 function getBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL
