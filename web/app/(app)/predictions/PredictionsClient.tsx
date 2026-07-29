@@ -22,8 +22,8 @@ interface Props {
 }
 
 function getStatus(p: Prediction): 'open' | 'due' | 'scored' {
-  if (p.scored_at) return 'scored'
-  if (new Date(p.horizon_date) <= new Date()) return 'due'
+  if (p.accuracy_score !== null) return 'scored'
+  if (p.outcome === null && new Date(p.horizon_date) <= new Date()) return 'due'
   return 'open'
 }
 
