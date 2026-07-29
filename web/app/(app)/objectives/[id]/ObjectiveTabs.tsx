@@ -60,6 +60,7 @@ const SOURCE_BADGES: Record<string, { label: string; color: string }> = {
   inbox: { label: 'Inbox', color: 'var(--gold)' },
   manual: { label: 'Manual', color: 'var(--ov-text-dim)' },
   user_action: { label: 'You', color: 'var(--gold)' },
+  sweep: { label: 'Sweep analysis', color: '#8B7FD4' },
 }
 
 const ACTION_CLASSES = [
@@ -166,7 +167,7 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                   {factors.map((f, i) => (
                     <li key={i} className="flex gap-3">
                       <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: DOT_COLORS[f.color] }} />
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{f.title}</p>
                         <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{f.description}</p>
                         <p className="text-[10px] uppercase tracking-wide mt-1" style={{ color: 'var(--ov-text-dim)' }}>{f.impact}</p>
@@ -184,9 +185,15 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       <li key={sig.id} className="flex gap-3">
                         <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: 'var(--blue-mid)' }} />
                         <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
-                          {sig.body && (
-                            <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
+                          {sig.source_type === 'sweep' && sig.body ? (
+                            <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.body}</p>
+                          ) : (
+                            <>
+                              <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
+                              {sig.body && (
+                                <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
+                              )}
+                            </>
                           )}
                           <p className="text-[10px] mt-1" style={{ color: 'var(--ov-text-dim)' }}>
                             {new Date(sig.created_at).toLocaleDateString()}
@@ -374,9 +381,15 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       {badge.label}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12px]" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
-                      {sig.body && (
-                        <p className="text-[11px] mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
+                      {sig.source_type === 'sweep' && sig.body ? (
+                        <p className="text-[12px]" style={{ color: 'var(--ov-text-hi)' }}>{sig.body}</p>
+                      ) : (
+                        <>
+                          <p className="text-[12px]" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
+                          {sig.body && (
+                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
+                          )}
+                        </>
                       )}
                       <p className="text-[10px] mt-0.5" style={{ color: 'var(--ov-text-dim)' }}>
                         {new Date(sig.created_at).toLocaleDateString()}
