@@ -34,7 +34,7 @@ export default function AskThreadClient({ openingMessage, objectives, latestSwee
       const res = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, context: { objectives, latestSweep } }),
+        body: JSON.stringify({ question: text, context: { objectives, latestSweep } }),
       })
       const data = await res.json() as { response?: string; error?: string }
       setMessages(prev => [...prev, {

@@ -22,6 +22,7 @@ const navItems = [
   { href: '/predictions', label: 'Predictions', icon: TrendingUp },
   { href: '/ask', label: 'Ask Meridian Arc', icon: MessageCircle },
   { href: '/enterprise', label: 'Enterprise', icon: Building2 },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ]
 
 interface SidebarProps {
@@ -89,21 +90,6 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
         </div>
       </nav>
 
-      {/* Settings */}
-      <div className="border-t border-white/8 p-3">
-        <Link
-          href="/settings"
-          onClick={onClose}
-          className={`flex items-center gap-3 px-3 py-2.5 text-[12.5px] rounded-lg transition-all ${
-            pathname === '/settings'
-              ? 'text-white bg-white/8'
-              : 'text-white/55 hover:text-white hover:bg-white/4'
-          }`}
-        >
-          <Settings size={15} />
-          Settings
-        </Link>
-      </div>
     </aside>
   )
 }

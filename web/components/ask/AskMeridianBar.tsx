@@ -13,7 +13,6 @@ interface AskMeridianBarProps {
 }
 
 export default function AskMeridianBar({
-  context,
   placeholder = 'Ask Meridian Arc about any of your goals…',
   topObjectiveName,
   showChips = false,
@@ -32,9 +31,10 @@ export default function AskMeridianBar({
       return
     }
 
-    const params = new URLSearchParams({ q: trimmed })
-    if (context) params.set('context', context)
-    router.push(`/ask?${params.toString()}`)
+    // Don't include `context` in the URL — /ask fetches its own sweep context
+    // server-side, and a long sweep summary in the URL can exceed browser URL
+    // length limits, silently dropping the `q` param and preventing auto-submit.
+    router.push(`/ask?q=${encodeURIComponent(trimmed)}`)
   }
 
   const chips = [
