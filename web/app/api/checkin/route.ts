@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
 }
 
 // Eligibility check — called by CheckinWrapper on mount
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ eligible: false })
