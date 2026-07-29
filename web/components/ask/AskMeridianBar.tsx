@@ -13,7 +13,6 @@ interface AskMeridianBarProps {
 }
 
 export default function AskMeridianBar({
-  context,
   placeholder = 'Ask Meridian Arc about any of your goals…',
   topObjectiveName,
   showChips = false,
