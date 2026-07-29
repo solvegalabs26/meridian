@@ -52,7 +52,6 @@ export default function WeeklyCheckinModal({
   open,
   onClose,
   objectives,
-  sweepId,
   preselectedObjectiveId,
 }: WeeklyCheckinModalProps) {
   const [step, setStep] = useState(0)
