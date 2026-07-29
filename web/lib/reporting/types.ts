@@ -55,6 +55,7 @@ export interface CheckinStatsData {
     eligible: number
     completionPct: number
     avgRating: number | null
+    flagged: number
   }>
 }
 

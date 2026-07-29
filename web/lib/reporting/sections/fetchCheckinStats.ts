@@ -25,19 +25,20 @@ export async function fetchCheckinStats(
 
   const { data: checkins } = await service
     .from('user_reflections')
-    .select('user_id, week_of, briefing_rating')
+    .select('user_id, week_of, briefing_rating, confidence_flag, created_at')
     .in('user_id', userIds)
     .gte('week_of', startDate.toISOString().slice(0, 10))
     .lte('week_of', endDate.toISOString().slice(0, 10))
     .order('week_of', { ascending: true })
 
-  const byWeek: Record<string, { weekOf: string; submitted: number; ratings: number[] }> = {}
+  const byWeek: Record<string, { weekOf: string; submitted: number; ratings: number[]; flagged: number }> = {}
 
   for (const row of checkins ?? []) {
     const key = row.week_of as string
-    if (!byWeek[key]) byWeek[key] = { weekOf: key, submitted: 0, ratings: [] }
+    if (!byWeek[key]) byWeek[key] = { weekOf: key, submitted: 0, ratings: [], flagged: 0 }
     byWeek[key].submitted++
     if (row.briefing_rating) byWeek[key].ratings.push(row.briefing_rating as number)
+    if (row.confidence_flag && row.confidence_flag !== 'none') byWeek[key].flagged++
   }
 
   const weeklyRows = Object.values(byWeek).map(w => ({
@@ -48,6 +49,7 @@ export async function fetchCheckinStats(
     avgRating: w.ratings.length > 0
       ? Math.round((w.ratings.reduce((a, b) => a + b, 0) / w.ratings.length) * 10) / 10
       : null,
+    flagged: w.flagged,
   }))
 
   const totalSubmitted = checkins?.length ?? 0

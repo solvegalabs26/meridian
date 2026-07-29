@@ -40,6 +40,7 @@ export function CheckinEngagementCard({ orgSource, stats }: Props) {
               <th className="text-center pb-1.5 font-medium text-[var(--text3)]">Submitted</th>
               <th className="text-center pb-1.5 font-medium text-[var(--text3)]">Rate</th>
               <th className="text-center pb-1.5 font-medium text-[var(--text3)]">Avg Rating</th>
+              <th className="text-center pb-1.5 font-medium text-[var(--text3)]">Flags</th>
             </tr>
           </thead>
           <tbody>
@@ -52,6 +53,9 @@ export function CheckinEngagementCard({ orgSource, stats }: Props) {
                 </td>
                 <td className="py-1.5 text-center text-[var(--text2)]">
                   {row.avgRating != null ? `${row.avgRating}/5` : '—'}
+                </td>
+                <td className="py-1.5 text-center" style={{ color: row.flagged > 0 ? '#C9A227' : 'var(--text3)' }}>
+                  {row.flagged > 0 ? row.flagged : '—'}
                 </td>
               </tr>
             ))}
