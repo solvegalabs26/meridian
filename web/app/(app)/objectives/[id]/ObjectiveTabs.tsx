@@ -184,9 +184,9 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       <li key={sig.id} className="flex gap-3">
                         <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: 'var(--blue-mid)' }} />
                         <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
+                          <p className="text-[13px] font-medium line-clamp-2" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
                           {sig.body && (
-                            <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
+                            <p className="text-[12px] leading-relaxed mt-0.5 line-clamp-3" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
                           )}
                           <p className="text-[10px] mt-1" style={{ color: 'var(--ov-text-dim)' }}>
                             {new Date(sig.created_at).toLocaleDateString()}
@@ -206,9 +206,9 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       <li key={sig.id} className="flex gap-3">
                         <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: 'var(--gold)' }} />
                         <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
+                          <p className="text-[13px] font-medium line-clamp-2" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
                           {sig.body && (
-                            <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
+                            <p className="text-[12px] leading-relaxed mt-0.5 line-clamp-3" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
                           )}
                           <p className="text-[10px] mt-1" style={{ color: 'var(--ov-text-dim)' }}>
                             {new Date(sig.created_at).toLocaleDateString()}
@@ -374,7 +374,10 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       {badge.label}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[12px]" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
+                      <p className="text-[12px] line-clamp-2" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
+                      {sig.body && (
+                        <p className="text-[11px] mt-0.5 line-clamp-3" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
+                      )}
                       <p className="text-[10px] mt-0.5" style={{ color: 'var(--ov-text-dim)' }}>
                         {new Date(sig.created_at).toLocaleDateString()}
                       </p>
@@ -538,8 +541,8 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                             <ul className="space-y-1">
                               {ep.cross_deps_detected!.map((d, i) => (
                                 <li key={i} className="text-[12px]" style={{ color: 'var(--ov-text-mid)' }}>
-                                  <span className="font-medium" style={{ color: 'var(--ov-text-hi)' }}>{d.title ?? d.obj_id}</span>
-                                  {d.relationship && <span> — {d.relationship}</span>}
+                                  <span className="font-medium line-clamp-2 block" style={{ color: 'var(--ov-text-hi)' }}>{d.title ?? d.obj_id}</span>
+                                  {d.relationship && <span className="line-clamp-2 block">{d.relationship}</span>}
                                 </li>
                               ))}
                             </ul>
