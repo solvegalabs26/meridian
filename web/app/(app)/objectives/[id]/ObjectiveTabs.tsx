@@ -63,12 +63,13 @@ const SOURCE_BADGES: Record<string, { label: string; color: string }> = {
 }
 
 const ACTION_CLASSES = [
-  { value: '', label: 'Select type (optional)' },
-  { value: 'listed', label: 'Listed / posted' },
-  { value: 'price_change', label: 'Price change' },
-  { value: 'inquiry', label: 'Inquiry' },
-  { value: 'offer', label: 'Offer' },
-  { value: 'showing', label: 'Showing' },
+  { value: '', label: 'Action type (optional)' },
+  { value: 'applied_submitted', label: 'Applied / Submitted' },
+  { value: 'contacted', label: 'Contacted / Reached out' },
+  { value: 'research', label: 'Research / Gathered info' },
+  { value: 'decision', label: 'Decision made' },
+  { value: 'task_completed', label: 'Task completed' },
+  { value: 'meeting_call', label: 'Meeting / Call' },
   { value: 'other', label: 'Other' },
 ]
 
@@ -182,7 +183,7 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                     {depSignals.map(sig => (
                       <li key={sig.id} className="flex gap-3">
                         <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: 'var(--blue-mid)' }} />
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
                           {sig.body && (
                             <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
@@ -204,7 +205,7 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                     {userActionSignals.map(sig => (
                       <li key={sig.id} className="flex gap-3">
                         <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: 'var(--gold)' }} />
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
                           {sig.body && (
                             <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
@@ -377,6 +378,21 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       <p className="text-[10px] mt-0.5" style={{ color: 'var(--ov-text-dim)' }}>
                         {new Date(sig.created_at).toLocaleDateString()}
                       </p>
+                      {sig.source && (
+                        sig.source.startsWith('http') ? (
+                          <a
+                            href={sig.source}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] mt-0.5 inline-block"
+                            style={{ color: 'var(--blue-mid)' }}
+                          >
+                            View source ↗
+                          </a>
+                        ) : (
+                          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ov-text-dim)' }}>{sig.source}</p>
+                        )
+                      )}
                     </div>
                   </li>
                 )
