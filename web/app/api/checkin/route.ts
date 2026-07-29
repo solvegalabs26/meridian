@@ -27,15 +27,15 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json() as {
-    sweep_id?: string | null
-    missed_signal?: string | null
-    found_signal_source?: string | null
-    found_signal_content?: string | null
-    found_signal_objective_id?: string | null
-    unlogged_action?: string | null
-    unlogged_action_objective_id?: string | null
+    reflection?: string | null
+    signal_content?: string | null
+    signal_objective?: string | null
     briefing_rating?: number | null
-    other_notes?: string | null
+    briefing_note?: string | null
+    confidence_flag?: string | null
+    confidence_note?: string | null
+    feature_tags?: string[] | null
+    feature_note?: string | null
   }
 
   // week_of = Monday of the current ISO week (UTC)
@@ -48,40 +48,38 @@ export async function POST(request: NextRequest) {
   const { error: reflectionError } = await supabase
     .from('user_reflections')
     .insert({
-      user_id:                       user.id,
-      week_of:                       weekOf,
-      sweep_id:                      body.sweep_id ?? null,
-      missed_signal:                 body.missed_signal?.trim() || null,
-      found_signal_source:           body.found_signal_source || null,
-      found_signal_content:          body.found_signal_content?.trim() || null,
-      found_signal_objective_id:     body.found_signal_objective_id || null,
-      unlogged_action:               body.unlogged_action?.trim() || null,
-      unlogged_action_objective_id:  body.unlogged_action_objective_id || null,
-      briefing_rating:               body.briefing_rating ?? null,
-      other_notes:                   body.other_notes?.trim() || null,
+      user_id:                user.id,
+      week_of:                weekOf,
+      reflection:             body.reflection?.trim() || null,
+      found_signal_content:   body.signal_content?.trim() || null,
+      signal_objective_label: body.signal_objective?.trim() || null,
+      briefing_rating:        body.briefing_rating ?? null,
+      other_notes:            body.briefing_note?.trim() || null,
+      confidence_flag:        body.confidence_flag || null,
+      confidence_note:        body.confidence_note?.trim() || null,
+      feature_tags:           body.feature_tags ?? null,
+      feature_note:           body.feature_note?.trim() || null,
     })
 
   if (reflectionError) {
     return NextResponse.json({ error: reflectionError.message }, { status: 500 })
   }
 
-  // Write signal row if found_signal_content is present
-  const foundContent = body.found_signal_content?.trim()
+  // Write signal row if signal_content is present
+  const foundContent = body.signal_content?.trim()
   if (foundContent) {
     const titlePreview = foundContent.length > 60
       ? foundContent.slice(0, 57) + '…'
       : foundContent
 
     await supabase.from('signals').insert({
-      user_id:       user.id,
-      title:         titlePreview,
-      body:          foundContent,
-      objective_ids: body.found_signal_objective_id ? [body.found_signal_objective_id] : [],
-      sweep_id:      body.sweep_id ?? null,
-      source_type:   'user_signal',
-      relevance:     'high',
-      signal_type:   'neutral',
-      is_read:       false,
+      user_id:     user.id,
+      title:       titlePreview,
+      body:        foundContent,
+      source_type: 'user_signal',
+      relevance:   'high',
+      signal_type: 'neutral',
+      is_read:     false,
     })
     // Non-fatal: reflection is already committed if this fails
   }
