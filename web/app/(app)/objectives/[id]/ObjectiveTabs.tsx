@@ -185,16 +185,8 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       <li key={sig.id} className="flex gap-3">
                         <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: 'var(--blue-mid)' }} />
                         <div className="min-w-0 flex-1">
-                          {sig.source_type === 'sweep' && sig.body ? (
-                            <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.body}</p>
-                          ) : (
-                            <>
-                              <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
-                              {sig.body && (
-                                <p className="text-[12px] leading-relaxed mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
-                              )}
-                            </>
-                          )}
+                          {/* body exists only when title was sliced at 120 chars — show full text */}
+                          <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>{sig.body ?? sig.title}</p>
                           <p className="text-[10px] mt-1" style={{ color: 'var(--ov-text-dim)' }}>
                             {new Date(sig.created_at).toLocaleDateString()}
                           </p>
@@ -381,16 +373,8 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       {badge.label}
                     </span>
                     <div className="flex-1 min-w-0">
-                      {sig.source_type === 'sweep' && sig.body ? (
-                        <p className="text-[12px]" style={{ color: 'var(--ov-text-hi)' }}>{sig.body}</p>
-                      ) : (
-                        <>
-                          <p className="text-[12px]" style={{ color: 'var(--ov-text-hi)' }}>{sig.title}</p>
-                          {sig.body && (
-                            <p className="text-[11px] mt-0.5" style={{ color: 'var(--ov-text-mid)' }}>{sig.body}</p>
-                          )}
-                        </>
-                      )}
+                      {/* body exists only when title was sliced at 120 chars — show full text */}
+                      <p className="text-[12px]" style={{ color: 'var(--ov-text-hi)' }}>{sig.body ?? sig.title}</p>
                       <p className="text-[10px] mt-0.5" style={{ color: 'var(--ov-text-dim)' }}>
                         {new Date(sig.created_at).toLocaleDateString()}
                       </p>
