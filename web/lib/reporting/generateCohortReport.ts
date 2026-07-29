@@ -9,6 +9,7 @@ import { fetchCrossDepFlags } from './sections/fetchCrossDepFlags'
 import { fetchEngagementSummary } from './sections/fetchEngagementSummary'
 import { fetchPredictionsActive } from './sections/fetchPredictionsActive'
 import { fetchTopSignals } from './sections/fetchTopSignals'
+import { fetchCheckinStats } from './sections/fetchCheckinStats'
 import { renderCohortPdf } from './renderPdf'
 
 export async function generateCohortReport(
@@ -55,6 +56,7 @@ export async function generateCohortReport(
     engagementSummary,
     predictionsActive,
     topSignals,
+    checkinStats,
   ] = await Promise.all([
     config.section_cohort_overview    ? fetchCohortOverview(service, userIds, periodStart)    : Promise.resolve(undefined),
     config.section_objective_tracking ? fetchObjectiveTracking(service, userIds)              : Promise.resolve(undefined),
@@ -64,6 +66,7 @@ export async function generateCohortReport(
     config.section_engagement_summary ? fetchEngagementSummary(service, userIds, periodStart): Promise.resolve(undefined),
     config.section_predictions_active ? fetchPredictionsActive(service, userIds)             : Promise.resolve(undefined),
     config.section_top_signals        ? fetchTopSignals(service, userIds, periodStart)       : Promise.resolve(undefined),
+    fetchCheckinStats(service, orgCode, periodStart, new Date()),
   ])
 
   const sections: CohortReportSections = {
@@ -75,6 +78,7 @@ export async function generateCohortReport(
     engagementSummary,
     predictionsActive,
     topSignals,
+    checkinStats,
   }
 
   // 5. Render PDF

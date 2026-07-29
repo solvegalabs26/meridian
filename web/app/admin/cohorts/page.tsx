@@ -1,5 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import CohortConfigClient from './CohortConfigClient'
+import { fetchCheckinStats } from '@/lib/reporting/sections/fetchCheckinStats'
+import type { CheckinStatsData } from '@/lib/reporting/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,10 +58,23 @@ export default async function AdminCohortsPage() {
     }
   }
 
+  // Check-in engagement stats per org — last 30 days
+  const checkinStatsByOrg: Record<string, CheckinStatsData> = {}
+  if (orgCodes.length > 0) {
+    const periodStart = new Date()
+    periodStart.setDate(periodStart.getDate() - 30)
+    await Promise.all(
+      orgCodes.map(async orgCode => {
+        checkinStatsByOrg[orgCode] = await fetchCheckinStats(service, orgCode, periodStart, new Date())
+      })
+    )
+  }
+
   return (
     <CohortConfigClient
       configs={(configs ?? []) as CohortConfig[]}
       enrolledCounts={enrolledCounts}
+      checkinStatsByOrg={checkinStatsByOrg}
     />
   )
 }
