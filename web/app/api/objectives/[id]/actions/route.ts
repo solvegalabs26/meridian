@@ -65,15 +65,15 @@ export async function POST(
   if (!objective) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // 1. Create a sweep record for the confidence_scores FK
+  const sweepStart = new Date()
   const { data: sweep } = await supabase
     .from('sweeps')
     .insert({
       user_id: user.id,
-      status: 'complete',
+      status: 'running',
       trigger_type: 'user_action',
       objectives_swept: [params.id],
-      started_at: new Date().toISOString(),
-      completed_at: new Date().toISOString(),
+      started_at: sweepStart.toISOString(),
     })
     .select('id')
     .single()
@@ -144,8 +144,16 @@ export async function POST(
     )
     newConfidence = result.newConfidence
     reasoning = result.reasoning
+
+    // Write back actual timing and signal count now that Haiku has returned
+    await supabase.from('sweeps').update({
+      status: 'complete',
+      signal_count: 1,
+      completed_at: new Date().toISOString(),
+    }).eq('id', sweep.id)
   } catch (err) {
     console.error('[actions POST] recompute failed:', err)
+    await supabase.from('sweeps').update({ status: 'failed' }).eq('id', sweep.id)
     // Non-fatal — the action is already logged
   }
 

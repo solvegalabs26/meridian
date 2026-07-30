@@ -7,11 +7,12 @@ import { timeAgo } from '@/lib/utils/timeAgo'
 
 interface SweepStatusStripProps {
   lastSweepAt: string | null
+  lastSweepFailed?: boolean
 }
 
 const SCANNING_MESSAGES = ['Finding signals…', 'Synthesizing…', 'Calculating scores…']
 
-export default function SweepStatusStrip({ lastSweepAt }: SweepStatusStripProps) {
+export default function SweepStatusStrip({ lastSweepAt, lastSweepFailed }: SweepStatusStripProps) {
   const router = useRouter()
   const [running, setRunning] = useState(false)
   const [msgIdx, setMsgIdx] = useState(0)
@@ -51,15 +52,17 @@ export default function SweepStatusStrip({ lastSweepAt }: SweepStatusStripProps)
       className="rounded-xl px-4 py-3 flex items-center justify-between gap-3"
       style={{ backgroundColor: 'rgba(46,124,184,0.08)', border: '1px solid rgba(46,124,184,0.18)' }}
     >
-      <span className="text-[12px] flex items-center gap-2" style={{ color: sweepError ? 'var(--ov-red, #e05252)' : 'var(--ov-text-mid)' }}>
+      <span className="text-[12px] flex items-center gap-2" style={{ color: sweepError || lastSweepFailed ? 'var(--ov-amber, #c97d20)' : 'var(--ov-text-mid)' }}>
         {running && <MeridianBeacon size={16} variant="gold" animate={true} />}
         {running
           ? SCANNING_MESSAGES[msgIdx]
           : sweepError
             ? `Scan failed — ${sweepError}`
-            : lastSweepAt
-              ? `Last update ${timeAgo(lastSweepAt)}`
-              : 'No scan yet'}
+            : lastSweepFailed
+              ? 'Last sweep failed — tap to retry'
+              : lastSweepAt
+                ? `Last update ${timeAgo(lastSweepAt)}`
+                : 'No scan yet'}
       </span>
       <button
         onClick={handleGetUpdate}
@@ -67,7 +70,7 @@ export default function SweepStatusStrip({ lastSweepAt }: SweepStatusStripProps)
         className="text-[12px] font-medium px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
         style={{ backgroundColor: sweepError ? 'var(--ov-red, #c04040)' : 'var(--blue)', color: '#fff' }}
       >
-        {running ? 'Scanning…' : sweepError ? 'Retry' : 'Get my update'}
+        {running ? 'Scanning…' : sweepError || lastSweepFailed ? 'Retry' : 'Get my update'}
       </button>
     </div>
   )
