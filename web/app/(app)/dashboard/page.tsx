@@ -19,16 +19,20 @@ export default async function DashboardPage() {
   const now = new Date()
   const calWindowEnd = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000)
 
-  const [{ data: profile }, { data: objectives }, { data: lastSweep }, { data: unreadSignals }, { data: upcomingEvents }, { data: episodeData }] = await Promise.all([
+  const [{ data: profile }, { data: objectives }, { data: lastSweep }, { data: unreadSignals }, { data: upcomingEvents }, { data: episodeData }, { data: latestSweepMeta }] = await Promise.all([
     supabase.from('profiles').select('full_name, sweep_count, tier, account_type').eq('id', user!.id).single(),
     supabase.from('objectives').select('id, obj_id, title, confidence, confidence_prev, target_date, updated_at, status').eq('user_id', user!.id).eq('status', 'active').order('sort_order'),
     supabase.from('sweeps').select('*').eq('user_id', user!.id).eq('status', 'complete').not('raw_response', 'is', null).order('completed_at', { ascending: false }).limit(1).single(),
     supabase.from('signals').select('objective_ids').eq('user_id', user!.id).eq('is_read', false),
     supabase.from('calendar_events').select('id, starts_at, summary, objective_ids').eq('user_id', user!.id).gte('starts_at', now.toISOString()).lte('starts_at', calWindowEnd.toISOString()).order('starts_at').limit(5),
     supabase.from('objective_episodes').select('objective_id, episode_number, confidence_end, created_at, narrative').eq('user_id', user!.id).order('episode_number', { ascending: true }),
+    supabase.from('sweeps').select('status, raw_response').eq('user_id', user!.id).neq('trigger_type', 'user_action').order('completed_at', { ascending: false }).limit(1).single(),
   ])
 
   const hasSweep = !!lastSweep
+  const lastSweepFailed = !!latestSweepMeta && (
+    latestSweepMeta.status === 'failed' || latestSweepMeta.raw_response === null
+  )
   const sweepData = lastSweep?.raw_response as {
     sweep_summary?: string
     top_priority_action?: string
@@ -107,7 +111,7 @@ export default async function DashboardPage() {
   return (
     <div className="-m-6 p-6 min-h-[calc(100vh-3.5rem)]" style={{ backgroundColor: 'var(--navy)' }}>
     <div className="max-w-2xl space-y-4">
-      <SweepStatusStrip lastSweepAt={lastSweep?.completed_at ?? null} />
+      <SweepStatusStrip lastSweepAt={lastSweep?.completed_at ?? null} lastSweepFailed={lastSweepFailed} />
 
       <HeadlineCard objectives={objectiveList} hasSweep={hasSweep} userName={profile?.full_name} />
 

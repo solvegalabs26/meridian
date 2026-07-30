@@ -53,8 +53,8 @@ export default function CrossDepBanner({ crossDeps }: CrossDepBannerProps) {
         >
           <span className="text-[14px] flex-shrink-0 leading-none mt-0.5">🔗</span>
           <p className="text-[13px] leading-relaxed pr-5" style={{ color: 'var(--ov-text-mid)' }}>
-            Your <strong style={{ color: 'var(--ov-text-hi)' }}>{dep.fromObjective}</strong> is affecting{' '}
-            <strong style={{ color: 'var(--ov-text-hi)' }}>{dep.toObjective}</strong>. {dep.description}
+            Your <strong style={{ color: 'var(--ov-text-hi)' }}>{dep.fromObjective.length > 60 ? dep.fromObjective.slice(0, 60) + '…' : dep.fromObjective}</strong> is affecting{' '}
+            <strong style={{ color: 'var(--ov-text-hi)' }}>{dep.toObjective.length > 60 ? dep.toObjective.slice(0, 60) + '…' : dep.toObjective}</strong>. {dep.description}
           </p>
           <button
             onClick={() => dismiss(dep.id)}

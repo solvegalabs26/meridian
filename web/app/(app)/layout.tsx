@@ -21,12 +21,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .single()
   if (!profile?.onboarded_at) redirect('/onboarding/sweep')
 
-  // Last sweep time for display in TopBar
+  // Last sweep time for display in TopBar — exclude user_action recomputes
+  // (status=complete but raw_response=null) so they don't show as "Just now"
   const { data: lastSweep } = await supabase
     .from('sweeps')
     .select('completed_at')
     .eq('user_id', user.id)
     .eq('status', 'complete')
+    .not('raw_response', 'is', null)
+    .neq('trigger_type', 'user_action')
     .order('completed_at', { ascending: false })
     .limit(1)
     .single()
