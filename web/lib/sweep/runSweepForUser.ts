@@ -224,6 +224,29 @@ export async function runSweepForUser(
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — ask context fetched (${Object.keys(askContextMap).length} objectives with recent questions)`)
 
+    // 4e. Fetch most recent objective_changes entry per objective (FF-032).
+    // Injected into the sweep prompt as a single-line signal that the objective
+    // definition was recently updated — engine doesn't receive old/new values.
+    const { data: recentChangesRaw } = await supabase
+      .from('objective_changes')
+      .select('objective_id, changed_field, changed_at')
+      .eq('user_id', userId)
+      .in('objective_id', objectives.map(o => o.id))
+      .order('changed_at', { ascending: false })
+      .limit(objectives.length * 5)
+
+    const latestChangeByObjId = new Map<string, { changed_field: string; changed_at: string }>()
+    for (const change of recentChangesRaw ?? []) {
+      if (!latestChangeByObjId.has(change.objective_id)) {
+        latestChangeByObjId.set(change.objective_id, {
+          changed_field: change.changed_field,
+          changed_at: change.changed_at,
+        })
+      }
+    }
+
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — objective changes fetched (${latestChangeByObjId.size} with recent changes)`)
+
     // 5. Fetch NewsAPI signals for each objective — in parallel to avoid
     // sequential latency that scales linearly with objective count.
     const newsSignalsMap: Record<string, Awaited<ReturnType<typeof fetchNewsSignals>>> = {}
@@ -273,7 +296,7 @@ export async function runSweepForUser(
       const episodeHistory = episodeHistoryByObjId.get(obj.id) ?? []
       const signalAbsenceCount = episodeHistory.filter(ep => ep.signal_count === 0).length
 
-      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined, askContext: askContext || undefined, episodeHistory, signalAbsenceCount }
+      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined, askContext: askContext || undefined, episodeHistory, signalAbsenceCount, recentChange: latestChangeByObjId.get(obj.id) ?? null }
     })
 
     // Inject upcoming calendar events for Explorer+ users who have a synced connection.
