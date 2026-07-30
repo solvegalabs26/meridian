@@ -3,7 +3,7 @@ import { getAnthropicClient } from '@/lib/anthropic/client'
 import { STATIC_SWEEP_SYSTEM_PROMPT, buildDynamicSystemContext } from '@/lib/anthropic/prompts/system'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import { buildObjectiveState } from '@/lib/anthropic/prompts/objective'
-import { parseAnthropicResponse } from '@/lib/anthropic/prompts/output'
+import { parseAnthropicResponse, type ObjectiveResult, type CrossDependency } from '@/lib/anthropic/prompts/output'
 import { fetchNewsSignals } from '@/lib/signals/newsapi'
 import { fetchComps, CompsResult } from '@/lib/sweep/fetchComps'
 import { getRecentAskContext } from '@/lib/sweep/getRecentAskContext'
@@ -329,27 +329,12 @@ export async function runSweepForUser(
       }
     }
 
-    const objectiveState = buildObjectiveState(objectiveInputs)
-    // Dynamic sweep params are kept in a separate block so they don't bust
-    // the cache on the objective state block above.
     const dynamicParams = {
       manual_signals: options.manualSignals ?? '',
       calendar_context: calendarContext || undefined,
       sweep_instructions: 'Focus on cross-dependencies. Flag any signal that changes urgency on open actions. If calendar events are provided, factor upcoming events into recommendations — identify which objectives have relevant events approaching and surface time-sensitive actions.',
     }
 
-    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — prompt built, calling Anthropic (model=claude-sonnet-4-6 max_tokens=16000)`)
-
-    // 7. Call Anthropic API
-    // System prompt is split into a cacheable static block (rules, output format,
-    // signal classes — identical across all users and sweeps) and a small dynamic
-    // block (name, tone, depth, date). The static block is ~900 tokens and hits
-    // the Anthropic prompt cache after the first call, cutting input token cost
-    // by ~90% on subsequent calls within the 5-minute TTL window.
-    //
-    // The user message is also split: objective state (near-static per session)
-    // is cached as the first content block; manual_signals and calendar_context
-    // (dynamic per sweep) are in the second uncached block.
     const dynamicContext = buildDynamicSystemContext({
       userName: profile?.full_name ?? 'User',
       tone: (profile?.tone_pref as 'direct' | 'balanced' | 'encouraging') ?? 'balanced',
@@ -357,46 +342,111 @@ export async function runSweepForUser(
       currentDate,
     })
 
-    const message = await getAnthropicClient().messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 16000,
-      system: [
-        { type: 'text', text: STATIC_SWEEP_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: dynamicContext },
-      ] satisfies TextBlockParam[],
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'text', text: JSON.stringify(objectiveState), cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: JSON.stringify(dynamicParams) },
-        ] satisfies TextBlockParam[],
-      }],
-    })
+    // 7. Process objectives in parallel batches to stay within the 600s Vercel
+    // ceiling. At ~25-40s per objective, the previous single-call approach fails
+    // at 7+ objectives. BATCH_SIZE=3 runs 3 objectives concurrently → ~30s per
+    // batch, ~150s for 15 objectives (Command tier max), leaving 450s headroom.
+    // System prompt and per-objective state are still cached with cache_control
+    // ephemeral so the cache hit rate is preserved across the batch.
+    const BATCH_SIZE = 3
+    let tokensUsed = 0
+    let costUsd = 0
+    const parsedResultMap = new Map<string, ObjectiveResult>()
+    const perObjectiveSummaries: string[] = []
+    const perObjectiveTopActions: string[] = []
+    const failedInBatch = new Set<string>()
 
-    const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
-    const usage = message.usage as typeof message.usage & { cache_creation_input_tokens?: number; cache_read_input_tokens?: number }
-    const cacheCreation = usage.cache_creation_input_tokens ?? 0
-    const cacheRead = usage.cache_read_input_tokens ?? 0
-    const tokensUsed = message.usage.input_tokens + cacheCreation + cacheRead + message.usage.output_tokens
-    // Cache writes are billed at $3.75/MTok, cache reads at $0.30/MTok, regular input at $3/MTok.
-    const costUsd =
-      (message.usage.input_tokens * 0.000003) +
-      (cacheCreation * 0.000003750) +
-      (cacheRead * 0.0000003) +
-      (message.usage.output_tokens * 0.000015)
-    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — Anthropic responded (in=${message.usage.input_tokens} out=${message.usage.output_tokens} tokens)`)
-    console.log(`[sweep:cache] ${sweep.id} cache_creation=${cacheCreation} cache_read=${cacheRead}`)
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — starting batched Claude calls (${objectiveInputs.length} objectives, BATCH_SIZE=${BATCH_SIZE})`)
 
-    // 8. Parse Anthropic response
-    const parsed = parseAnthropicResponse(responseText)
+    for (let batchStart = 0; batchStart < objectiveInputs.length; batchStart += BATCH_SIZE) {
+      const batchInputs = objectiveInputs.slice(batchStart, batchStart + BATCH_SIZE)
+      const batchNum = Math.floor(batchStart / BATCH_SIZE) + 1
+      const totalBatches = Math.ceil(objectiveInputs.length / BATCH_SIZE)
+
+      const batchSettled = await Promise.allSettled(
+        batchInputs.map(async (input) => {
+          const singleState = buildObjectiveState([input])
+          const msg = await getAnthropicClient().messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 4096,
+            system: [
+              { type: 'text', text: STATIC_SWEEP_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+              { type: 'text', text: dynamicContext },
+            ] satisfies TextBlockParam[],
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'text', text: JSON.stringify(singleState), cache_control: { type: 'ephemeral' } },
+                { type: 'text', text: JSON.stringify(dynamicParams) },
+              ] satisfies TextBlockParam[],
+            }],
+          })
+          const responseText = msg.content[0].type === 'text' ? msg.content[0].text : ''
+          const usage = msg.usage as typeof msg.usage & { cache_creation_input_tokens?: number; cache_read_input_tokens?: number }
+          const cacheCreation = usage.cache_creation_input_tokens ?? 0
+          const cacheRead = usage.cache_read_input_tokens ?? 0
+          const objTokens = msg.usage.input_tokens + cacheCreation + cacheRead + msg.usage.output_tokens
+          const objCost =
+            (msg.usage.input_tokens * 0.000003) +
+            (cacheCreation * 0.000003750) +
+            (cacheRead * 0.0000003) +
+            (msg.usage.output_tokens * 0.000015)
+          const parsed = parseAnthropicResponse(responseText)
+          return { objectiveId: input.objective.id, parsed, objTokens, objCost, cacheCreation, cacheRead }
+        })
+      )
+
+      for (let j = 0; j < batchSettled.length; j++) {
+        const settlement = batchSettled[j]
+        const obj = batchInputs[j].objective
+
+        if (settlement.status === 'fulfilled') {
+          const { parsed, objTokens, objCost, cacheCreation, cacheRead } = settlement.value
+          tokensUsed += objTokens
+          costUsd += objCost
+          console.log(`[sweep:cache] ${sweep.id} obj=${obj.obj_id} cache_creation=${cacheCreation} cache_read=${cacheRead}`)
+          if (parsed.objectives[0]) {
+            parsedResultMap.set(obj.id, parsed.objectives[0])
+          }
+          if (parsed.sweep_summary) perObjectiveSummaries.push(parsed.sweep_summary)
+          if (parsed.top_priority_action) perObjectiveTopActions.push(parsed.top_priority_action)
+        } else {
+          console.error(`[sweep] batch obj ${obj.id} (${obj.obj_id}) failed:`, settlement.reason)
+          failedInBatch.add(obj.id)
+        }
+      }
+
+      console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — batch ${batchNum}/${totalBatches} complete`)
+    }
+
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — all batches complete: ${parsedResultMap.size}/${objectives.length} succeeded tokens=${tokensUsed} cost=$${costUsd.toFixed(4)}`)
+
+    // Derive cross-dependencies from per-objective inference_block flags.
+    // Per-objective calls can't see other objectives, so structured top-level
+    // cross_objective_dependencies output is not available. Use each objective's
+    // inference_block.cross_objective_flags as the source instead.
+    const aggregatedCrossDeps: CrossDependency[] = []
+    for (const [objId, result] of Array.from(parsedResultMap.entries())) {
+      const fromObj = objectives.find(o => o.id === objId)
+      if (!fromObj) continue
+      for (const flag of result.inference_block?.cross_objective_flags ?? []) {
+        const toObj = objectives.find(o => o.obj_id === flag.related_objective)
+        if (toObj && toObj.id !== objId) {
+          aggregatedCrossDeps.push({
+            from_obj: fromObj.obj_id,
+            to_obj: flag.related_objective,
+            description: flag.description,
+            urgency: 'medium',
+          })
+        }
+      }
+    }
 
     // 9. Write signals to Supabase
     //
-    // IMPORTANT: parsed.objectives[i] is matched to objectives[i] by POSITION,
-    // not by obj_id string. The LLM generates label variants ("OBJ-02-RV",
-    // "OBJ-02a", etc.) that never reliably match the DB obj_id column. The
-    // objectives array was passed into the sweep in a fixed order — zip back
-    // on that same order.
+    // Per-objective results are keyed by the objective's DB UUID (obj.id) in
+    // parsedResultMap. Each Claude call returns exactly one objective in
+    // parsed.objectives[0], stored under the matching UUID.
     type SignalInsert = {
       user_id: string
       objective_ids: string[]
@@ -469,8 +519,7 @@ export async function runSweepForUser(
         }
 
         // --- Risks and opportunities from the parsed sweep response ---
-        // Positional join: parsed.objectives[i] corresponds to objectives[i].
-        const parsedObj = parsed.objectives[i]
+        const parsedObj = parsedResultMap.get(obj.id)
         if (parsedObj) {
           for (const risk of parsedObj.risks) {
             signalInserts.push({
@@ -530,15 +579,11 @@ export async function runSweepForUser(
       }
     }
 
-    // --- Top-level cross-dependency signals (structured, bidirectional) ---
-    // A single signal row with both UUIDs in objective_ids surfaces under
-    // "What's affecting it" on both objectives without duplication.
-    for (const dep of parsed.cross_objective_dependencies) {
-      // Resolve by DB obj_id (e.g. "OBJ-02") — these are stable, Solvega-assigned
-      // codes that the system prompt tells Claude to echo exactly. Fall back to
-      // positional index if the string match misses (label drift safety net).
+    // --- Top-level cross-dependency signals (derived from inference_block flags) ---
+    // Per-objective calls can't produce structured cross-deps (they can't see
+    // other objectives), so these are derived from aggregatedCrossDeps above.
+    for (const dep of aggregatedCrossDeps) {
       const fromObj = objectives.find(o => o.obj_id === dep.from_obj)
-        ?? objectives[parsed.cross_objective_dependencies.indexOf(dep) % objectives.length]
       const toObj = objectives.find(o => o.obj_id === dep.to_obj)
 
       if (fromObj && toObj && fromObj.id !== toObj.id) {
@@ -550,7 +595,7 @@ export async function runSweepForUser(
           body: dep.description,
           source: null,
           source_type: 'dependency',
-          relevance: dep.urgency === 'high' ? 'high' : dep.urgency === 'low' ? 'low' : 'medium',
+          relevance: 'medium',
           signal_type: 'cross_dep',
           signal_class: 'dependency',
           is_cross_dep: true,
@@ -565,8 +610,8 @@ export async function runSweepForUser(
     }
 
     // 10. Write confidence scores and update objectives
-    // Positional join: parsed.objectives[i] → objectives[i].
-    // Never use obj_id string match — LLM label variants break it for obj 2+.
+    // Results are looked up by objective UUID from parsedResultMap.
+    // Objectives that failed in the batch have no entry and are skipped.
     //
     // BUG-2 fix — confidence delta block: count grounded (market + news) signals
     // written for each objective in this sweep. If zero, hold confidence at its
@@ -584,10 +629,12 @@ export async function runSweepForUser(
     const deltaCandidates: ObjectiveWithConfidenceDelta[] = []
     for (let i = 0; i < objectives.length; i++) {
       const obj = objectives[i]
-      const result = parsed.objectives[i]
+      const result = parsedResultMap.get(obj.id)
 
       if (!result) {
-        console.error(`[sweep] no parsed result at index ${i} for objective ${obj.id} (${obj.obj_id})`)
+        if (!failedInBatch.has(obj.id)) {
+          console.error(`[sweep] no parsed result for objective ${obj.id} (${obj.obj_id})`)
+        }
         continue
       }
 
@@ -636,7 +683,7 @@ export async function runSweepForUser(
             body_excerpt: s.body?.slice(0, 300) ?? null,
           }))
 
-          const crossDeps = parsed.cross_objective_dependencies
+          const crossDeps = aggregatedCrossDeps
             .filter(dep => dep.from_obj === obj.obj_id || dep.to_obj === obj.obj_id)
             .map(dep => {
               const relatedId = dep.from_obj === obj.obj_id ? dep.to_obj : dep.from_obj
@@ -717,23 +764,39 @@ export async function runSweepForUser(
     // FF-021: Auto-log predictions for objectives with confidence delta >= threshold.
     // Wrapped in try/catch — prediction logging failure must NOT break the sweep.
     try {
-      await autoLogPredictions(supabase, sweep.id, userId, deltaCandidates, parsed.sweep_summary ?? '')
+      await autoLogPredictions(supabase, sweep.id, userId, deltaCandidates, perObjectiveSummaries[0] ?? '')
     } catch (err) {
       console.error('[FF-021] autoLogPredictions threw unexpectedly', err)
     }
 
-    // 11. Update sweep record as complete
+    // 11. Update sweep record
+    // status: 'complete' if at least one objective succeeded (even if some
+    // failed), 'failed' only if all objectives failed. error_message notes
+    // any partial failures so they're visible in the admin view.
+    const aggregatedSummary = perObjectiveSummaries.join('\n\n') || null
+    const aggregatedRawResponse = {
+      sweep_summary: aggregatedSummary,
+      objectives: objectives.map(o => parsedResultMap.get(o.id)).filter(Boolean),
+      cross_objective_dependencies: aggregatedCrossDeps,
+      top_priority_action: perObjectiveTopActions[0] ?? null,
+    }
+    const sweepStatus = parsedResultMap.size > 0 ? 'complete' : 'failed'
+    const sweepErrorMsg = failedInBatch.size > 0
+      ? `Partial: ${failedInBatch.size} of ${objectives.length} objective(s) failed in batch`
+      : null
+
     await supabase.from('sweeps').update({
-      status: 'complete',
+      status: sweepStatus,
       signal_count: signalInserts.length,
-      summary: parsed.sweep_summary,
-      raw_response: parsed,
+      summary: aggregatedSummary,
+      raw_response: aggregatedRawResponse,
       tokens_used: tokensUsed,
       cost_usd: costUsd,
       completed_at: new Date().toISOString(),
-      inference_block: parsed.objectives
-        .filter(o => o.inference_block)
-        .map(o => ({ obj_id: o.obj_id, ...o.inference_block })),
+      error_message: sweepErrorMsg,
+      inference_block: Array.from(parsedResultMap.entries())
+        .filter(([, r]) => r.inference_block)
+        .map(([, r]) => ({ obj_id: r.obj_id, ...r.inference_block })),
     }).eq('id', sweep.id)
 
     // Increment user sweep count
@@ -743,21 +806,21 @@ export async function runSweepForUser(
         : 1,
     }).eq('id', userId)
 
-    console.log(`[sweep:done] ${sweep.id} ${elapsed()} — complete signals=${signalInserts.length} tokens=${tokensUsed} cost=$${costUsd.toFixed(4)}`)
+    console.log(`[sweep:done] ${sweep.id} ${elapsed()} — ${sweepStatus} signals=${signalInserts.length} tokens=${tokensUsed} cost=$${costUsd.toFixed(4)}${sweepErrorMsg ? ` [${sweepErrorMsg}]` : ''}`)
 
     return {
-      success: true,
+      success: parsedResultMap.size > 0,
       sweepId: sweep.id,
       userId,
       userEmail,
       signalCount: signalInserts.length,
       objectives: objResults,
-      summary: parsed.sweep_summary,
-      topPriorityAction: parsed.top_priority_action,
-      crossDependencies: parsed.cross_objective_dependencies,
+      summary: aggregatedSummary,
+      topPriorityAction: perObjectiveTopActions[0] ?? null,
+      crossDependencies: aggregatedCrossDeps,
       tokensUsed,
       costUsd,
-      error: null,
+      error: sweepErrorMsg,
     }
 
   } catch (err) {
