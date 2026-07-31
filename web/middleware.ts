@@ -38,6 +38,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/legal') ||
+    pathname.startsWith('/faq') ||
+    pathname.startsWith('/api/support/contact') ||
     pathname.startsWith('/_next') ||
     pathname === '/favicon.ico'
 
