@@ -9,6 +9,7 @@ const NAV = [
   { label: 'Sweeps', href: '/admin/sweeps' },
   { label: 'Cohorts', href: '/admin/cohorts' },
   { label: 'Support', href: '/admin/support' },
+  { label: 'Enterprise', href: '/admin/enterprise/ingest' },
 ]
 
 export default function AdminNav() {
