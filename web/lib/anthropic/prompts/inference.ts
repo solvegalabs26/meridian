@@ -57,8 +57,8 @@ export function buildInferenceInput(
   recentChange?: { changed_field: string; changed_at: string } | null
 ): string {
   const notesTrunc = objective.notes
-    ? objective.notes.length > 300
-      ? objective.notes.slice(0, 300) + ' [notes truncated]'
+    ? objective.notes.length > 500
+      ? objective.notes.slice(0, 500) + ' [notes truncated]'
       : objective.notes
     : null
 
