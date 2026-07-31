@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
       // Query macro events per unique origination_date using ±90-day window.
       // 90-day window is required (not 30) to correctly capture macro events
       // like the CPI June 2021 release and Great Resignation for Aug 2021 origins.
-      const uniqueDates = [...new Set(newCases.map(c => c.origination_date))]
+      const uniqueDates = Array.from(new Set(newCases.map(c => c.origination_date)))
       const macroByDate = new Map<string, string[]>()
 
       await Promise.all(

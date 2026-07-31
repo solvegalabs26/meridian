@@ -26,9 +26,9 @@ export async function getCaseTimeline(
   if (error || !rows || rows.length === 0) return []
 
   // Collect all unique macro event ids across all rows
-  const allEventIds = [
-    ...new Set(rows.flatMap((r: { macro_event_ids?: string[] }) => r.macro_event_ids ?? [])),
-  ]
+  const allEventIds = Array.from(
+    new Set(rows.flatMap((r: { macro_event_ids?: string[] }) => r.macro_event_ids ?? []))
+  )
 
   // Single IN query for all needed events
   const eventMap = new Map<string, MacroEventSummary>()
