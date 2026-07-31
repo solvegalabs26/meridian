@@ -26,6 +26,24 @@ const SOURCE_OPTIONS = [
   { value: 'other',             label: 'Other' },
 ]
 
+const CONFIDENCE_OPTIONS = [
+  { value: 'none',     label: 'Scores look right to me',  sub: 'No disagreement this week' },
+  { value: 'too-high', label: 'A score feels too high',   sub: 'The system is more optimistic than I am' },
+  { value: 'too-low',  label: 'A score feels too low',    sub: 'The system is more pessimistic than I am' },
+  { value: 'multiple', label: 'Multiple scores feel off', sub: "I'll note details below" },
+]
+
+const FEATURE_CHIPS = [
+  { value: 'signal-quality',      label: 'Signal quality' },
+  { value: 'action-relevance',    label: 'Action relevance' },
+  { value: 'confidence-accuracy', label: 'Confidence accuracy' },
+  { value: 'inference-tab',       label: 'What this implies tab' },
+  { value: 'ask-meridian',        label: 'Ask Meridian' },
+  { value: 'ui-navigation',       label: 'UI / navigation' },
+  { value: 'missing-feature',     label: 'Missing feature' },
+  { value: 'notifications',       label: 'Notifications' },
+]
+
 interface Objective {
   id: string
   obj_id: string
@@ -43,9 +61,9 @@ interface WeeklyCheckinModalProps {
 const STEPS = [
   'Missed signals',
   'Your own finds',
-  'Unlogged actions',
   'Briefing rating',
-  'Open feedback',
+  'Confidence Review',
+  'Feature Feedback',
 ]
 
 export default function WeeklyCheckinModal({
@@ -65,12 +83,14 @@ export default function WeeklyCheckinModal({
   const [foundContent, setFoundContent] = useState('')
   const [foundObjectiveId, setFoundObjectiveId] = useState(preselectedObjectiveId ?? '')
   // Field 3
-  const [unloggedAction, setUnloggedAction] = useState('')
-  const [unloggedObjectiveId, setUnloggedObjectiveId] = useState(preselectedObjectiveId ?? '')
-  // Field 4
   const [briefingRating, setBriefingRating] = useState<number>(0)
-  // Field 5
   const [otherNotes, setOtherNotes] = useState('')
+  // Field 4
+  const [confidenceFlag, setConfidenceFlag] = useState<string | null>(null)
+  const [confidenceNote, setConfidenceNote] = useState('')
+  // Field 5
+  const [featureTags, setFeatureTags] = useState<string[]>([])
+  const [featureNote, setFeatureNote] = useState('')
 
   if (!open) return null
 
@@ -94,6 +114,10 @@ export default function WeeklyCheckinModal({
         signal_objective: foundObjLabel,
         briefing_rating:  briefingRating > 0 ? briefingRating : null,
         briefing_note:    otherNotes.trim() || null,
+        confidence_flag:  confidenceFlag || null,
+        confidence_note:  confidenceNote.trim() || null,
+        feature_tags:     featureTags,
+        feature_note:     featureNote.trim() || null,
       }),
     })
 
@@ -114,6 +138,12 @@ export default function WeeklyCheckinModal({
     } else {
       setStep(s => s + 1)
     }
+  }
+
+  function eyebrow(): string {
+    if (step === 3) return `Confidence Review · Field 4 of ${STEPS.length}`
+    if (step === 4) return `Feedback · Field 5 of ${STEPS.length}`
+    return `Weekly check-in · ${step + 1} of ${STEPS.length}`
   }
 
   return (
@@ -149,7 +179,7 @@ export default function WeeklyCheckinModal({
         <div style={{ background: `linear-gradient(135deg, ${P.navy}, ${P.navy2})`, padding: '18px 20px 16px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: P.gold, letterSpacing: '1.2px', textTransform: 'uppercase' }}>
-              Weekly check-in · {step + 1} of {STEPS.length}
+              {eyebrow()}
             </span>
             <button
               onClick={onClose}
@@ -195,10 +225,12 @@ export default function WeeklyCheckinModal({
             foundSource, setFoundSource,
             foundContent, setFoundContent,
             foundObjectiveId, setFoundObjectiveId,
-            unloggedAction, setUnloggedAction,
-            unloggedObjectiveId, setUnloggedObjectiveId,
             briefingRating, setBriefingRating,
             otherNotes, setOtherNotes,
+            confidenceFlag, setConfidenceFlag,
+            confidenceNote, setConfidenceNote,
+            featureTags, setFeatureTags,
+            featureNote, setFeatureNote,
           })}
         </div>
 
@@ -242,9 +274,9 @@ function stepTitle(step: number): string {
   switch (step) {
     case 0: return 'Anything the sweep missed this week?'
     case 1: return 'Did you find anything relevant on your own?'
-    case 2: return 'Any actions you took that aren\'t logged yet?'
-    case 3: return 'How useful was this week\'s briefing?'
-    case 4: return 'Anything else we should know?'
+    case 2: return 'How useful was this week\'s briefing?'
+    case 3: return 'Does any confidence score feel off to you?'
+    case 4: return 'Anything Meridian should do better?'
     default: return ''
   }
 }
@@ -255,10 +287,12 @@ interface StepProps {
   foundSource: string; setFoundSource: (v: string) => void
   foundContent: string; setFoundContent: (v: string) => void
   foundObjectiveId: string; setFoundObjectiveId: (v: string) => void
-  unloggedAction: string; setUnloggedAction: (v: string) => void
-  unloggedObjectiveId: string; setUnloggedObjectiveId: (v: string) => void
   briefingRating: number; setBriefingRating: (v: number) => void
   otherNotes: string; setOtherNotes: (v: string) => void
+  confidenceFlag: string | null; setConfidenceFlag: (v: string | null) => void
+  confidenceNote: string; setConfidenceNote: (v: string) => void
+  featureTags: string[]; setFeatureTags: (v: string[]) => void
+  featureNote: string; setFeatureNote: (v: string) => void
 }
 
 const fieldLabel: React.CSSProperties = {
@@ -388,36 +422,6 @@ function renderStep(step: number, props: StepProps): React.ReactNode {
     case 2:
       return (
         <div style={{ paddingBottom: 20 }}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={fieldLabel}>What did you do?</label>
-            <input
-              type="text"
-              value={props.unloggedAction}
-              onChange={e => props.setUnloggedAction(e.target.value)}
-              placeholder="e.g. Called recruiter at Boeing, submitted application to Lockheed..."
-              style={inputStyle}
-              autoFocus
-            />
-          </div>
-
-          <div>
-            <label style={fieldLabel}>Related goal</label>
-            <ObjectiveSelect
-              value={props.unloggedObjectiveId}
-              onChange={props.setUnloggedObjectiveId}
-              objectives={objectives}
-            />
-          </div>
-
-          <p style={hintStyle}>
-            These notes feed back into your next sweep so Meridian knows what momentum you&apos;ve built.
-          </p>
-        </div>
-      )
-
-    case 3:
-      return (
-        <div style={{ paddingBottom: 20 }}>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', padding: '24px 0 20px' }}>
             {[1, 2, 3, 4, 5].map(n => (
               <button
@@ -442,8 +446,70 @@ function renderStep(step: number, props: StepProps): React.ReactNode {
             </p>
           )}
 
-          <p style={{ ...hintStyle, textAlign: 'center', marginTop: 24 }}>
+          <div style={{ marginTop: 24 }}>
+            <label style={fieldLabel}>Notes (optional)</label>
+            <textarea
+              value={props.otherNotes}
+              onChange={e => props.setOtherNotes(e.target.value)}
+              placeholder="Open feedback, feature ideas, anything on your mind..."
+              style={{ ...textareaStyle, minHeight: 72 }}
+              rows={3}
+            />
+          </div>
+
+          <p style={{ ...hintStyle, textAlign: 'center', marginTop: 16 }}>
             Your ratings help us tune the depth and focus of future briefings.
+          </p>
+        </div>
+      )
+
+    case 3:
+      return (
+        <div style={{ paddingBottom: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+            {CONFIDENCE_OPTIONS.map(opt => {
+              const selected = props.confidenceFlag === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => props.setConfidenceFlag(selected ? null : opt.value)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    border: `1.5px solid ${selected ? P.gold : P.line}`,
+                    backgroundColor: selected ? '#FBF5E6' : P.white,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'border-color .15s, background-color .15s',
+                  }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 600, color: selected ? P.navy : P.body }}>
+                    {opt.label}
+                  </span>
+                  <span style={{ fontSize: 12, color: P.muted, marginTop: 2 }}>
+                    {opt.sub}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div>
+            <label style={fieldLabel}>Notes (optional)</label>
+            <textarea
+              value={props.confidenceNote}
+              onChange={e => props.setConfidenceNote(e.target.value)}
+              placeholder="Which goal, and what feels off about the score..."
+              style={{ ...textareaStyle, minHeight: 72 }}
+              rows={3}
+            />
+          </div>
+
+          <p style={hintStyle}>
+            Your read matters. If a score doesn&apos;t match what you&apos;re seeing on the ground, flag it — both scores are tracked and calibrated over time.
           </p>
         </div>
       )
@@ -451,16 +517,51 @@ function renderStep(step: number, props: StepProps): React.ReactNode {
     case 4:
       return (
         <div style={{ paddingBottom: 20 }}>
-          <textarea
-            value={props.otherNotes}
-            onChange={e => props.setOtherNotes(e.target.value)}
-            placeholder="Open feedback, feature ideas, anything..."
-            style={textareaStyle}
-            rows={5}
-            autoFocus
-          />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
+            {FEATURE_CHIPS.map(chip => {
+              const selected = props.featureTags.includes(chip.value)
+              return (
+                <button
+                  key={chip.value}
+                  onClick={() => {
+                    props.setFeatureTags(
+                      selected
+                        ? props.featureTags.filter(t => t !== chip.value)
+                        : [...props.featureTags, chip.value]
+                    )
+                  }}
+                  style={{
+                    padding: '9px 12px',
+                    borderRadius: 8,
+                    border: `1.5px solid ${selected ? P.gold : P.line}`,
+                    backgroundColor: selected ? '#FBF5E6' : P.white,
+                    fontSize: 13,
+                    fontWeight: selected ? 600 : 400,
+                    color: selected ? P.navy : P.body,
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'border-color .15s, background-color .15s',
+                  }}
+                >
+                  {chip.label}
+                </button>
+              )
+            })}
+          </div>
+
+          <div>
+            <label style={fieldLabel}>Notes (optional)</label>
+            <textarea
+              value={props.featureNote}
+              onChange={e => props.setFeatureNote(e.target.value)}
+              placeholder="More detail on what you'd like to see..."
+              style={{ ...textareaStyle, minHeight: 72 }}
+              rows={3}
+            />
+          </div>
+
           <p style={hintStyle}>
-            This goes directly to the team. Feature requests, rough edges, anything on your mind.
+            One click is enough. Add a note below if you want to give more detail. This goes directly to the team.
           </p>
         </div>
       )
