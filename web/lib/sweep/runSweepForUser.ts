@@ -1,9 +1,10 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { getAnthropicClient } from '@/lib/anthropic/client'
 import { STATIC_SWEEP_SYSTEM_PROMPT, buildDynamicSystemContext } from '@/lib/anthropic/prompts/system'
+import { INFERENCE_SYSTEM_PROMPT, buildInferenceInput } from '@/lib/anthropic/prompts/inference'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages'
 import { buildObjectiveState } from '@/lib/anthropic/prompts/objective'
-import { parseAnthropicResponse, type ObjectiveResult, type CrossDependency } from '@/lib/anthropic/prompts/output'
+import { parseAnthropicResponse, type InferenceBlock, type ObjectiveResult, type CrossDependency } from '@/lib/anthropic/prompts/output'
 import { fetchNewsSignals } from '@/lib/signals/newsapi'
 import { fetchComps, CompsResult } from '@/lib/sweep/fetchComps'
 import { getRecentAskContext } from '@/lib/sweep/getRecentAskContext'
@@ -64,6 +65,61 @@ function buildCompletedContext(
     crossDep.slice(0, 10).forEach(a => lines.push(`- [${a.action_date}] ${a.description}`))
   }
   return lines.join('\n')
+}
+
+async function generateInferenceBlock(
+  objective: { id: string; obj_id: string; title: string; notes?: string | null; target_date?: string | null; context?: Record<string, unknown> | null },
+  sweepResult: ObjectiveResult,
+  recentChange: { changed_field: string; changed_at: string } | null
+): Promise<InferenceBlock | null> {
+  try {
+    const msg = await getAnthropicClient().messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 4096,
+      system: [
+        { type: 'text', text: INFERENCE_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+      ] satisfies TextBlockParam[],
+      messages: [{
+        role: 'user',
+        content: buildInferenceInput(objective, sweepResult, recentChange),
+      }],
+    })
+
+    const responseText = msg.content[0].type === 'text' ? msg.content[0].text : ''
+    const cleaned = responseText
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim()
+
+    const raw = JSON.parse(cleaned) as InferenceBlock
+    console.log(`[FF-016-P2] Inference generated for objective ${objective.obj_id}`)
+    return {
+      unstated_implications: raw.unstated_implications ?? [],
+      decision_gate: {
+        exists: raw.decision_gate?.exists ?? false,
+        description: raw.decision_gate?.description ?? null,
+        deadline_days: raw.decision_gate?.deadline_days ?? null,
+      },
+      absence_signal: {
+        is_meaningful: raw.absence_signal?.is_meaningful ?? false,
+        description: raw.absence_signal?.description ?? null,
+      },
+      confidence_pivot: {
+        upside_trigger: raw.confidence_pivot?.upside_trigger ?? '',
+        downside_trigger: raw.confidence_pivot?.downside_trigger ?? '',
+        upside_delta: raw.confidence_pivot?.upside_delta ?? 0,
+        downside_delta: raw.confidence_pivot?.downside_delta ?? 0,
+      },
+      cross_objective_flags: raw.cross_objective_flags ?? [],
+      user_blind_spot: raw.user_blind_spot ?? '',
+      inference_confidence: raw.inference_confidence ?? 'low',
+      inference_confidence_rationale: raw.inference_confidence_rationale ?? '',
+    }
+  } catch (err) {
+    console.error(`[FF-016-P2] Inference failed for objective ${objective.obj_id}: ${err instanceof Error ? err.message : String(err)}`)
+    return null
+  }
 }
 
 export async function runSweepForUser(
@@ -443,6 +499,58 @@ export async function runSweepForUser(
     }
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — all batches complete: ${parsedResultMap.size}/${objectives.length} succeeded tokens=${tokensUsed} cost=$${costUsd.toFixed(4)}`)
+
+    // FF-016 Phase 2 — Per-objective Haiku inference pass.
+    // Runs after main Sonnet sweep so each call receives the sweep result as context.
+    // Same BATCH_SIZE=3 + Promise.allSettled pattern as the main sweep.
+    // Merges inference_block back into parsedResultMap before write paths execute —
+    // the cross-dep aggregation and episode write both read from parsedResultMap.
+    const INFERENCE_BATCH_SIZE = 3
+    const objectiveList = Array.from(parsedResultMap.entries())
+
+    for (let infStart = 0; infStart < objectiveList.length; infStart += INFERENCE_BATCH_SIZE) {
+      const infBatch = objectiveList.slice(infStart, infStart + INFERENCE_BATCH_SIZE)
+      const infBatchNum = Math.floor(infStart / INFERENCE_BATCH_SIZE) + 1
+      const infTotalBatches = Math.ceil(objectiveList.length / INFERENCE_BATCH_SIZE)
+
+      const infSettled = await Promise.allSettled(
+        infBatch.map(async ([objId, sweepResult]) => {
+          const objective = objectives.find(o => o.id === objId)
+          if (!objective) throw new Error(`Objective ${objId} not found in objectives list`)
+          const recentChange = latestChangeByObjId.get(objId) ?? null
+          const inferenceBlock = await generateInferenceBlock(
+            {
+              id: objective.id,
+              obj_id: (objective as { obj_id?: string }).obj_id ?? '',
+              title: objective.title,
+              notes: (objective as { notes?: string | null }).notes ?? null,
+              target_date: objective.target_date ?? null,
+              context: (objective as { context?: Record<string, unknown> | null }).context ?? null,
+            },
+            sweepResult,
+            recentChange
+          )
+          return { objId, inferenceBlock }
+        })
+      )
+
+      for (const infResult of infSettled) {
+        if (infResult.status === 'fulfilled') {
+          const { objId, inferenceBlock } = infResult.value
+          const result = parsedResultMap.get(objId)
+          if (result && inferenceBlock) {
+            result.inference_block = inferenceBlock
+          }
+        } else {
+          console.error(`[FF-016-P2] Inference batch ${infBatchNum}/${infTotalBatches} entry failed:`, infResult.reason)
+        }
+      }
+
+      console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — inference batch ${infBatchNum}/${infTotalBatches} complete`)
+    }
+
+    const inferenceCount = Array.from(parsedResultMap.values()).filter(r => r.inference_block).length
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — inference pass complete: ${inferenceCount}/${parsedResultMap.size} objectives have inference blocks`)
 
     // Derive cross-dependencies from per-objective inference_block flags.
     // Per-objective calls can't see other objectives, so structured top-level

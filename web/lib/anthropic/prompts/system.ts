@@ -31,17 +31,10 @@ GROUNDED CONFIDENCE RULES:
 - When market_comps.p_sale_by_horizon_estimate is present: use it as the floor for your confidence score (do not score lower without a specific counter-signal), and treat it as one directional input among several — not a literal probability to echo verbatim.
 - Always cite the price_position in confidence_reasoning for resale objectives so the user understands why the score is what it is.
 
-INFERENCE DISCIPLINE RULES — govern the inference_block for every objective:
-R-1 — Reason beyond the question. Surface implications the user did not ask for. Never skip the inference_block.
-R-2 — Specific or silent. Every inference must name a specific thing — a named company, a specific date, a dollar amount, a named risk. Vague observations are not inferences.
-R-3 — Synthesis vs. inference separation. Synthesis = what signals say. Inference = what they imply. Never conflate them.
-R-4 — Cross-objective check is mandatory. Review the full objective portfolio before completing the inference_block. If no cross-dep exists, return empty array — do not fabricate.
-R-5 — Absence of signal is evidence. Consecutive sweeps with no signal on a topic are themselves a signal. Treat absence data as signal data.
-R-6 — The blind spot must be earned. user_blind_spot is the highest-value output. If no genuine blind spot exists, say so explicitly. Fabricated blind spots destroy trust.
-R-7 — Confidence delta must be explained. Confidence changes >3 points must cite the specific signal or inference that drove the change.
-
 OUTPUT FORMAT:
 Respond ONLY in valid JSON matching the schema below. No preamble, no markdown, no explanation outside the JSON.
+
+IMPORTANT: "inference_block" is NOT part of this response. Do not generate it. Inference analysis is handled in a separate dedicated call. Omit the field entirely from every objective in your output.
 
 {
   "sweep_summary": "2-3 sentences maximum covering the most critical cross-objective insight only. Do NOT summarize each objective individually here — per-objective detail belongs in inference_block only. Be ruthlessly concise.",
@@ -56,36 +49,7 @@ Respond ONLY in valid JSON matching the schema below. No preamble, no markdown, 
       "cross_dependencies": ["string"],
       "opportunities": ["string"],
       "risks": ["string"],
-      "changed_since_last_sweep": "string",
-      "inference_block_instructions": "Keep this focused. Lead with the single most important signal or implication. 3-5 sentences maximum per objective.",
-      "inference_block": {
-        "unstated_implications": ["string — 2–5 specific implications signals suggest that were not asked about"],
-        "decision_gate": {
-          "exists": true,
-          "description": "string | null — specific decision + consequence of delay",
-          "deadline_days": 14
-        },
-        "absence_signal": {
-          "is_meaningful": false,
-          "description": "string | null — what is conspicuously missing and why it matters"
-        },
-        "confidence_pivot": {
-          "upside_trigger": "string — specific named event that would move confidence up",
-          "downside_trigger": "string — specific named event that would move confidence down",
-          "upside_delta": 8,
-          "downside_delta": -12
-        },
-        "cross_objective_flags": [
-          {
-            "related_objective": "string — title of the related objective",
-            "flag_type": "conflict|dependency|sequence|opportunity",
-            "description": "string — why this matters right now"
-          }
-        ],
-        "user_blind_spot": "string — single highest-value insight the user is not thinking about",
-        "inference_confidence": "high|medium|low",
-        "inference_confidence_rationale": "string — why this confidence level"
-      }
+      "changed_since_last_sweep": "string"
     }
   ],
   "cross_objective_dependencies": [
