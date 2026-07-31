@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       days_past_due: row.days_past_due,
       current_balance: row.current_balance,
       payments_remaining: row.payments_remaining,
-      loan_data: Object.keys(row.extra_fields).length > 0 ? row.extra_fields : null,
+      loan_data: row.extra_fields,
     }))
 
     const { data, error: upsertErr } = await supabase
