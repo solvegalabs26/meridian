@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import type { Metadata } from 'next'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -283,7 +282,7 @@ function ContactModal({ onClose }: { onClose: () => void }) {
         <div className="flex items-start justify-between mb-5">
           <div>
             <h2 className="text-[17px] font-semibold text-white">Send us a message</h2>
-            <p className="text-[12px] mt-0.5" style={{ color: 'rgba(255,255,255,.45)' }}>We'll follow up within one business day.</p>
+            <p className="text-[12px] mt-0.5" style={{ color: 'rgba(255,255,255,.45)' }}>We&apos;ll follow up within one business day.</p>
           </div>
           <button onClick={onClose} className="text-[var(--text3)] hover:text-white transition-colors text-lg leading-none mt-0.5">✕</button>
         </div>
@@ -292,7 +291,7 @@ function ContactModal({ onClose }: { onClose: () => void }) {
           <div className="py-6 text-center">
             <div className="text-[32px] mb-3">✓</div>
             <p className="text-[14px] font-medium text-white">Message received</p>
-            <p className="text-[12px] mt-1" style={{ color: 'rgba(255,255,255,.5)' }}>We'll follow up within one business day.</p>
+            <p className="text-[12px] mt-1" style={{ color: 'rgba(255,255,255,.5)' }}>We&apos;ll follow up within one business day.</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
