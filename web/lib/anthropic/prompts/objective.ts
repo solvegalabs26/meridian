@@ -26,11 +26,22 @@ interface ObjectiveStateInput {
   askContext?: string
   episodeHistory?: EpisodeHistoryEntry[]
   signalAbsenceCount?: number
+  recentChange?: { changed_field: string; changed_at: string } | null
+}
+
+function truncateNotes(notes: string | null | undefined, objectiveId: string): string | null {
+  if (!notes || notes.trim() === '') return null
+  if (notes.length <= 500) return notes
+  const sub = notes.slice(0, 500)
+  const lastPeriod = sub.lastIndexOf('. ')
+  const truncAt = lastPeriod > 0 ? lastPeriod + 1 : 500
+  console.log(`[FF-032] Notes truncated for objective ${objectiveId}: ${notes.length} chars → 500`)
+  return notes.slice(0, truncAt).trimEnd() + ' [notes truncated]'
 }
 
 export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
   return {
-    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext, askContext, episodeHistory, signalAbsenceCount }) => {
+    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext, askContext, episodeHistory, signalAbsenceCount, recentChange }) => {
       const obj = objective as Objective & {
         objective_type?: string | null
         deadline_type?: 'hard' | 'soft'
@@ -38,7 +49,9 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
         context?: Record<string, unknown>
       }
 
-      const base = {
+      const truncatedNotes = truncateNotes(obj.notes, obj.id)
+
+      const base: Record<string, unknown> = {
         obj_id: obj.obj_id,
         title: obj.title,
         category: obj.category,
@@ -52,7 +65,7 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
         keywords: obj.signal_keywords ?? [],
         recent_signals: recentSignals,
         open_actions: openActions ?? [],
-        notes: (obj.notes ?? '').slice(0, 300),
+        ...(truncatedNotes ? { notes: truncatedNotes } : {}),
       }
 
       // Include typed fields when present
@@ -92,6 +105,18 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
       // Used by R-5 (absence of signal is evidence)
       if (signalAbsenceCount !== undefined && signalAbsenceCount > 0) {
         Object.assign(base, { consecutive_zero_signal_episodes: signalAbsenceCount })
+      }
+
+      // Inject most recent change-log entry (FF-032) — signals to Claude that the
+      // objective definition was recently updated, without exposing old/new values.
+      if (recentChange) {
+        const daysAgo = Math.round(
+          (Date.now() - new Date(recentChange.changed_at).getTime()) / (1000 * 60 * 60 * 24)
+        )
+        const when = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`
+        Object.assign(base, {
+          recent_change: `Objective updated ${when}: ${recentChange.changed_field} was modified.`,
+        })
       }
 
       // Attach comps data for resale-type objectives
