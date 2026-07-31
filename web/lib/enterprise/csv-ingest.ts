@@ -145,7 +145,7 @@ export function validateAndParseRow(
   // loan_status enum
   const status = raw.loan_status.trim() as LoanStatus
   if (!VALID_LOAN_STATUSES.has(status)) {
-    return { failed: { row_number: rowNumber, case_ref, reason: `Invalid loan_status "${raw.loan_status}" — must be one of: ${[...VALID_LOAN_STATUSES].join(', ')}` } }
+    return { failed: { row_number: rowNumber, case_ref, reason: `Invalid loan_status "${raw.loan_status}" — must be one of: ${Array.from(VALID_LOAN_STATUSES).join(', ')}` } }
   }
 
   // Extra fields: everything not in REQUIRED_FIELDS
