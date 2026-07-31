@@ -75,7 +75,7 @@ async function generateInferenceBlock(
   try {
     const msg = await getAnthropicClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 800,
+      max_tokens: 1200,
       system: [
         { type: 'text', text: INFERENCE_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
       ] satisfies TextBlockParam[],
