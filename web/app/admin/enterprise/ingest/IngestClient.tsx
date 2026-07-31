@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { runIngest } from './actions'
+import type { IngestActionResult } from './actions'
 import type { Institution } from './page'
 import type { IngestSummary, FailedRow } from '@/lib/enterprise/types'
 
@@ -94,21 +95,30 @@ export default function IngestClient({ institutions }: { institutions: Instituti
     fd.append('institution_id', selectedId)
     fd.append('file', file)
 
+    let actionResult: IngestActionResult
     try {
-      const summary = await runIngest(fd)
-      setResult(summary)
-      setStatus('complete')
-      if ((summary.failed ?? 0) > 0) setFailedOpen(true)
+      actionResult = await runIngest(fd)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error'
-      const isTimeout = msg.includes('504') || msg.toLowerCase().includes('timeout')
+      // Unexpected framework-level error (should not happen with the new return pattern)
+      setErrorMsg(err instanceof Error ? err.message : 'Unexpected error calling ingest action')
+      setStatus('error')
+      return
+    }
+
+    if (!actionResult.ok) {
+      const msg = actionResult.error
       setErrorMsg(
-        isTimeout
+        msg.includes('504') || msg.toLowerCase().includes('timeout')
           ? 'Ingest failed. The portfolio may be very large — check Supabase for partial writes before retrying.'
           : msg
       )
       setStatus('error')
+      return
     }
+
+    setResult(actionResult.summary)
+    setStatus('complete')
+    if ((actionResult.summary.failed ?? 0) > 0) setFailedOpen(true)
   }
 
   function buildCorrectionReport() {
