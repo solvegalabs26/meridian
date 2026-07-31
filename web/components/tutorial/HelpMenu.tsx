@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { HelpCircle, RotateCcw, BookOpen, CheckSquare, Settings } from 'lucide-react'
+import Link from 'next/link'
+import { HelpCircle, RotateCcw, BookOpen, FileQuestion, CheckSquare, Settings } from 'lucide-react'
 
 interface HelpMenuProps {
   onOpenTutorial: () => void
@@ -69,6 +70,16 @@ export default function HelpMenu({ onOpenTutorial, onOpenKeyTerms }: HelpMenuPro
             <BookOpen size={13} className="flex-shrink-0 text-[var(--text3)]" />
             Key Terms &amp; Definitions
           </button>
+          <Link
+            href="/faq"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 px-3 py-2.5 text-[13px] transition-colors hover:bg-[var(--gray-lt)]"
+            style={{ color: 'var(--text)', textDecoration: 'none' }}
+            role="menuitem"
+          >
+            <FileQuestion size={13} className="flex-shrink-0 text-[var(--text3)]" />
+            FAQ
+          </Link>
 
           {/* Tips — static info rows, no action */}
           <div className="mx-2 my-1.5" style={{ borderTop: '1px solid var(--border)' }} />
