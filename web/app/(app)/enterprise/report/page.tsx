@@ -4,7 +4,11 @@ import EnterpriseReportClient from './EnterpriseReportClient'
 
 export const metadata = { title: 'Sweep Intelligence Report — Meridian Arc' }
 
-export default async function EnterpriseReportPage() {
+export default async function EnterpriseReportPage({
+  searchParams,
+}: {
+  searchParams?: { highlight?: string }
+}) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -15,5 +19,12 @@ export default async function EnterpriseReportPage() {
     .single()
   const institutionId = institution?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
   const institutionName = institution?.name ?? 'Conquer Group / DefaultShield'
-  return <EnterpriseReportClient institutionId={institutionId} institutionName={institutionName} />
+  const highlight = searchParams?.highlight ?? null
+  return (
+    <EnterpriseReportClient
+      institutionId={institutionId}
+      institutionName={institutionName}
+      highlight={highlight}
+    />
+  )
 }

@@ -8,6 +8,7 @@ import Link from 'next/link'
 interface Props {
   institutionId: string
   institutionName: string
+  highlight?: string | null
 }
 
 type Dir = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'STABLE'
@@ -130,13 +131,18 @@ function buildInsight(signals: Signal[], sweep: Sweep | null): string {
   return `Portfolio is holding stable. ${sweep.cases_swept} accounts swept against ${signals.length} live signal streams — all within normal drift thresholds. The fusion engine continues monitoring and will alert on any directional changes.`
 }
 
-export default function EnterpriseReportClient({ institutionId, institutionName }: Props) {
+function caseId(ref: string) {
+  return `case-${ref.replace(/[^a-zA-Z0-9]/g, '-')}`
+}
+
+export default function EnterpriseReportClient({ institutionId, institutionName, highlight }: Props) {
   const supabase = createClient()
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [stableCases, setStableCases] = useState<StableCase[]>([])
   const [signals, setSignals] = useState<Signal[]>([])
   const [loading, setLoading] = useState(true)
+  const [flashId, setFlashId] = useState<string | null>(null)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -184,6 +190,18 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
 
   useEffect(() => { loadAll() }, [loadAll])
 
+  // Scroll to and flash highlighted account after data loads
+  useEffect(() => {
+    if (!highlight || loading) return
+    const id = caseId(highlight)
+    const el = document.getElementById(id)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setFlashId(id)
+      setTimeout(() => setFlashId(null), 2000)
+    }
+  }, [highlight, loading])
+
   if (loading) return (
     <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
@@ -219,13 +237,11 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
           </div>
         </div>
         <div style={{ background: C.blue, padding: '8px 32px', display: 'flex', alignItems: 'center', gap: 24, fontSize: 11, color: 'rgba(255,255,255,.85)' }}>
-          <span>Objective: <strong>OBJ-CG-001</strong></span>
+          <span><strong>MAIN</strong></span>
           <span style={{ color: 'rgba(255,255,255,.3)' }}>|</span>
           <span>Active Loan Drift Detection — 90-Day Window</span>
           <span style={{ color: 'rgba(255,255,255,.3)' }}>|</span>
-          <span>Fusion Sources: <strong>{signals.length} live signal streams</strong></span>
-          <span style={{ color: 'rgba(255,255,255,.3)' }}>|</span>
-          <span style={{ background: C.gold, color: C.navy, fontWeight: 700, fontSize: 10, padding: '2px 8px', borderRadius: 4, letterSpacing: 0.5 }}>FF-016</span>
+          <span>Fusion Sources: <strong>All Engines</strong></span>
           <span style={{ marginLeft: 'auto' }}>
             <Link href="/enterprise" style={{ color: 'rgba(255,255,255,.6)', fontSize: 11, textDecoration: 'none' }}>← Back to Portal</Link>
           </span>
@@ -266,7 +282,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
 
         {/* LOAN CARDS */}
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: C.muted, marginBottom: 10, paddingBottom: 6, borderBottom: `2px solid ${C.border}` }}>
-          Loan Sweep Results — Inference Engine Output (FF-016)
+          Loan Sweep Results — Inference Engine Output
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
           {predictions.map(p => {
@@ -274,8 +290,10 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
             const color = DIR[p.predicted_direction]
             const ltvHigh = (c?.ltv_ratio ?? 0) > 110
             const dtiHigh = (c?.dti_ratio ?? 0) > 40
+            const cardId = caseId(c?.case_ref ?? p.id)
+            const isFlashing = flashId === cardId
             return (
-              <div key={p.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${color}` }}>
+              <div key={p.id} id={cardId} style={{ background: C.card, border: `1px solid ${isFlashing ? '#C9A227' : C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${color}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
                 {/* Header row */}
                 <div style={{ display: 'grid', gridTemplateColumns: '100px 90px 100px 90px 80px 120px 100px 90px', alignItems: 'stretch' }}>
                   {[
@@ -350,8 +368,11 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
           })}
 
           {/* Stable cases */}
-          {stableCases.map(c => (
-            <div key={c.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${C.stable}` }}>
+          {stableCases.map(c => {
+            const cardId = caseId(c.case_ref ?? c.id)
+            const isFlashing = flashId === cardId
+            return (
+            <div key={c.id} id={cardId} style={{ background: C.card, border: `1px solid ${isFlashing ? '#C9A227' : C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${C.stable}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '100px 90px 100px 90px 80px 120px 100px 90px', alignItems: 'stretch' }}>
                 {[['Case ID', c.case_ref],['Status', c.loan_status?.toUpperCase()],['Region', c.region],['FICO Band', c.fico_band],['LTV Drift', fmtLTV(c.ltv_ratio)]].map(([l, v], i) => (
                   <div key={i} style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
@@ -381,7 +402,8 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
                 <span style={{ fontSize: 11, color: C.muted, marginLeft: 8 }}>No stress signals detected. Re-sweep in 30 days.</span>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* LIVE FUSION SIGNALS */}
@@ -420,7 +442,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
               ['C. Vehicle', '10', 'vehicle_year · vehicle_make · model_class · condition · odometer · value_at_origination · nada_book · vehicle_age · category · gap_flag'],
               ['D. Payment History', '13', 'payments_made · payments_remaining · current_balance · last_payment_date · last_payment_amount · days_past_due · max_dpd_ever · times_30/60/90_dpd · payment_streak · deferment_flag · loan_status'],
               ['E. External Signals at Origination', '8', 'manheim_index · regional_unemployment · fed_funds_rate · regional_median_income · auto_sales_index · consumer_sentiment · fuel_price · prime_rate — all captured at origination date'],
-              ['F. Live Fusion Signals (FF-016 Layer)', '9', 'manheim_current · unemployment_current · fed_funds_current · income_index_current · fuel_current · sentiment_current · collateral_value_est · ltv_drift · employment_signal_regional'],
+              ['F. Live Fusion Signals', '9', 'manheim_current · unemployment_current · fed_funds_current · income_index_current · fuel_current · sentiment_current · collateral_value_est · ltv_drift · employment_signal_regional'],
             ].map(([label, count, fields]) => (
               <div key={label} style={{ background: C.bg, borderRadius: 8, padding: '10px 14px' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: C.navy, marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
@@ -432,7 +454,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
             ))}
             <div style={{ background: C.lightBlue, borderRadius: 8, padding: '10px 14px', border: `1px solid #B8CEF5` }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: C.blue, marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
-                G. Inference Engine Output — Meridian Arc FF-016
+                G. Inference Engine Output — Meridian Arc
                 <span style={{ background: C.navy, color: 'white', borderRadius: 10, fontSize: 9, padding: '1px 7px' }}>12</span>
               </div>
               <div style={{ fontSize: 9, color: C.muted, lineHeight: 1.8 }}>objective_id · case_id · drift_score · drift_direction · top_signal_1/2/3 · collateral_risk_flag · income_stress_flag · recommended_action · sweep_timestamp · confidence_pct</div>
@@ -445,7 +467,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName 
       {/* FOOTER */}
       <div style={{ background: C.navy, color: '#8899BB', textAlign: 'center', padding: '16px 32px', fontSize: 10 }}>
         <strong style={{ color: C.gold }}>MERIDIAN ARC · SOLVEGA LABS</strong>
-        {' '}·{' '}Confidential — Pilot Demonstration, Synthetic Data Only{' '}·{' '}Engine: FF-016{' '}·{' '}Not for distribution
+        {' '}·{' '}Confidential — Pilot Demonstration, Synthetic Data Only{' '}·{' '}Not for distribution
       </div>
     </div>
   )

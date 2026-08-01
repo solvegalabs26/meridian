@@ -7,6 +7,7 @@ import { ObjectivesPanel } from '@/components/enterprise/ObjectivesPanel'
 import { ObjectiveCard } from '@/components/enterprise/ObjectiveCard'
 import { PortfolioMetricsPanel } from '@/components/enterprise/PortfolioMetricsPanel'
 import { AskMeridianFusion } from '@/components/enterprise/AskMeridianFusion'
+import { RecentlyViewedAccounts } from '@/components/enterprise/RecentlyViewedAccounts'
 import { getObjectivesWithResults, getMacroEventLinkMap, getPortfolioMetrics } from '@/lib/enterprise/objectives-queries'
 import { updateObjectiveState, runEnterpriseSweep, updateSignalPreferences } from './actions'
 import type { ObjectiveWithResult, ObjectiveState, MacroEventLink, PortfolioMetricsData } from '@/lib/enterprise/objectives-queries'
@@ -492,7 +493,16 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
   )
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
+    <div className="mx-auto px-4 py-6" style={{ maxWidth: '1680px' }}>
+    <div className="flex gap-5 items-start">
+
+      {/* LEFT RAIL — hidden below xl */}
+      <aside className="hidden xl:flex flex-col gap-3 w-52 flex-shrink-0 sticky top-6">
+        <RecentlyViewedAccounts />
+      </aside>
+
+      {/* MAIN CONTENT */}
+      <div className="flex-1 min-w-0 space-y-5">
 
       {showCustomize && (
         <CustomizeModal
@@ -765,6 +775,34 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
         </p>
       </div>
 
+      </div>
+
+      {/* RIGHT RAIL — hidden below xl */}
+      <aside className="hidden xl:flex flex-col gap-1.5 w-40 flex-shrink-0 sticky top-6">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+          <div className="px-3 py-2.5 border-b border-gray-800">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Quick Links</div>
+          </div>
+          <div className="p-2 flex flex-col gap-0.5">
+            {[
+              { label: 'Account',             href: '/settings' },
+              { label: 'Settings',            href: '/settings' },
+              { label: 'Terms & Conditions',  href: '/legal' },
+              { label: 'Help',                href: '/faq' },
+            ].map(({ label, href }) => (
+              <a
+                key={label}
+                href={href}
+                className="text-[12px] text-gray-400 hover:text-white px-2 py-1.5 rounded-lg hover:bg-gray-800 transition-colors block"
+              >
+                {label}
+              </a>
+            ))}
+          </div>
+        </div>
+      </aside>
+
+    </div>
     </div>
   )
 }
