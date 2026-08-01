@@ -9,7 +9,7 @@ export function RecentlyViewedAccounts() {
   useEffect(() => {
     try {
       const stored = JSON.parse(localStorage.getItem('meridian_rv_accounts') || '[]')
-      if (Array.isArray(stored)) setAccounts(stored.slice(0, 10))
+      if (Array.isArray(stored)) setAccounts(stored.slice(0, 25))
     } catch {}
   }, [])
 

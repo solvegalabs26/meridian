@@ -138,6 +138,7 @@ export type PortfolioMetricsData = {
   declineRate: null
   healthScore: number | null
   healthTrend: string | null
+  portfolioSummary: string | null
   highRiskCohorts: unknown[]
   computedAt: string | null
   sparklines: {
@@ -182,7 +183,7 @@ export async function getPortfolioMetrics(
   const [metricsRes, historyRes, casesRes] = await Promise.all([
     supabase
       .from('enterprise_portfolio_metrics')
-      .select('portfolio_health_score, health_trend, high_risk_cohorts, delinquency_rate_pct, default_count, charged_off_count, total_cases, computed_at, critical_count, alert_count, stable_count')
+      .select('portfolio_health_score, health_trend, portfolio_summary, high_risk_cohorts, delinquency_rate_pct, default_count, charged_off_count, total_cases, computed_at, critical_count, alert_count, stable_count')
       .eq('institution_id', institutionId)
       .order('computed_at', { ascending: false })
       .limit(1)
@@ -288,6 +289,7 @@ export async function getPortfolioMetrics(
     declineRate: null,
     healthScore: (metrics?.portfolio_health_score as number) ?? null,
     healthTrend: (metrics?.health_trend as string) ?? null,
+    portfolioSummary: (metrics?.portfolio_summary as string | null) ?? null,
     highRiskCohorts: (metrics?.high_risk_cohorts as unknown[]) ?? [],
     computedAt: (metrics?.computed_at as string) ?? null,
     sparklines,

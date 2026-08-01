@@ -467,21 +467,8 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
   const liteObjs = objectives.filter(o => o.objective_state === 'monitoring_lite')
   const objTitleMap = new Map(objectives.map(o => [o.obj_id, o.title]))
 
-  // Meridian Fusion Insight — auto-generated narrative from signals + sweep
-  const fusionInsight = (() => {
-    if (!sweep || keySignals.length === 0) return null
-    const neg = keySignals.filter(s => s.direction_score < 0)
-    const top = neg[0]
-    const { critical_count: crit, caution_count: caut, cases_swept } = sweep
-
-    if (crit > 0 && top) {
-      return `The sweep engine has flagged ${crit} account${crit > 1 ? 's' : ''} for immediate loss mitigation attention. External signal fusion — led by "${top.event_text || top.signal_id}" — is amplifying portfolio stress across ${regionalData.length} region${regionalData.length !== 1 ? 's' : ''}. ${caut > 0 ? `${caut} additional account${caut > 1 ? 's' : ''} show early drift signals.` : ''} Market conditions in the current signal window are not favorable — proactive outreach on flagged accounts is recommended before the next scheduled sweep.`
-    }
-    if (caut > 0 && top) {
-      return `Portfolio shows early stress signals in ${caut} account${caut > 1 ? 's' : ''}. No accounts have crossed into loss-mitigation territory, but "${top.event_text || top.signal_id}" is creating headwinds in ${regionalData[0]?.region ?? 'key regions'}. Meridian recommends monitoring flagged accounts weekly and reviewing relationship touchpoints.`
-    }
-    return `Portfolio is holding stable. ${cases_swept} accounts swept — all within normal drift thresholds. The fusion engine is actively monitoring ${keySignals.length} live market streams. No immediate action required.`
-  })()
+  // Meridian Fusion Insight — AI-generated narrative stored by sweep engine (B1)
+  const fusionInsight = portfolioMetrics?.portfolioSummary || null
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -793,7 +780,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
               <a
                 key={label}
                 href={href}
-                className="text-[12px] text-gray-400 hover:text-white px-2 py-1.5 rounded-lg hover:bg-gray-800 transition-colors block"
+                className="text-[12px] text-gray-400 hover:text-white px-2 py-1.5 rounded-lg hover:bg-gray-800 transition-colors block text-center"
               >
                 {label}
               </a>
