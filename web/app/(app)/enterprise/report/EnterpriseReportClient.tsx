@@ -14,29 +14,8 @@ interface Props {
 
 type Dir = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'STABLE'
 
-interface Prediction {
-  id: string
-  case_id: string
-  predicted_direction: Dir
-  drift_score: number
-  confidence_pct: number
-  top_signals: string[]
-  recommended_action: string
-  enterprise_cases: {
-    case_ref: string
-    region: string
-    fico_band: string
-    vehicle_class: string
-    loan_status: string
-    ltv_ratio: number
-    dti_ratio: number
-    current_balance: number
-    payments_remaining: number
-    loan_data: any
-  }
-}
-
-interface StableCase {
+// Raw row from enterprise_cases
+interface CaseRow {
   id: string
   case_ref: string
   region: string
@@ -47,13 +26,34 @@ interface StableCase {
   dti_ratio: number
   current_balance: number
   payments_remaining: number
+  loan_data: any
 }
 
-interface CaseHistory {
-  case_id: string
-  drift_tier: Dir | null
-  drift_score: number | null
-  loan_status: string | null
+// Supplementary fields from enterprise_predictions (optional — not all cases have preds)
+interface PredExtra {
+  top_signals: string[]
+  recommended_action: string
+  confidence_pct: number
+}
+
+// Merged case: cases + latest history + optional prediction extras
+interface EnrichedCase {
+  id: string
+  case_ref: string
+  region: string
+  fico_band: string
+  vehicle_class: string
+  ec_loan_status: string    // raw status from enterprise_cases
+  ltv_ratio: number
+  dti_ratio: number
+  current_balance: number
+  payments_remaining: number
+  loan_data: any
+  drift_tier: Dir           // from enterprise_case_history (latest scored)
+  drift_score: number       // from enterprise_case_history
+  scored_status: string | null  // ech.loan_status — status AT TIME of scoring
+  scored_dpd: number | null
+  pred?: PredExtra          // from enterprise_predictions if available
 }
 
 const OUTCOME_TOOLTIP: Record<string, string> = {
@@ -153,65 +153,92 @@ function caseId(ref: string) {
 export default function EnterpriseReportClient({ institutionId, institutionName, highlight }: Props) {
   const supabase = createClient()
   const [sweep, setSweep] = useState<Sweep | null>(null)
-  const [predictions, setPredictions] = useState<Prediction[]>([])
-  const [stableCases, setStableCases] = useState<StableCase[]>([])
+  const [enrichedCases, setEnrichedCases] = useState<EnrichedCase[]>([])
   const [signals, setSignals] = useState<Signal[]>([])
-  const [historyMap, setHistoryMap] = useState<Map<string, CaseHistory>>(new Map())
   const [loading, setLoading] = useState(true)
   const [flashId, setFlashId] = useState<string | null>(null)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
+    const TIER_ORDER: Record<Dir, number> = { CRITICAL: 0, ALERT: 1, CAUTION: 2, STABLE: 3 }
     try {
+      // Step 1: Sweep metadata (display only — NOT used for tier counts)
       const { data: sweeps } = await supabase
         .from('enterprise_sweeps').select('*')
         .eq('institution_id', institutionId).eq('status', 'complete')
         .order('completed_at', { ascending: false }).limit(1)
-      const s = sweeps?.[0] ?? null
-      setSweep(s)
+      setSweep(sweeps?.[0] ?? null)
 
-      if (s) {
-        const { data: preds } = await supabase
-          .from('enterprise_predictions')
-          .select('*, enterprise_cases(case_ref,region,fico_band,vehicle_class,loan_status,ltv_ratio,dti_ratio,current_balance,payments_remaining,loan_data)')
-          .eq('institution_id', institutionId).eq('sweep_id', s.id)
-          .order('drift_score', { ascending: false })
-        const predRows = (preds ?? []) as Prediction[]
-        setPredictions(predRows)
+      // Step 2: All in-scope cases from enterprise_cases (PRIMARY source)
+      const { data: casesRaw } = await supabase
+        .from('enterprise_cases')
+        .select('id, case_ref, region, fico_band, vehicle_class, loan_status, ltv_ratio, dti_ratio, current_balance, payments_remaining, loan_data')
+        .eq('institution_id', institutionId)
+        .eq('in_scope', true)
+      const cases = (casesRaw ?? []) as CaseRow[]
 
-        const { data: all } = await supabase.from('enterprise_cases').select('*')
-          .eq('institution_id', institutionId).eq('in_scope', true)
-        const predIds = new Set(predRows.map((p: any) => p.case_id))
-        const stable = ((all ?? []) as StableCase[]).filter(c => !predIds.has(c.id))
-        setStableCases(stable)
-
-        // C1: Load latest drift_tier / drift_score from enterprise_case_history
-        const allCaseIds = [
-          ...predRows.map(p => p.case_id),
-          ...stable.map(c => c.id),
-        ]
-        if (allCaseIds.length > 0) {
-          const { data: histRows } = await supabase
-            .from('enterprise_case_history')
-            .select('case_id, drift_tier, drift_score, loan_status')
-            .in('case_id', allCaseIds)
-            .not('drift_tier', 'is', null)
-            .order('snapshot_at', { ascending: false })
-          const hm = new Map<string, CaseHistory>()
-          for (const row of histRows ?? []) {
-            if (!hm.has(row.case_id)) hm.set(row.case_id, row as CaseHistory)
-          }
-          setHistoryMap(hm)
+      // Step 3: Latest scored history per case
+      // Supabase JS doesn't support subqueries, so: fetch all, order DESC, take first per case_id = latest
+      const caseIds = cases.map(c => c.id)
+      const histMap = new Map<string, { drift_tier: string; drift_score: number; loan_status: string | null; days_past_due: number | null }>()
+      if (caseIds.length > 0) {
+        const { data: histRaw } = await supabase
+          .from('enterprise_case_history')
+          .select('case_id, drift_tier, drift_score, loan_status, days_past_due')
+          .in('case_id', caseIds)
+          .not('drift_tier', 'is', null)
+          .order('snapshot_at', { ascending: false })
+        for (const row of histRaw ?? []) {
+          if (!histMap.has(row.case_id)) histMap.set(row.case_id, row as any)
         }
       }
 
+      // Step 4: Predictions as SUPPLEMENTARY only (top_signals, recommended_action, confidence_pct)
+      const predMap = new Map<string, PredExtra>()
+      if (sweeps?.[0]) {
+        const { data: preds } = await supabase
+          .from('enterprise_predictions')
+          .select('case_id, top_signals, recommended_action, confidence_pct')
+          .eq('institution_id', institutionId)
+          .eq('sweep_id', sweeps[0].id)
+        for (const p of preds ?? []) predMap.set(p.case_id, p as PredExtra)
+      }
+
+      // Step 5: Merge into EnrichedCase[], sorted by tier severity then drift_score DESC
+      const enriched: EnrichedCase[] = cases.map(c => {
+        const h = histMap.get(c.id)
+        return {
+          id: c.id,
+          case_ref: c.case_ref,
+          region: c.region,
+          fico_band: c.fico_band,
+          vehicle_class: c.vehicle_class,
+          ec_loan_status: c.loan_status,
+          ltv_ratio: c.ltv_ratio,
+          dti_ratio: c.dti_ratio,
+          current_balance: c.current_balance,
+          payments_remaining: c.payments_remaining,
+          loan_data: c.loan_data,
+          drift_tier: (h?.drift_tier ?? 'STABLE') as Dir,
+          drift_score: h?.drift_score ?? 0,
+          scored_status: h?.loan_status ?? null,
+          scored_dpd: h?.days_past_due ?? null,
+          pred: predMap.get(c.id),
+        }
+      }).sort((a, b) => {
+        const td = TIER_ORDER[a.drift_tier] - TIER_ORDER[b.drift_tier]
+        if (td !== 0) return td
+        return b.drift_score - a.drift_score
+      })
+      setEnrichedCases(enriched)
+
+      // Step 6: Market signals (unchanged)
       const since = new Date(); since.setDate(since.getDate() - 60)
       const { data: sigs } = await supabase.from('market_signals')
         .select('signal_id,source,direction_score,event_text,effective_date,magnitude')
         .gte('effective_date', since.toISOString().split('T')[0])
         .order('direction_score', { ascending: true }).limit(200)
 
-      // Deduplicate + pick 6 source-diverse
       const seen = new Map<string, Signal>()
       for (const sg of (sigs ?? [])) if (!seen.has(sg.signal_id)) seen.set(sg.signal_id, sg)
       const all6: Signal[] = []
@@ -303,205 +330,103 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
           </div>
         </div>
 
-        {/* SUMMARY PILLS */}
-        {sweep && (
-          <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-            {(['CRITICAL','ALERT','CAUTION','STABLE'] as Dir[]).map(d => (
-              <div key={d} style={{ flex: 1, borderRadius: 10, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: DIR[d] }}>
-                <span style={{ color: 'white', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.9 }}>{d}</span>
-                <span style={{ color: 'white', fontSize: 28, fontWeight: 800 }}>
-                  {sweep[`${d.toLowerCase()}_count` as keyof Sweep] as number}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* SUMMARY PILLS — counts derived from enrichedCases, not sweep metadata */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+          {(['CRITICAL','ALERT','CAUTION','STABLE'] as Dir[]).map(d => (
+            <div key={d} style={{ flex: 1, borderRadius: 10, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: DIR[d] }}>
+              <span style={{ color: 'white', fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.9 }}>{d}</span>
+              <span style={{ color: 'white', fontSize: 28, fontWeight: 800 }}>
+                {enrichedCases.filter(c => c.drift_tier === d).length}
+              </span>
+            </div>
+          ))}
+        </div>
 
         {/* LOAN CARDS */}
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: C.muted, marginBottom: 10, paddingBottom: 6, borderBottom: `2px solid ${C.border}` }}>
           Loan Sweep Results — Inference Engine Output
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28 }}>
-          {predictions.map(p => {
-            const c = p.enterprise_cases
-            const color = DIR[p.predicted_direction]
-            const ltvHigh = (c?.ltv_ratio ?? 0) > 110
-            const dtiHigh = (c?.dti_ratio ?? 0) > 40
-            const cardId = caseId(c?.case_ref ?? p.id)
+          {enrichedCases.map(ec => {
+            const color = DIR[ec.drift_tier]
+            const cardId = caseId(ec.case_ref ?? ec.id)
             const isFlashing = flashId === cardId
-            // C1: history-sourced drift tier
-            const h = historyMap.get(p.case_id)
-            const histTier = (h?.drift_tier ?? p.predicted_direction) as Dir
-            const histColor = DIR[histTier] ?? color
+            const confPct = ec.pred?.confidence_pct ??
+              (ec.drift_tier === 'STABLE'
+                ? Math.round(100 - ec.drift_score)
+                : Math.round(ec.drift_score))
             return (
-              <div key={p.id} id={cardId} style={{ background: C.card, border: `1px solid ${isFlashing ? '#C9A227' : C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${color}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
+              <div key={ec.id} id={cardId} style={{ background: C.card, border: `1px solid ${isFlashing ? '#C9A227' : C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${color}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
                 {/* Header row */}
                 <div style={{ display: 'grid', gridTemplateColumns: '100px 110px 100px 90px 80px 120px 100px 90px', alignItems: 'stretch' }}>
-                  {[
-                    ['Case ID', c?.case_ref],
-                    null, // Status — handled as i===1 (drift tier primary, loan_status secondary)
-                    ['Region', c?.region],
-                    ['FICO Band', c?.fico_band],
-                    ['LTV Drift', fmtLTV(c?.ltv_ratio)],
-                    null, // score cell handled at i===5
-                    ['Direction', null],
-                    null, // Outcome Confidence — handled at i===7
-                  ].map((cell, i) => {
-                    if (i === 1) return (
-                      <div key={i} style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                        <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Status</div>
-                        <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 800, color: 'white', background: histColor, marginBottom: 3 }}>{histTier}</span>
-                        <div style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatLoanStatus(c?.loan_status)}</div>
-                      </div>
-                    )
-                    if (i === 5) return (
-                      <div key={i} style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
-                        <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Drift Score</div>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>{p.drift_score} / 100</div>
-                        <div style={{ marginTop: 6, height: 5, background: C.bg, borderRadius: 3, overflow: 'hidden' }}>
-                          <div style={{ height: '100%', width: `${p.drift_score}%`, background: color, borderRadius: 3 }} />
-                        </div>
-                      </div>
-                    )
-                    if (i === 6) return (
-                      <div key={i} style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
-                        <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Direction</div>
-                        <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 800, color: 'white', background: color, marginTop: 4 }}>
-                          {p.predicted_direction}
-                        </span>
-                      </div>
-                    )
-                    if (i === 7) return (
-                      <div key={i} style={{ padding: '10px 12px', overflow: 'hidden' }}>
-                        <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Outcome Confidence</div>
-                        <div title={OUTCOME_TOOLTIP[histTier] ?? ''} style={{ fontSize: 13, fontWeight: 700, cursor: 'help' }}>{p.confidence_pct}%</div>
-                      </div>
-                    )
-                    if (!cell) return null
-                    return (
-                      <div key={i} style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                        <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>{cell[0]}</div>
-                        <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cell[1]}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-                {/* Body */}
-                <div style={{ background: '#FAFBFD', padding: '10px 12px 14px', borderTop: `1px solid ${C.border}`, display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 5 }}>Risk Flags</div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 700, background: ltvHigh ? '#FDECEA' : '#EAF7EE', color: ltvHigh ? C.critical : C.stable, border: `1px solid ${ltvHigh ? '#F5B7B1' : '#A9DFBF'}` }}>
-                        Collateral {ltvHigh ? 'Risk ▲' : 'OK'}
-                      </span>
-                      <span style={{ padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 700, background: dtiHigh ? '#FDECEA' : '#EAF7EE', color: dtiHigh ? C.critical : C.stable, border: `1px solid ${dtiHigh ? '#F5B7B1' : '#A9DFBF'}` }}>
-                        Income {dtiHigh ? 'Stress ▲' : 'OK'}
-                      </span>
+                  {/* Case ID */}
+                  <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Case ID</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ec.case_ref}</div>
+                  </div>
+                  {/* Status: drift_tier badge primary, scored_status (ech.loan_status) secondary */}
+                  <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Status</div>
+                    <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 800, color: 'white', background: color, marginBottom: 3 }}>{ec.drift_tier}</span>
+                    <div style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatLoanStatus(ec.scored_status)}</div>
+                  </div>
+                  {/* Region */}
+                  <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Region</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ec.region}</div>
+                  </div>
+                  {/* FICO Band */}
+                  <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>FICO Band</div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{ec.fico_band}</div>
+                  </div>
+                  {/* LTV Drift */}
+                  <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>LTV Drift</div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{fmtLTV(ec.ltv_ratio)}</div>
+                  </div>
+                  {/* Drift Score */}
+                  <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Drift Score</div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{ec.drift_score} / 100</div>
+                    <div style={{ marginTop: 6, height: 5, background: C.bg, borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${ec.drift_score}%`, background: color, borderRadius: 3 }} />
                     </div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 5 }}>Top Signals (Fusion)</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {(p.top_signals ?? []).slice(0, 3).map((sig, j) => (
-                        <div key={j} style={{ background: 'white', border: `1px solid ${C.border}`, borderRadius: 5, padding: '4px 8px', fontSize: 10, color: C.text, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.blue, flexShrink: 0 }} />
-                          {sig}
-                        </div>
-                      ))}
+                  {/* Direction */}
+                  <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Direction</div>
+                    <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 800, color: 'white', background: color, marginTop: 4 }}>{ec.drift_tier}</span>
+                  </div>
+                  {/* Outcome Confidence */}
+                  <div style={{ padding: '10px 12px' }}>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Outcome Confidence</div>
+                    <div title={OUTCOME_TOOLTIP[ec.drift_tier] ?? ''} style={{ fontSize: 13, fontWeight: 700, cursor: 'help' }}>{confPct}%</div>
+                  </div>
+                </div>
+                {/* Body: only render if supplementary prediction data exists */}
+                {ec.pred && (
+                  <div style={{ background: '#FAFBFD', padding: '10px 12px 14px', borderTop: `1px solid ${C.border}`, display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 5 }}>Top Signals (Fusion)</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {(ec.pred.top_signals ?? []).slice(0, 3).map((sig, j) => (
+                          <div key={j} style={{ background: 'white', border: `1px solid ${C.border}`, borderRadius: 5, padding: '4px 8px', fontSize: 10, color: C.text, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.blue, flexShrink: 0 }} />
+                            {sig}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 4 }}>Recommended Action</div>
+                      <div style={{ background: 'white', border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontSize: 11, color: C.text, lineHeight: 1.5 }}>
+                        {ec.pred.recommended_action}
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 4 }}>Recommended Action</div>
-                    <div style={{ background: 'white', border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontSize: 11, color: C.text, lineHeight: 1.5 }}>
-                      {p.recommended_action}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-
-          {/* Stable cases */}
-          {stableCases.map(c => {
-            const cardId = caseId(c.case_ref ?? c.id)
-            const isFlashing = flashId === cardId
-            const sh = historyMap.get(c.id)
-            const sTier = (sh?.drift_tier ?? 'STABLE') as Dir
-            const sTierColor = DIR[sTier] ?? C.stable
-            const sDriftScore = sh?.drift_score ?? null
-            // Confidence: STABLE = 100-score (stable likelihood), elevated tiers = score (risk certainty)
-            const sConfPct = sDriftScore != null
-              ? (sTier === 'STABLE' ? Math.round(100 - sDriftScore) : Math.round(sDriftScore))
-              : null
-            const ltvHigh = (c.ltv_ratio ?? 0) > 110
-            const dtiHigh = (c.dti_ratio ?? 0) > 40
-            const hasStress = (sDriftScore ?? 0) > 10
-            return (
-            <div key={c.id} id={cardId} style={{ background: C.card, border: `1px solid ${isFlashing ? '#C9A227' : C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${sTierColor}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '100px 110px 100px 90px 80px 120px 100px 90px', alignItems: 'stretch' }}>
-                {/* Case ID */}
-                <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Case ID</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.case_ref}</div>
-                </div>
-                {/* Status — C2: drift_tier primary, loan_status secondary */}
-                <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Status</div>
-                  <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 800, color: 'white', background: sTierColor, marginBottom: 3 }}>{sTier}</span>
-                  <div style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatLoanStatus(c.loan_status)}</div>
-                </div>
-                {/* Region */}
-                <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Region</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.region}</div>
-                </div>
-                {/* FICO Band */}
-                <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>FICO Band</div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{c.fico_band}</div>
-                </div>
-                {/* LTV Drift */}
-                <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>LTV Drift</div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{fmtLTV(c.ltv_ratio)}</div>
-                </div>
-                {/* Drift Score */}
-                <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
-                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Drift Score</div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{sDriftScore != null ? `${sDriftScore} / 100` : '<20 / 100'}</div>
-                  <div style={{ marginTop: 6, height: 5, background: C.bg, borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${sDriftScore ?? 8}%`, background: sTierColor, borderRadius: 3 }} />
-                  </div>
-                </div>
-                {/* Direction */}
-                <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
-                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Direction</div>
-                  <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 800, color: 'white', background: sTierColor, marginTop: 4 }}>{sTier}</span>
-                </div>
-                {/* Outcome Confidence — C3 */}
-                <div style={{ padding: '10px 12px' }}>
-                  <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Outcome Confidence</div>
-                  <div title={OUTCOME_TOOLTIP[sTier] ?? ''} style={{ fontSize: 13, fontWeight: 700, cursor: 'help' }}>
-                    {sConfPct != null ? `${sConfPct}%` : '—'}
-                  </div>
-                </div>
-              </div>
-              {/* Footer — C4: connect badges to real LTV/DTI data */}
-              <div style={{ background: '#FAFBFD', padding: '8px 12px 10px', borderTop: `1px solid ${C.border}`, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 700, background: ltvHigh ? '#FDECEA' : '#EAF7EE', color: ltvHigh ? C.critical : C.stable, border: `1px solid ${ltvHigh ? '#F5B7B1' : '#A9DFBF'}` }}>
-                  Collateral {ltvHigh ? 'Risk ▲' : 'OK'}
-                </span>
-                <span style={{ padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 700, background: dtiHigh ? '#FDECEA' : '#EAF7EE', color: dtiHigh ? C.critical : C.stable, border: `1px solid ${dtiHigh ? '#F5B7B1' : '#A9DFBF'}` }}>
-                  Income {dtiHigh ? 'Stress ▲' : 'OK'}
-                </span>
-                {!hasStress && (
-                  <span style={{ fontSize: 11, color: C.muted, marginLeft: 8 }}>No stress signals detected. Re-sweep in 30 days.</span>
-                )}
-                {hasStress && sDriftScore != null && (
-                  <span style={{ fontSize: 11, color: C.caution, marginLeft: 8 }}>Early drift signals present (score: {sDriftScore}). Monitor closely.</span>
                 )}
               </div>
-            </div>
             )
           })}
         </div>
