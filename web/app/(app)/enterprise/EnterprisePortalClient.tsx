@@ -4,13 +4,15 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ObjectivesPanel } from '@/components/enterprise/ObjectivesPanel'
-import { getObjectivesWithResults } from '@/lib/enterprise/objectives-queries'
-import { updateObjectiveState, runEnterpriseSweep } from './actions'
-import type { ObjectiveWithResult, ObjectiveState } from '@/lib/enterprise/objectives-queries'
+import { ObjectiveCard } from '@/components/enterprise/ObjectiveCard'
+import { getObjectivesWithResults, getMacroEventLinkMap } from '@/lib/enterprise/objectives-queries'
+import { updateObjectiveState, runEnterpriseSweep, updateSignalPreferences } from './actions'
+import type { ObjectiveWithResult, ObjectiveState, MacroEventLink } from '@/lib/enterprise/objectives-queries'
 
 interface Props {
   institutionId: string
   institutionName: string
+  logoUrl?: string | null
 }
 
 type DriftDirection = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'STABLE'
@@ -56,6 +58,19 @@ interface Signal {
   event_text: string
   effective_date: string
 }
+
+const SIGNAL_CATEGORIES = [
+  { key: 'fuel_prices',       label: 'Fuel Prices',        examples: 'National unleaded, Gulf Coast, East Coast, regional',                         defaultOn: true },
+  { key: 'vehicle_market',    label: 'Vehicle Market',     examples: 'Manheim Used Vehicle Index, new vs used purchase variance, inventory levels',  defaultOn: true },
+  { key: 'credit_conditions', label: 'Credit Conditions',  examples: 'National auto delinquency rate, SLOOS lending standards, consumer credit',     defaultOn: true },
+  { key: 'monetary_policy',   label: 'Monetary Policy',    examples: 'Fed funds rate, FOMC decisions, rate trajectory',                              defaultOn: true },
+  { key: 'labor_market',      label: 'Labor Market',       examples: 'Unemployment rate, job openings, regional employment by sector',               defaultOn: true },
+  { key: 'inflation',         label: 'Inflation',          examples: 'CPI, PCE, consumer purchasing power',                                          defaultOn: true },
+  { key: 'trade_tariffs',     label: 'Trade & Tariffs',    examples: 'Auto import tariffs, supply chain signals',                                    defaultOn: true },
+  { key: 'cu_news',           label: 'Credit Union News',  examples: 'Industry publications, regulatory changes, member trends',                     defaultOn: false },
+  { key: 'geopolitical',      label: 'Geopolitical',       examples: 'Supply chain disruptions, conflict signals, sanctions',                        defaultOn: false },
+  { key: 'housing_market',    label: 'Housing Market',     examples: 'Mortgage rates, housing starts (affects consumer balance sheets)',             defaultOn: false },
+]
 
 const DRIFT_COLORS: Record<DriftDirection, string> = {
   CRITICAL: '#ef4444',
@@ -176,7 +191,7 @@ function CompositionRing({ sweep }: { sweep: Sweep }) {
           return el
         })}
         <text x={CX} y={CY - 5} textAnchor="middle" fontSize="22" fontWeight="800" fill="white">{total}</text>
-        <text x={CX} y={CY + 11} textAnchor="middle" fontSize="8" fill="#6b7280" letterSpacing="1">CASES</text>
+        <text x={CX} y={CY + 11} textAnchor="middle" fontSize="8" fill="#6b7280" letterSpacing="1">ACCOUNTS</text>
       </svg>
       <div className="space-y-2.5 flex-1">
         {segments.map(seg => (
@@ -196,7 +211,7 @@ function CompositionRing({ sweep }: { sweep: Sweep }) {
   )
 }
 
-// Parse signal into label / value / delta (matches HTML fusion card format)
+// Parse signal into label / value / delta
 function parseSignalDisplay(s: Signal): { label: string; value: string; delta: string; isNeg: boolean } {
   const text = s.event_text || ''
   const colon = text.indexOf(':')
@@ -211,7 +226,6 @@ function parseSignalDisplay(s: Signal): { label: string; value: string; delta: s
   return { label, value, delta: delta ? `${arrow} ${delta}` : `${arrow} Score: ${s.direction_score}`, isNeg }
 }
 
-// Fusion signal card — matches HTML light-blue style
 function FusionCard({ signal }: { signal: Signal }) {
   const { label, value, delta, isNeg } = parseSignalDisplay(signal)
   return (
@@ -223,18 +237,80 @@ function FusionCard({ signal }: { signal: Signal }) {
   )
 }
 
-export default function EnterprisePortalClient({ institutionId, institutionName }: Props) {
+// Signal preferences modal
+function CustomizeModal({
+  prefs,
+  onSave,
+  onClose,
+}: {
+  prefs: Record<string, boolean>
+  onSave: (p: Record<string, boolean>) => void
+  onClose: () => void
+}) {
+  const [local, setLocal] = useState<Record<string, boolean>>(prefs)
+
+  const toggle = (key: string) =>
+    setLocal(prev => ({ ...prev, [key]: !prev[key] }))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl">
+        <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+          <div>
+            <div className="font-semibold text-white">Customize Signal Feed</div>
+            <div className="text-xs text-gray-500 mt-0.5">Choose which signal categories appear in Live Fusion Data</div>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 text-xl leading-none">×</button>
+        </div>
+        <div className="px-5 py-4 space-y-3 max-h-80 overflow-y-auto">
+          {SIGNAL_CATEGORIES.map(cat => (
+            <label key={cat.key} className="flex items-start gap-3 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={local[cat.key] ?? cat.defaultOn}
+                onChange={() => toggle(cat.key)}
+                className="mt-0.5 accent-blue-500 flex-shrink-0"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-200 group-hover:text-white transition">{cat.label}</div>
+                <div className="text-xs text-gray-600">{cat.examples}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="px-5 py-4 border-t border-gray-800 flex gap-3 justify-end">
+          <button onClick={onClose}
+            className="text-sm px-4 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 transition">
+            Cancel
+          </button>
+          <button onClick={() => onSave(local)}
+            className="text-sm px-4 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-600 text-white font-semibold transition">
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function EnterprisePortalClient({ institutionId, institutionName, logoUrl }: Props) {
   const supabase = createClient()
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [sweepHistory, setSweepHistory] = useState<Sweep[]>([])
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [keySignals, setKeySignals] = useState<Signal[]>([])
   const [objectives, setObjectives] = useState<ObjectiveWithResult[]>([])
+  const [linkMap, setLinkMap] = useState<Map<string, MacroEventLink>>(new Map())
+  const [signalPrefs, setSignalPrefs] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(SIGNAL_CATEGORIES.map(c => [c.key, c.defaultOn]))
+  )
   const [loading, setLoading] = useState(true)
   const [sweeping, setSweeping] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState<number>(30)
   const [portfolioTab, setPortfolioTab] = useState<'Overview' | 'Regions' | 'Cohorts'>('Overview')
+  const [showCustomize, setShowCustomize] = useState(false)
+  const [changingObjectiveId, setChangingObjectiveId] = useState<string | null>(null)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -287,7 +363,6 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
         if (!seen.has(s.signal_id)) seen.set(s.signal_id, s)
       }
 
-      // Pick top 6 with source diversity
       const all = Array.from(seen.values()).sort((a, b) => a.direction_score - b.direction_score)
       const sourceSeen = new Set<string>()
       const top6: Signal[] = []
@@ -301,9 +376,24 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
       }
       setKeySignals(top6)
 
-      // Objectives + latest results (FF-035-C)
+      // Objectives + latest results
       const objs = await getObjectivesWithResults(supabase, institutionId)
       setObjectives(objs ?? [])
+
+      // Macro event link map for POS signal hyperlinks
+      const lm = await getMacroEventLinkMap(supabase)
+      setLinkMap(lm)
+
+      // Institution signal preferences from config
+      const { data: inst } = await supabase
+        .from('enterprise_institutions')
+        .select('config')
+        .eq('id', institutionId)
+        .single()
+      const savedPrefs = (inst?.config as any)?.signal_preferences
+      if (savedPrefs && typeof savedPrefs === 'object') {
+        setSignalPrefs(prev => ({ ...prev, ...savedPrefs }))
+      }
 
     } catch (e: any) {
       setError(e.message)
@@ -329,13 +419,22 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
   }
 
   const handleObjectiveStateChange = async (objectiveId: string, newState: ObjectiveState) => {
+    setChangingObjectiveId(objectiveId)
     try {
       const result = await updateObjectiveState(objectiveId, newState)
       if (!result.ok) throw new Error(result.error ?? 'State change failed')
       await loadAll()
     } catch (e: any) {
       setError(e.message)
+    } finally {
+      setChangingObjectiveId(null)
     }
+  }
+
+  const handleSavePrefs = async (prefs: Record<string, boolean>) => {
+    setSignalPrefs(prefs)
+    setShowCustomize(false)
+    await updateSignalPreferences(institutionId, prefs)
   }
 
   // Regional movers: group predictions by region, rank by avg drift score
@@ -357,6 +456,8 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
       .slice(0, 5)
   })()
 
+  const liteObjs = objectives.filter(o => o.objective_state === 'monitoring_lite')
+
   // Meridian Fusion Insight — auto-generated narrative from signals + sweep
   const fusionInsight = (() => {
     if (!sweep || keySignals.length === 0) return null
@@ -365,7 +466,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
     const { critical_count: crit, caution_count: caut, cases_swept } = sweep
 
     if (crit > 0 && top) {
-      return `FF-016 has flagged ${crit} account${crit > 1 ? 's' : ''} for immediate loss mitigation attention. External signal fusion — led by "${top.event_text || top.signal_id}" — is amplifying portfolio stress across ${regionalData.length} region${regionalData.length !== 1 ? 's' : ''}. ${caut > 0 ? `${caut} additional account${caut > 1 ? 's' : ''} show early drift signals.` : ''} Market conditions in the current signal window are not favorable — proactive outreach on flagged accounts is recommended before the next scheduled sweep.`
+      return `The sweep engine has flagged ${crit} account${crit > 1 ? 's' : ''} for immediate loss mitigation attention. External signal fusion — led by "${top.event_text || top.signal_id}" — is amplifying portfolio stress across ${regionalData.length} region${regionalData.length !== 1 ? 's' : ''}. ${caut > 0 ? `${caut} additional account${caut > 1 ? 's' : ''} show early drift signals.` : ''} Market conditions in the current signal window are not favorable — proactive outreach on flagged accounts is recommended before the next scheduled sweep.`
     }
     if (caut > 0 && top) {
       return `Portfolio shows early stress signals in ${caut} account${caut > 1 ? 's' : ''}. No accounts have crossed into loss-mitigation territory, but "${top.event_text || top.signal_id}" is creating headwinds in ${regionalData[0]?.region ?? 'key regions'}. Meridian recommends monitoring flagged accounts weekly and reviewing relationship touchpoints.`
@@ -385,14 +486,31 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
 
-      {/* HEADER */}
+      {showCustomize && (
+        <CustomizeModal
+          prefs={signalPrefs}
+          onSave={handleSavePrefs}
+          onClose={() => setShowCustomize(false)}
+        />
+      )}
+
+      {/* HEADER — institution branding */}
       <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white">{institutionName}</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
-            FF-016 Enterprise Intelligence Portal
-            {sweep && ` · Last sweep ${fmtDate(sweep.completed_at)}`}
-          </p>
+        <div className="flex items-center gap-3">
+          {logoUrl ? (
+            <img src={logoUrl} alt={institutionName} className="h-10 w-auto object-contain flex-shrink-0" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-yellow-600 flex items-center justify-center flex-shrink-0 text-white font-black text-lg">
+              {institutionName.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div>
+            <h1 className="text-xl font-bold text-white leading-tight">{institutionName}</h1>
+            <p className="text-sm text-gray-400 mt-0.5">
+              Meridian Fusion Intelligence Portal
+              {sweep && ` · Last sweep ${fmtDate(sweep.completed_at)}`}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button onClick={loadAll}
@@ -504,7 +622,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
                     </div>
                   </div>
                   <div className="text-xs text-gray-500 text-right">
-                    {r.count} case{r.count !== 1 ? 's' : ''}
+                    {r.count} account{r.count !== 1 ? 's' : ''}
                   </div>
                 </div>
               ))}
@@ -526,38 +644,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
         )}
       </div>
 
-      {/* OBJECTIVES PANEL + LIVE FUSION DATA */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* Objectives Panel */}
-        <ObjectivesPanel
-          objectives={objectives}
-          onStateChange={handleObjectiveStateChange}
-          onSweepRequest={runSweep}
-          sweepInProgress={sweeping}
-          lastSweepAt={objectives.flatMap(o => o.latest_result ? [o.latest_result.computed_at] : []).sort().at(-1) ?? null}
-        />
-
-        {/* Live Fusion Data */}
-        <div className="rounded-xl overflow-hidden" style={{ background: '#fff', border: '1px solid #DDE3EE' }}>
-          <div className="px-4 py-3" style={{ borderBottom: '1px solid #DDE3EE' }}>
-            <div className="font-semibold text-sm" style={{ color: '#1B2A4A' }}>Live Fusion Data</div>
-            <div className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
-              {keySignals.length} active signal stream{keySignals.length !== 1 ? 's' : ''} · FRED · EIA · BLS · GDELT
-            </div>
-          </div>
-          <div style={{ padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {keySignals.map(s => <FusionCard key={s.signal_id} signal={s} />)}
-            {keySignals.length === 0 && (
-              <div style={{ gridColumn: '1/-1', padding: '24px 0', textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
-                Signals ingest weekly — check back Monday
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* MERIDIAN FUSION INSIGHT */}
+      {/* MERIDIAN FUSION INSIGHT — above main grid */}
       {fusionInsight && (
         <div className="rounded-xl border border-blue-800/40 p-5"
           style={{ background: 'linear-gradient(135deg, rgba(30,58,138,.2) 0%, rgba(15,23,42,.4) 100%)' }}>
@@ -565,18 +652,86 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
             <div className="text-blue-400 text-xl mt-0.5 flex-shrink-0">◈</div>
             <div>
               <div className="text-xs font-bold text-blue-400 tracking-widest mb-2">MERIDIAN FUSION INSIGHT</div>
-              <p className="text-sm text-blue-900 leading-relaxed">{fusionInsight}</p>
+              <p className="text-sm text-blue-200 leading-relaxed">{fusionInsight}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* LINK TO SWEEP REPORT */}
+      {/* MAIN GRID — left: Focus objectives · right: Monitoring Lite + Live Fusion Data */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        {/* LEFT — Focus objectives (Monitoring Lite hidden here, moved right) */}
+        <ObjectivesPanel
+          objectives={objectives}
+          onStateChange={handleObjectiveStateChange}
+          onSweepRequest={runSweep}
+          sweepInProgress={sweeping}
+          hideLite={true}
+          linkMap={linkMap}
+          lastSweepAt={objectives.flatMap(o => o.latest_result ? [o.latest_result.computed_at] : []).sort().at(-1) ?? null}
+        />
+
+        {/* RIGHT column */}
+        <div className="flex flex-col gap-4">
+
+          {/* Monitoring Lite — right column, above Live Fusion Data */}
+          {liteObjs.length > 0 && (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
+                <span className="text-xs font-bold text-blue-400 tracking-widest uppercase">Monitoring Lite ({liteObjs.length})</span>
+              </div>
+              <div className="p-4 space-y-3">
+                {liteObjs.map(obj => (
+                  <ObjectiveCard
+                    key={obj.id}
+                    objective={obj}
+                    onStateChange={handleObjectiveStateChange}
+                    changingState={changingObjectiveId === obj.id}
+                    linkMap={linkMap}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Live Fusion Data with Customize link */}
+          <div className="rounded-xl overflow-hidden flex-1" style={{ background: '#fff', border: '1px solid #DDE3EE' }}>
+            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid #DDE3EE' }}>
+              <div>
+                <div className="font-semibold text-sm" style={{ color: '#1B2A4A' }}>Live Fusion Data</div>
+                <div className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
+                  {keySignals.length} active signal stream{keySignals.length !== 1 ? 's' : ''} · FRED · EIA · BLS · GDELT
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCustomize(true)}
+                className="text-xs font-semibold hover:underline"
+                style={{ color: '#2D6BE4' }}
+              >
+                Customize →
+              </button>
+            </div>
+            <div style={{ padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {keySignals.map(s => <FusionCard key={s.signal_id} signal={s} />)}
+              {keySignals.length === 0 && (
+                <div style={{ gridColumn: '1/-1', padding: '24px 0', textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
+                  Signals ingest weekly — check back Monday
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* PORTFOLIO SWEEP INTELLIGENCE REPORT */}
       <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
         <div>
-          <div className="font-semibold text-sm text-white">Sweep Intelligence Report</div>
+          <div className="font-semibold text-sm text-white">Portfolio Sweep Intelligence Report</div>
           <div className="text-xs text-gray-500 mt-0.5">
-            Per-case risk flags · Fusion signal breakdown · Recommended actions
+            Per-account risk flags · Fusion signal breakdown · Recommended actions
           </div>
         </div>
         <a href="/enterprise/report"
