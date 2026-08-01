@@ -5,9 +5,10 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ObjectivesPanel } from '@/components/enterprise/ObjectivesPanel'
 import { ObjectiveCard } from '@/components/enterprise/ObjectiveCard'
-import { getObjectivesWithResults, getMacroEventLinkMap } from '@/lib/enterprise/objectives-queries'
+import { PortfolioMetricsPanel } from '@/components/enterprise/PortfolioMetricsPanel'
+import { getObjectivesWithResults, getMacroEventLinkMap, getPortfolioMetrics } from '@/lib/enterprise/objectives-queries'
 import { updateObjectiveState, runEnterpriseSweep, updateSignalPreferences } from './actions'
-import type { ObjectiveWithResult, ObjectiveState, MacroEventLink } from '@/lib/enterprise/objectives-queries'
+import type { ObjectiveWithResult, ObjectiveState, MacroEventLink, PortfolioMetricsData } from '@/lib/enterprise/objectives-queries'
 
 interface Props {
   institutionId: string
@@ -301,6 +302,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
   const [keySignals, setKeySignals] = useState<Signal[]>([])
   const [objectives, setObjectives] = useState<ObjectiveWithResult[]>([])
   const [linkMap, setLinkMap] = useState<Map<string, MacroEventLink>>(new Map())
+  const [portfolioMetrics, setPortfolioMetrics] = useState<PortfolioMetricsData | null>(null)
   const [signalPrefs, setSignalPrefs] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(SIGNAL_CATEGORIES.map(c => [c.key, c.defaultOn]))
   )
@@ -383,6 +385,10 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
       // Macro event link map for POS signal hyperlinks
       const lm = await getMacroEventLinkMap(supabase)
       setLinkMap(lm)
+
+      // Portfolio health metrics panel
+      const pm = await getPortfolioMetrics(supabase, institutionId)
+      setPortfolioMetrics(pm)
 
       // Institution signal preferences from config
       const { data: inst } = await supabase
@@ -652,7 +658,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
             <div className="text-blue-400 text-xl mt-0.5 flex-shrink-0">◈</div>
             <div>
               <div className="text-xs font-bold text-blue-400 tracking-widest mb-2">MERIDIAN FUSION INSIGHT</div>
-              <p className="text-sm text-blue-200 leading-relaxed">{fusionInsight}</p>
+              <p className="text-sm text-gray-100 leading-relaxed">{fusionInsight}</p>
             </div>
           </div>
         </div>
@@ -697,7 +703,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
           )}
 
           {/* Live Fusion Data with Customize link */}
-          <div className="rounded-xl overflow-hidden flex-1" style={{ background: '#fff', border: '1px solid #DDE3EE' }}>
+          <div className="rounded-xl overflow-hidden" style={{ background: '#fff', border: '1px solid #DDE3EE' }}>
             <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid #DDE3EE' }}>
               <div>
                 <div className="font-semibold text-sm" style={{ color: '#1B2A4A' }}>Live Fusion Data</div>
@@ -722,6 +728,11 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
               )}
             </div>
           </div>
+
+          {/* Portfolio Health Metrics panel */}
+          {portfolioMetrics && (
+            <PortfolioMetricsPanel data={portfolioMetrics} />
+          )}
 
         </div>
       </div>

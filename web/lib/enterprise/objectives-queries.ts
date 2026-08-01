@@ -121,3 +121,177 @@ export async function getLatestPortfolioMetrics(supabase: SupabaseClient, instit
     .single()
   return data ?? null
 }
+
+const FICO_MIDPOINT: Record<string, number> = {
+  '580-619': 600, '620-639': 630, '620-659': 640, '640-659': 650,
+  '660-679': 670, '680-699': 690, '700-719': 710, '720-739': 730,
+  '720-759': 740, '740+': 755,
+}
+
+export type PortfolioMetricsData = {
+  total: number
+  delinquencyRate: number
+  repoRate: number
+  avgLTV: number
+  avgFICO: number
+  approvalRate: null
+  declineRate: null
+  healthScore: number | null
+  healthTrend: string | null
+  highRiskCohorts: unknown[]
+  computedAt: string | null
+  sparklines: {
+    delinquency: Array<{ date: string; value: number }>
+    health: Array<{ date: string; value: number }>
+    repoRate: Array<{ date: string; value: number }>
+  }
+  vintageHeatmap: Array<{
+    quarter: string
+    sortKey: string
+    current: number
+    dpd30: number
+    dpd60: number
+    dpd90: number
+    defaultCount: number
+    chargedOff: number
+    total: number
+  }>
+  driftHistory: Array<{
+    computedAt: string
+    healthScore: number
+    delinquencyRate: number
+    criticalCount: number
+    alertCount: number
+    stableCount: number
+  }>
+}
+
+function originationQuarter(dateStr: string | null): { label: string; sortKey: string } | null {
+  if (!dateStr) return null
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return null
+  const year = d.getFullYear()
+  const q = Math.floor(d.getMonth() / 3) + 1
+  return { label: `Q${q}'${String(year).slice(2)}`, sortKey: `${year}-Q${q}` }
+}
+
+export async function getPortfolioMetrics(
+  supabase: SupabaseClient,
+  institutionId: string
+): Promise<PortfolioMetricsData | null> {
+  const [metricsRes, historyRes, casesRes] = await Promise.all([
+    supabase
+      .from('enterprise_portfolio_metrics')
+      .select('portfolio_health_score, health_trend, high_risk_cohorts, delinquency_rate_pct, default_count, charged_off_count, total_cases, computed_at, critical_count, alert_count, stable_count')
+      .eq('institution_id', institutionId)
+      .order('computed_at', { ascending: false })
+      .limit(1)
+      .single(),
+
+    supabase
+      .from('enterprise_portfolio_metrics')
+      .select('delinquency_rate_pct, portfolio_health_score, default_count, charged_off_count, total_cases, critical_count, alert_count, stable_count, computed_at')
+      .eq('institution_id', institutionId)
+      .order('computed_at', { ascending: true })
+      .limit(12),
+
+    supabase
+      .from('enterprise_cases')
+      .select('loan_status, ltv_ratio, fico_band, origination_date')
+      .eq('institution_id', institutionId),
+  ])
+
+  const metrics = metricsRes.data
+  const history = historyRes.data ?? []
+  const cases = casesRes.data ?? []
+
+  const total = cases.length
+  if (total === 0 && !metrics) return null
+
+  const delinquentStatuses = new Set(['30dpd','60dpd','90dpd','default','charged_off'])
+  const repoStatuses = new Set(['default','charged_off'])
+
+  const delinquent = cases.filter(c => delinquentStatuses.has(c.loan_status)).length
+  const repos = cases.filter(c => repoStatuses.has(c.loan_status)).length
+
+  const ltvVals = cases.map(c => c.ltv_ratio ?? 0).filter(v => v > 0)
+  const avgLTV = ltvVals.length > 0 ? ltvVals.reduce((s, v) => s + v, 0) / ltvVals.length : 0
+
+  const avgFICO = total > 0
+    ? cases.reduce((s, c) => s + (FICO_MIDPOINT[c.fico_band] ?? 680), 0) / total
+    : 680
+
+  // Sparklines from historical metrics rows
+  const sparklines = {
+    delinquency: history.map(r => ({
+      date: r.computed_at as string,
+      value: ((r.delinquency_rate_pct as number) ?? 0) * 100,
+    })),
+    health: history.map(r => ({
+      date: r.computed_at as string,
+      value: (r.portfolio_health_score as number) ?? 0,
+    })),
+    repoRate: history.map(r => {
+      const tc = (r.total_cases as number) || 1
+      const repos = ((r.default_count as number) ?? 0) + ((r.charged_off_count as number) ?? 0)
+      return { date: r.computed_at as string, value: (repos / tc) * 100 }
+    }),
+  }
+
+  // Vintage heatmap from cases
+  const vintageMap = new Map<string, { label: string; sortKey: string; current: number; dpd30: number; dpd60: number; dpd90: number; defaultCount: number; chargedOff: number }>()
+  for (const c of cases) {
+    const q = originationQuarter(c.origination_date as string | null)
+    if (!q) continue
+    const entry = vintageMap.get(q.sortKey) ?? { label: q.label, sortKey: q.sortKey, current: 0, dpd30: 0, dpd60: 0, dpd90: 0, defaultCount: 0, chargedOff: 0 }
+    switch (c.loan_status) {
+      case 'current':      entry.current++; break
+      case '30dpd':        entry.dpd30++;   break
+      case '60dpd':        entry.dpd60++;   break
+      case '90dpd':        entry.dpd90++;   break
+      case 'default':      entry.defaultCount++; break
+      case 'charged_off':  entry.chargedOff++; break
+    }
+    vintageMap.set(q.sortKey, entry)
+  }
+
+  const vintageHeatmap = Array.from(vintageMap.values())
+    .sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+    .map(v => ({
+      quarter: v.label,
+      sortKey: v.sortKey,
+      current: v.current,
+      dpd30: v.dpd30,
+      dpd60: v.dpd60,
+      dpd90: v.dpd90,
+      defaultCount: v.defaultCount,
+      chargedOff: v.chargedOff,
+      total: v.current + v.dpd30 + v.dpd60 + v.dpd90 + v.defaultCount + v.chargedOff,
+    }))
+
+  const driftHistory = history.map(r => ({
+    computedAt: r.computed_at as string,
+    healthScore: (r.portfolio_health_score as number) ?? 0,
+    delinquencyRate: ((r.delinquency_rate_pct as number) ?? 0) * 100,
+    criticalCount: (r.critical_count as number) ?? 0,
+    alertCount: (r.alert_count as number) ?? 0,
+    stableCount: (r.stable_count as number) ?? 0,
+  }))
+
+  return {
+    total: total || (metrics?.total_cases as number) || 0,
+    delinquencyRate: total > 0 ? (delinquent / total) * 100 : ((metrics?.delinquency_rate_pct as number) ?? 0) * 100,
+    repoRate: total > 0 ? (repos / total) * 100 : 0,
+    avgLTV: Math.round(avgLTV * 10) / 10,
+    avgFICO: Math.round(avgFICO),
+    approvalRate: null,
+    declineRate: null,
+    healthScore: (metrics?.portfolio_health_score as number) ?? null,
+    healthTrend: (metrics?.health_trend as string) ?? null,
+    highRiskCohorts: (metrics?.high_risk_cohorts as unknown[]) ?? [],
+    computedAt: (metrics?.computed_at as string) ?? null,
+    sparklines,
+    vintageHeatmap,
+    driftHistory,
+  }
+}
