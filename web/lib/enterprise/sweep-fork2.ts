@@ -107,8 +107,7 @@ function evaluateAlertThreshold(
   threshold: Record<string, unknown>,
   posResult: PosResult,
   cases: CaseRow[],
-  portfolioMetrics: PortfolioMetricsRow,
-  _institutionId: string
+  portfolioMetrics: PortfolioMetricsRow
 ): { triggered: boolean; reason: string } {
   const metric = threshold.metric as string | undefined
   if (!metric) return { triggered: false, reason: '' }
@@ -256,8 +255,7 @@ export async function runObjectiveSweep(
     objective.alert_threshold,
     posResult,
     scopedCases,
-    portfolioMetrics,
-    institutionId
+    portfolioMetrics
   )
 
   // ── Step 6: Write to Supabase ──
