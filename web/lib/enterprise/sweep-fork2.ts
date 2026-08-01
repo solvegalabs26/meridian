@@ -108,7 +108,7 @@ function evaluateAlertThreshold(
   posResult: PosResult,
   cases: CaseRow[],
   portfolioMetrics: PortfolioMetricsRow,
-  institutionId: string
+  _institutionId: string
 ): { triggered: boolean; reason: string } {
   const metric = threshold.metric as string | undefined
   if (!metric) return { triggered: false, reason: '' }
