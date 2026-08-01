@@ -185,7 +185,9 @@ function QuarterlySection({ history }: { history: PortfolioMetricsData['driftHis
   }
 
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div>
+      <p className="text-xs text-gray-600 mb-2">Avg. portfolio delinquency rate by quarter</p>
+      <div className="grid grid-cols-4 gap-2">
       {quarters.map(q => {
         const values = byQuarter.get(q)
         const avg = values ? values.reduce((s, v) => s + v, 0) / values.length : null
@@ -202,6 +204,7 @@ function QuarterlySection({ history }: { history: PortfolioMetricsData['driftHis
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

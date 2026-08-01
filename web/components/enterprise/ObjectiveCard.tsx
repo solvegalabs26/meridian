@@ -9,6 +9,7 @@ type Props = {
   onStateChange: (objectiveId: string, newState: ObjectiveState) => void
   changingState: boolean
   linkMap?: Map<string, MacroEventLink>
+  objTitleMap?: Map<string, string>
 }
 
 function timeAgo(iso: string | null): string {
@@ -60,10 +61,12 @@ function ClampedText({
   text,
   linkMap,
   sectionKey,
+  objTitleMap,
 }: {
   text: string | null
   linkMap: Map<string, MacroEventLink>
   sectionKey: string
+  objTitleMap?: Map<string, string>
 }) {
   const [expanded, setExpanded] = useState(false)
   if (!text) return <p className="text-sm text-gray-500">—</p>
@@ -74,7 +77,7 @@ function ClampedText({
         id={`pos-text-${sectionKey}`}
         className={expanded ? '' : 'overflow-hidden [display:-webkit-box] [-webkit-line-clamp:3] [-webkit-box-orient:vertical]'}
       >
-        {formatPosText(text, linkMap)}
+        {formatPosText(text, linkMap, objTitleMap)}
       </div>
       {!expanded && (
         <button
@@ -120,7 +123,7 @@ function AccordionSection({
 
 // ── FOCUS CARD ────────────────────────────────────────────────────────────────
 
-function FocusCard({ objective, onStateChange, changingState, linkMap = new Map() }: Props) {
+function FocusCard({ objective, onStateChange, changingState, linkMap = new Map(), objTitleMap }: Props) {
   const { latest_result: r } = objective
   const [openSection, setOpenSection] = useState<string | null>('affecting_it')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -142,7 +145,6 @@ function FocusCard({ objective, onStateChange, changingState, linkMap = new Map(
       <div className="px-4 py-3 flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <span className="text-base flex-shrink-0">🎯</span>
-          <span className="text-xs font-mono font-bold text-yellow-400 flex-shrink-0">{objective.obj_id}</span>
           <span className="font-semibold text-sm text-white truncate" style={{ fontFamily: 'EB Garamond, Georgia, serif' }}>
             {objective.title}
           </span>
@@ -209,19 +211,19 @@ function FocusCard({ objective, onStateChange, changingState, linkMap = new Map(
         <>
           <AccordionSection label="What is affecting it" sectionKey="affecting_it" objectiveId={objective.id}
             open={openSection === 'affecting_it'} onToggle={() => toggleSection('affecting_it')}>
-            <ClampedText text={r.affecting_it} linkMap={linkMap} sectionKey={`affecting_it-${objective.id}`} />
+            <ClampedText text={r.affecting_it} linkMap={linkMap} sectionKey={`affecting_it-${objective.id}`} objTitleMap={objTitleMap} />
           </AccordionSection>
           <AccordionSection label="What this implies" sectionKey="implies" objectiveId={objective.id}
             open={openSection === 'implies'} onToggle={() => toggleSection('implies')}>
-            <ClampedText text={r.implies} linkMap={linkMap} sectionKey={`implies-${objective.id}`} />
+            <ClampedText text={r.implies} linkMap={linkMap} sectionKey={`implies-${objective.id}`} objTitleMap={objTitleMap} />
           </AccordionSection>
           <AccordionSection label="Signals" sectionKey="signals" objectiveId={objective.id}
             open={openSection === 'signals'} onToggle={() => toggleSection('signals')}>
-            <ClampedText text={r.signals} linkMap={linkMap} sectionKey={`signals-${objective.id}`} />
+            <ClampedText text={r.signals} linkMap={linkMap} sectionKey={`signals-${objective.id}`} objTitleMap={objTitleMap} />
           </AccordionSection>
           <AccordionSection label="What to do" sectionKey="what_to_do" objectiveId={objective.id}
             open={openSection === 'what_to_do'} onToggle={() => toggleSection('what_to_do')}>
-            <ClampedText text={r.what_to_do} linkMap={linkMap} sectionKey={`what_to_do-${objective.id}`} />
+            <ClampedText text={r.what_to_do} linkMap={linkMap} sectionKey={`what_to_do-${objective.id}`} objTitleMap={objTitleMap} />
           </AccordionSection>
 
           {/* Footer */}
@@ -269,7 +271,6 @@ function LiteCard({ objective, onStateChange, changingState }: Props) {
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-base flex-shrink-0">📡</span>
-          <span className="text-xs font-mono font-bold text-yellow-400 flex-shrink-0">{objective.obj_id}</span>
           <span className="font-semibold text-sm text-white truncate" style={{ fontFamily: 'EB Garamond, Georgia, serif' }}>
             {objective.title}
           </span>
@@ -333,7 +334,6 @@ function PausedCard({ objective, onStateChange, changingState }: Props) {
     <div className="bg-gray-900/40 border border-gray-800/50 rounded-xl p-3 flex items-center justify-between opacity-60">
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-sm">⏸</span>
-        <span className="text-xs font-mono text-gray-600">{objective.obj_id}</span>
         <span className="text-sm text-gray-500 truncate" style={{ fontFamily: 'EB Garamond, Georgia, serif' }}>
           {objective.title}
         </span>

@@ -463,6 +463,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
   })()
 
   const liteObjs = objectives.filter(o => o.objective_state === 'monitoring_lite')
+  const objTitleMap = new Map(objectives.map(o => [o.obj_id, o.title]))
 
   // Meridian Fusion Insight — auto-generated narrative from signals + sweep
   const fusionInsight = (() => {
@@ -675,13 +676,19 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
           sweepInProgress={sweeping}
           hideLite={true}
           linkMap={linkMap}
+          objTitleMap={objTitleMap}
           lastSweepAt={objectives.flatMap(o => o.latest_result ? [o.latest_result.computed_at] : []).sort().at(-1) ?? null}
         />
 
         {/* RIGHT column */}
         <div className="flex flex-col gap-4">
 
-          {/* Monitoring Lite — right column, above Live Fusion Data */}
+          {/* Portfolio Health Metrics — top of right column */}
+          {portfolioMetrics && (
+            <PortfolioMetricsPanel data={portfolioMetrics} />
+          )}
+
+          {/* Monitoring Lite */}
           {liteObjs.length > 0 && (
             <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-800 flex items-center gap-2">
@@ -696,6 +703,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
                     onStateChange={handleObjectiveStateChange}
                     changingState={changingObjectiveId === obj.id}
                     linkMap={linkMap}
+                    objTitleMap={objTitleMap}
                   />
                 ))}
               </div>
@@ -728,11 +736,6 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
               )}
             </div>
           </div>
-
-          {/* Portfolio Health Metrics panel */}
-          {portfolioMetrics && (
-            <PortfolioMetricsPanel data={portfolioMetrics} />
-          )}
 
         </div>
       </div>
