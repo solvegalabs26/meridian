@@ -8,6 +8,7 @@ export type ObjectiveResult = {
   sweep_type: 'full' | 'lite'
   confidence_score: number
   alert_triggered: boolean
+  alert_reason: string | null
   affecting_it: string | null
   implies: string | null
   signals: string | null
@@ -47,6 +48,13 @@ type RawObjective = {
   enterprise_objective_results: ObjectiveResult[]
 }
 
+export type MacroEventLink = {
+  url: string | null
+  source: string | null
+  date: string | null
+  metric: string | null
+}
+
 export async function getObjectivesWithResults(
   supabase: SupabaseClient,
   institutionId: string
@@ -58,7 +66,7 @@ export async function getObjectivesWithResults(
       objective_order, lite_sweep_cadence_days,
       last_focus_sweep_at, last_lite_sweep_at,
       enterprise_objective_results (
-        id, sweep_type, confidence_score, alert_triggered,
+        id, sweep_type, confidence_score, alert_triggered, alert_reason,
         affecting_it, implies, signals, what_to_do,
         lite_metric_1_label, lite_metric_1_value,
         lite_metric_2_label, lite_metric_2_value,
@@ -77,6 +85,30 @@ export async function getObjectivesWithResults(
     latest_result: (obj.enterprise_objective_results ?? [])
       .sort((a, b) => new Date(b.computed_at).getTime() - new Date(a.computed_at).getTime())[0] ?? null,
   }))
+}
+
+export async function getMacroEventLinkMap(
+  supabase: SupabaseClient
+): Promise<Map<string, MacroEventLink>> {
+  const { data } = await supabase
+    .from('enterprise_macro_events')
+    .select('event_name, source_url, source_name, event_date, metric_value, metric_unit')
+    .not('event_name', 'is', null)
+
+  const map = new Map<string, MacroEventLink>()
+  for (const e of data ?? []) {
+    if (e.event_name) {
+      map.set(e.event_name as string, {
+        url: (e.source_url as string | null) ?? null,
+        source: (e.source_name as string | null) ?? null,
+        date: (e.event_date as string | null) ?? null,
+        metric: e.metric_value != null
+          ? `${e.metric_value}${e.metric_unit ?? ''}`
+          : null,
+      })
+    }
+  }
+  return map
 }
 
 export async function getLatestPortfolioMetrics(supabase: SupabaseClient, institutionId: string) {
