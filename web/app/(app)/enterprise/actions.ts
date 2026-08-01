@@ -72,3 +72,30 @@ export async function runEnterpriseSweep(
 
   return { ok: true, objectivesSwept: swept }
 }
+
+export async function updateSignalPreferences(
+  institutionId: string,
+  preferences: Record<string, boolean>
+): Promise<{ ok: boolean; error?: string }> {
+  const authClient = createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const supabase = createServiceClient()
+
+  // Read current config, merge signal_preferences key, write back
+  const { data: inst } = await supabase
+    .from('enterprise_institutions')
+    .select('config')
+    .eq('id', institutionId)
+    .single()
+
+  const currentConfig = (inst?.config as Record<string, unknown>) ?? {}
+  const { error } = await supabase
+    .from('enterprise_institutions')
+    .update({ config: { ...currentConfig, signal_preferences: preferences } })
+    .eq('id', institutionId)
+
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}

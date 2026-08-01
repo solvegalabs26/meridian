@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { ObjectiveCard } from './ObjectiveCard'
-import type { ObjectiveWithResult, ObjectiveState } from '@/lib/enterprise/objectives-queries'
+import type { ObjectiveWithResult, ObjectiveState, MacroEventLink } from '@/lib/enterprise/objectives-queries'
 
 type Props = {
   objectives: ObjectiveWithResult[]
@@ -10,6 +10,8 @@ type Props = {
   onSweepRequest: () => void
   sweepInProgress: boolean
   lastSweepAt: string | null
+  hideLite?: boolean
+  linkMap?: Map<string, MacroEventLink>
 }
 
 function timeAgo(iso: string | null): string {
@@ -30,6 +32,8 @@ export function ObjectivesPanel({
   onSweepRequest,
   sweepInProgress,
   lastSweepAt,
+  hideLite = false,
+  linkMap,
 }: Props) {
   const [pausedExpanded, setPausedExpanded] = useState(false)
   const [changingObjectiveId, setChangingObjectiveId] = useState<string | null>(null)
@@ -86,6 +90,7 @@ export function ObjectivesPanel({
                   objective={obj}
                   onStateChange={handleStateChange}
                   changingState={changingObjectiveId === obj.id}
+                  linkMap={linkMap}
                 />
               ))}
             </div>
@@ -95,7 +100,7 @@ export function ObjectivesPanel({
         </section>
 
         {/* ── MONITORING LITE ── */}
-        {liteObjs.length > 0 && (
+        {!hideLite && liteObjs.length > 0 && (
           <section>
             <div className="flex items-center gap-2 mb-3">
               <span className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />

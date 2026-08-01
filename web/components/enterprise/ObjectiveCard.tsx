@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import type { ObjectiveWithResult, ObjectiveState, LiteTrend } from '@/lib/enterprise/objectives-queries'
+import type { ObjectiveWithResult, ObjectiveState, LiteTrend, MacroEventLink } from '@/lib/enterprise/objectives-queries'
+import { formatPosText } from '@/lib/enterprise/format-pos'
 
 type Props = {
   objective: ObjectiveWithResult
   onStateChange: (objectiveId: string, newState: ObjectiveState) => void
   changingState: boolean
+  linkMap?: Map<string, MacroEventLink>
 }
 
 function timeAgo(iso: string | null): string {
@@ -21,75 +23,90 @@ function timeAgo(iso: string | null): string {
   return `${days}d ago`
 }
 
-function confidenceBadge(score: number) {
+function confidenceTooltip(score: number): string {
   const pct = Math.round(score * 100)
-  if (score >= 0.75) return (
-    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-900/40 text-green-400">{pct}%</span>
-  )
-  if (score >= 0.50) return (
-    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-yellow-900/40 text-yellow-400">{pct}%</span>
-  )
+  if (score >= 0.80) return `High confidence (${pct}%) — pattern is well-supported by case data and macro signals. Findings are reliable for decision-making.`
+  if (score >= 0.60) return `Moderate confidence (${pct}%) — pattern detected but data volume is limited. Use findings as directional, not definitive.`
+  return `Low confidence (${pct}%) — insufficient data to draw strong conclusions. More case history or a re-sweep may improve accuracy.`
+}
+
+function ConfidenceBadge({ score }: { score: number }) {
+  const pct = Math.round(score * 100)
+  const cls = score >= 0.75
+    ? 'bg-green-900/40 text-green-400'
+    : score >= 0.50
+    ? 'bg-yellow-900/40 text-yellow-400'
+    : 'bg-red-900/30 text-red-400'
   return (
-    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-900/30 text-red-400">{pct}%</span>
+    <span
+      className={`text-xs font-bold px-2 py-0.5 rounded-full cursor-help ${cls}`}
+      title={confidenceTooltip(score)}
+    >
+      {pct}%
+    </span>
   )
 }
 
 function trendBadge(trend: LiteTrend | null) {
   switch (trend) {
-    case 'improving':    return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-900/40 text-green-400">▲ Improving</span>
+    case 'improving':     return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-900/40 text-green-400">▲ Improving</span>
     case 'deteriorating': return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-900/30 text-red-400">▼ Deteriorating</span>
-    case 'stable':       return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-900/30 text-yellow-400">→ Stable</span>
-    default:             return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">— Unknown</span>
+    case 'stable':        return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-900/30 text-yellow-400">→ Stable</span>
+    default:              return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-800 text-gray-500">— Unknown</span>
   }
 }
 
-// Highlight TC-A001 / LN-001 style refs in gold monospace
-function HighlightRefs({ text }: { text: string }) {
-  const parts = text.split(/\b(TC-[A-Z]\d+|LN-\d+)\b/g)
+function ClampedText({
+  text,
+  linkMap,
+  sectionKey,
+}: {
+  text: string | null
+  linkMap: Map<string, MacroEventLink>
+  sectionKey: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  if (!text) return <p className="text-sm text-gray-500">—</p>
+
   return (
-    <span>
-      {parts.map((part, i) =>
-        /^(TC-[A-Z]\d+|LN-\d+)$/.test(part)
-          ? <span key={i} className="font-mono text-yellow-400 text-[11px] bg-yellow-400/10 px-1 py-0.5 rounded">{part}</span>
-          : <span key={i}>{part}</span>
+    <div>
+      <div
+        id={`pos-text-${sectionKey}`}
+        className={expanded ? '' : 'overflow-hidden [display:-webkit-box] [-webkit-line-clamp:3] [-webkit-box-orient:vertical]'}
+      >
+        {formatPosText(text, linkMap)}
+      </div>
+      {!expanded && (
+        <button
+          onClick={() => setExpanded(true)}
+          className="text-yellow-600 hover:text-yellow-400 text-xs mt-1.5 hover:underline transition-colors"
+        >
+          Read more ↓
+        </button>
       )}
-    </span>
+    </div>
   )
 }
 
-// Detect and render numbered list from text
-function NumberedText({ text }: { text: string }) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-  const items = lines.filter(l => /^\d+[.)]\s/.test(l))
-  if (items.length >= 2) {
-    return (
-      <ol className="space-y-2.5">
-        {items.map((item, i) => {
-          const content = item.replace(/^\d+[.)]\s*/, '')
-          return (
-            <li key={i} className="flex gap-3 text-sm text-gray-300 leading-relaxed">
-              <span className="font-bold text-yellow-400 flex-shrink-0 tabular-nums">{i + 1}.</span>
-              <span>{content}</span>
-            </li>
-          )
-        })}
-      </ol>
-    )
-  }
-  return <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-line">{text}</p>
-}
-
 function AccordionSection({
-  label, open, onToggle, children,
+  label,
+  sectionKey,
+  open,
+  onToggle,
+  objectiveId,
+  children,
 }: {
   label: string
+  sectionKey: string
   open: boolean
   onToggle: () => void
+  objectiveId: string
   children: React.ReactNode
 }) {
   return (
     <div className="border-t border-gray-800/70">
       <button
+        id={`section-${sectionKey}-${objectiveId}`}
         onClick={onToggle}
         className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-800/30 transition"
       >
@@ -103,12 +120,21 @@ function AccordionSection({
 
 // ── FOCUS CARD ────────────────────────────────────────────────────────────────
 
-function FocusCard({ objective, onStateChange, changingState }: Props) {
+function FocusCard({ objective, onStateChange, changingState, linkMap = new Map() }: Props) {
   const { latest_result: r } = objective
-  const [open, setOpen] = useState({ affecting_it: true, implies: false, signals: false, what_to_do: false })
+  const [openSection, setOpenSection] = useState<string | null>('affecting_it')
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const toggle = (key: keyof typeof open) => setOpen(prev => ({ ...prev, [key]: !prev[key] }))
+  const toggleSection = (key: string) =>
+    setOpenSection(prev => (prev === key ? null : key))
+
+  const handleAlertClick = () => {
+    setOpenSection('what_to_do')
+    setTimeout(() => {
+      document.getElementById(`section-what-to-do-${objective.id}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
+  }
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
@@ -122,7 +148,7 @@ function FocusCard({ objective, onStateChange, changingState }: Props) {
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {r && confidenceBadge(r.confidence_score)}
+          {r && <ConfidenceBadge score={r.confidence_score} />}
           <div className="relative">
             <button
               onClick={() => setMenuOpen(v => !v)}
@@ -136,6 +162,7 @@ function FocusCard({ objective, onStateChange, changingState }: Props) {
                   className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700 transition"
                   onClick={() => { setMenuOpen(false); onStateChange(objective.id, 'monitoring_lite') }}
                   disabled={changingState}
+                  title="Monitoring Lite runs a lighter sweep every 14 days and alerts you if this objective crosses a threshold. Use when the situation is stable and needs periodic watching, not daily attention."
                 >
                   Move to Monitoring Lite
                 </button>
@@ -143,6 +170,7 @@ function FocusCard({ objective, onStateChange, changingState }: Props) {
                   className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-700 transition"
                   onClick={() => { setMenuOpen(false); onStateChange(objective.id, 'paused') }}
                   disabled={changingState}
+                  title="Pause this objective — no sweeps will run. The objective and its history are preserved. Reactivate at any time."
                 >
                   Pause
                 </button>
@@ -154,10 +182,18 @@ function FocusCard({ objective, onStateChange, changingState }: Props) {
 
       {/* Alert banner */}
       {r?.alert_triggered && (
-        <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-amber-900/20 border border-amber-700/40 flex items-center gap-2">
-          <span className="text-amber-400 text-sm">⚠</span>
-          <span className="text-xs font-semibold text-amber-400">Alert — threshold crossed · action recommended</span>
-        </div>
+        <button
+          onClick={handleAlertClick}
+          className="w-full mb-3 px-4 py-2.5 bg-amber-900/20 border-y border-amber-700/40 flex items-center justify-between gap-2 hover:bg-amber-900/30 transition text-left"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-amber-400 text-sm flex-shrink-0">⚠</span>
+            <span className="text-xs font-semibold text-amber-400 leading-relaxed">
+              {r.alert_reason ?? 'Alert — this objective crossed its monitoring threshold. Review the findings below.'}
+            </span>
+          </div>
+          <span className="text-xs text-amber-600 flex-shrink-0 whitespace-nowrap ml-2">→ See recommended actions</span>
+        </button>
       )}
 
       {/* Empty state */}
@@ -171,19 +207,21 @@ function FocusCard({ objective, onStateChange, changingState }: Props) {
       {/* POS sections */}
       {r && (
         <>
-          <AccordionSection label="What is affecting it" open={open.affecting_it} onToggle={() => toggle('affecting_it')}>
-            <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-line">{r.affecting_it ?? '—'}</p>
+          <AccordionSection label="What is affecting it" sectionKey="affecting_it" objectiveId={objective.id}
+            open={openSection === 'affecting_it'} onToggle={() => toggleSection('affecting_it')}>
+            <ClampedText text={r.affecting_it} linkMap={linkMap} sectionKey={`affecting_it-${objective.id}`} />
           </AccordionSection>
-          <AccordionSection label="What this implies" open={open.implies} onToggle={() => toggle('implies')}>
-            <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-line">{r.implies ?? '—'}</p>
+          <AccordionSection label="What this implies" sectionKey="implies" objectiveId={objective.id}
+            open={openSection === 'implies'} onToggle={() => toggleSection('implies')}>
+            <ClampedText text={r.implies} linkMap={linkMap} sectionKey={`implies-${objective.id}`} />
           </AccordionSection>
-          <AccordionSection label="Signals" open={open.signals} onToggle={() => toggle('signals')}>
-            <div className="text-sm text-gray-300 leading-relaxed whitespace-pre-line">
-              {r.signals ? <HighlightRefs text={r.signals} /> : '—'}
-            </div>
+          <AccordionSection label="Signals" sectionKey="signals" objectiveId={objective.id}
+            open={openSection === 'signals'} onToggle={() => toggleSection('signals')}>
+            <ClampedText text={r.signals} linkMap={linkMap} sectionKey={`signals-${objective.id}`} />
           </AccordionSection>
-          <AccordionSection label="What to do" open={open.what_to_do} onToggle={() => toggle('what_to_do')}>
-            {r.what_to_do ? <NumberedText text={r.what_to_do} /> : <p className="text-sm text-gray-500">—</p>}
+          <AccordionSection label="What to do" sectionKey="what_to_do" objectiveId={objective.id}
+            open={openSection === 'what_to_do'} onToggle={() => toggleSection('what_to_do')}>
+            <ClampedText text={r.what_to_do} linkMap={linkMap} sectionKey={`what_to_do-${objective.id}`} />
           </AccordionSection>
 
           {/* Footer */}
@@ -193,6 +231,7 @@ function FocusCard({ objective, onStateChange, changingState }: Props) {
               <button
                 onClick={() => onStateChange(objective.id, 'monitoring_lite')}
                 disabled={changingState}
+                title="Monitoring Lite runs a lighter sweep every 14 days and alerts you if this objective crosses a threshold. Use when the situation is stable and needs periodic watching, not daily attention."
                 className="text-xs px-3 py-1 rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition disabled:opacity-40"
               >
                 Move to Monitoring Lite
@@ -200,6 +239,7 @@ function FocusCard({ objective, onStateChange, changingState }: Props) {
               <button
                 onClick={() => onStateChange(objective.id, 'paused')}
                 disabled={changingState}
+                title="Pause this objective — no sweeps will run. The objective and its history are preserved. Reactivate at any time."
                 className="text-xs px-3 py-1 rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition disabled:opacity-40"
               >
                 Pause
@@ -267,6 +307,7 @@ function LiteCard({ objective, onStateChange, changingState }: Props) {
           <button
             onClick={() => onStateChange(objective.id, 'focus')}
             disabled={changingState}
+            title="Move back to full focus — this objective will be included in the next full portfolio sweep."
             className="text-xs px-3 py-1 rounded-lg border border-yellow-800/50 text-yellow-600 hover:text-yellow-400 hover:border-yellow-700 transition disabled:opacity-40"
           >
             Escalate to Focus
@@ -274,6 +315,7 @@ function LiteCard({ objective, onStateChange, changingState }: Props) {
           <button
             onClick={() => onStateChange(objective.id, 'paused')}
             disabled={changingState}
+            title="Pause this objective — no sweeps will run. The objective and its history are preserved. Reactivate at any time."
             className="text-xs px-3 py-1 rounded-lg border border-gray-700 text-gray-500 hover:text-gray-300 transition disabled:opacity-40"
           >
             Pause
@@ -299,6 +341,7 @@ function PausedCard({ objective, onStateChange, changingState }: Props) {
       <button
         onClick={() => onStateChange(objective.id, 'focus')}
         disabled={changingState}
+        title="Reactivate this objective and move it back to full focus — it will be included in the next portfolio sweep."
         className="flex-shrink-0 text-xs px-3 py-1 rounded-lg border border-gray-700 text-gray-500 hover:text-gray-300 transition disabled:opacity-40 ml-3"
       >
         Reactivate → Focus
