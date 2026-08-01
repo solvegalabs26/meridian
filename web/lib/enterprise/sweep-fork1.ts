@@ -154,7 +154,7 @@ function buildCohorts(
   const byRFEY = groupBy(cases, c =>
     `${c.region}|${c.fico_band}|${c.employment_type}|${new Date(c.origination_date).getFullYear()}`
   )
-  for (const [key, group] of byRFEY) {
+  for (const [key, group] of Array.from(byRFEY)) {
     const [region, fico_band, employment_type, yearStr] = key.split('|')
     addCohort(group, { region, fico_band, employment_type, origination_year: parseInt(yearStr) }, key)
   }
@@ -163,14 +163,14 @@ function buildCohorts(
   const byRFY = groupBy(cases, c =>
     `${c.region}|${c.fico_band}|${new Date(c.origination_date).getFullYear()}`
   )
-  for (const [key, group] of byRFY) {
+  for (const [key, group] of Array.from(byRFY)) {
     const [region, fico_band, yearStr] = key.split('|')
     addCohort(group, { region, fico_band, origination_year: parseInt(yearStr) }, `rfY:${key}`)
   }
 
   // Level 3 — region × fico_band (broadest — flags multi-year patterns)
   const byRF = groupBy(cases, c => `${c.region}|${c.fico_band}`)
-  for (const [key, group] of byRF) {
+  for (const [key, group] of Array.from(byRF)) {
     if (group.length < 3) continue // higher bar without vintage dimension
     const [region, fico_band] = key.split('|')
     addCohort(group, { region, fico_band }, `rf:${key}`)
@@ -275,7 +275,7 @@ export async function runPortfolioSweep(institutionId: string): Promise<Portfoli
 
   // Collect macro event IDs from origination snapshots for cohort enrichment
   const allOriginMacroIds = new Set<string>()
-  for (const rows of historyByCaseId.values()) {
+  for (const rows of Array.from(historyByCaseId.values())) {
     const orig = rows.find(r => r.snapshot_type === 'origination')
     for (const id of orig?.macro_event_ids ?? []) allOriginMacroIds.add(id)
   }
@@ -298,7 +298,7 @@ export async function runPortfolioSweep(institutionId: string): Promise<Portfoli
 
   // Build map: case_id → macro event names at origination
   const macroNamesByCaseId = new Map<string, string[]>()
-  for (const [caseId, rows] of historyByCaseId) {
+  for (const [caseId, rows] of Array.from(historyByCaseId)) {
     const orig = rows.find(r => r.snapshot_type === 'origination')
     const names = (orig?.macro_event_ids ?? []).map(id => macroNameById.get(id)).filter((n): n is string => !!n)
     macroNamesByCaseId.set(caseId, names)
@@ -327,7 +327,7 @@ export async function runPortfolioSweep(institutionId: string): Promise<Portfoli
 
   // ── Step 4: Tier counts ──
   const tierCounts = { critical: 0, alert: 0, caution: 0, stable: 0 }
-  for (const { tier } of scoredTiers.values()) {
+  for (const { tier } of Array.from(scoredTiers.values())) {
     if (tier === 'CRITICAL') tierCounts.critical++
     else if (tier === 'ALERT') tierCounts.alert++
     else if (tier === 'CAUTION') tierCounts.caution++
@@ -393,7 +393,7 @@ export async function runPortfolioSweep(institutionId: string): Promise<Portfoli
     balanceByRegion.set(c.region, (balanceByRegion.get(c.region) ?? 0) + (c.current_balance ?? 0))
   }
   const concentrationFlags = []
-  for (const [region, balance] of balanceByRegion) {
+  for (const [region, balance] of Array.from(balanceByRegion)) {
     const pct = totalOutstandingBalance > 0 ? balance / totalOutstandingBalance : 0
     if (pct >= 0.35) {
       concentrationFlags.push({ dimension: 'region', value: region, pct_of_balance: parseFloat(pct.toFixed(3)), threshold_exceeded: pct >= 0.45 })
