@@ -161,15 +161,14 @@ function TrendChart({ sweeps }: { sweeps: Sweep[] }) {
 }
 
 // Portfolio composition donut
-function CompositionRing({ sweep }: { sweep: Sweep }) {
-  const total = sweep.cases_swept || (sweep.critical_count + sweep.alert_count + sweep.caution_count + sweep.stable_count) || 0
+function CompositionRing({ counts, total }: { counts: Record<DriftDirection, number>; total: number }) {
   if (!total) return <div className="text-gray-600 text-sm">No data</div>
 
   const segments = [
-    { count: sweep.critical_count, color: '#ef4444', label: 'Critical' },
-    { count: sweep.alert_count,    color: '#f97316', label: 'Alert' },
-    { count: sweep.caution_count,  color: '#f59e0b', label: 'Caution' },
-    { count: sweep.stable_count,   color: '#10b981', label: 'Stable' },
+    { count: counts.CRITICAL, color: '#ef4444', label: 'Critical' },
+    { count: counts.ALERT,    color: '#f97316', label: 'Alert' },
+    { count: counts.CAUTION,  color: '#f59e0b', label: 'Caution' },
+    { count: counts.STABLE,   color: '#10b981', label: 'Stable' },
   ]
 
   const R = 44, CX = 58, CY = 58, SW = 16
@@ -301,6 +300,8 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [sweepHistory, setSweepHistory] = useState<Sweep[]>([])
   const [predictions, setPredictions] = useState<Prediction[]>([])
+  const [liveCounts, setLiveCounts] = useState<Record<DriftDirection, number>>({ CRITICAL: 0, ALERT: 0, CAUTION: 0, STABLE: 0 })
+  const [portalCases, setPortalCases] = useState<{ id: string; region: string; drift_tier: DriftDirection; drift_score: number }[]>([])
   const [keySignals, setKeySignals] = useState<Signal[]>([])
   const [objectives, setObjectives] = useState<ObjectiveWithResult[]>([])
   const [linkMap, setLinkMap] = useState<Map<string, MacroEventLink>>(new Map())
@@ -340,6 +341,38 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
         .order('completed_at', { ascending: false })
         .limit(13)
       setSweepHistory([...(hist ?? [])].reverse())
+
+      // Live tier counts from enterprise_case_history (primary source — sweep counts are stale)
+      const { data: casesRaw } = await supabase
+        .from('enterprise_cases')
+        .select('id, region')
+        .eq('institution_id', institutionId)
+        .eq('in_scope', true)
+      const casesList = casesRaw ?? []
+      const caseIds = casesList.map((c: any) => c.id as string)
+
+      const histMap = new Map<string, { drift_tier: string; drift_score: number }>()
+      if (caseIds.length > 0) {
+        const { data: histRaw } = await supabase
+          .from('enterprise_case_history')
+          .select('case_id, drift_tier, drift_score')
+          .in('case_id', caseIds)
+          .not('drift_tier', 'is', null)
+          .order('snapshot_at', { ascending: false })
+        for (const row of histRaw ?? []) {
+          if (!histMap.has(row.case_id)) histMap.set(row.case_id, row as any)
+        }
+      }
+
+      const counts: Record<DriftDirection, number> = { CRITICAL: 0, ALERT: 0, CAUTION: 0, STABLE: 0 }
+      const enriched = casesList.map((c: any) => {
+        const h = histMap.get(c.id)
+        const tier = (h?.drift_tier ?? 'STABLE') as DriftDirection
+        counts[tier]++
+        return { id: c.id as string, region: (c.region as string) ?? 'Unknown', drift_tier: tier, drift_score: (h?.drift_score ?? 0) as number }
+      })
+      setLiveCounts(counts)
+      setPortalCases(enriched)
 
       // Predictions for regional movers
       if (latestSweep) {
@@ -445,17 +478,17 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
     await updateSignalPreferences(institutionId, prefs)
   }
 
-  // Regional movers: group predictions by region, rank by avg drift score
+  // Regional movers: group enriched cases by region, rank by avg drift score
   const regionalData = (() => {
     const dirOrder: Record<DriftDirection, number> = { CRITICAL: 4, ALERT: 3, CAUTION: 2, STABLE: 1 }
     const map = new Map<string, { count: number; totalScore: number; worst: DriftDirection }>()
-    for (const p of predictions) {
-      const region = p.enterprise_cases?.region ?? 'Unknown'
+    for (const c of portalCases) {
+      const region = c.region ?? 'Unknown'
       const cur = map.get(region) ?? { count: 0, totalScore: 0, worst: 'STABLE' as DriftDirection }
       map.set(region, {
         count: cur.count + 1,
-        totalScore: cur.totalScore + p.drift_score,
-        worst: dirOrder[p.predicted_direction] > dirOrder[cur.worst] ? p.predicted_direction : cur.worst,
+        totalScore: cur.totalScore + c.drift_score,
+        worst: dirOrder[c.drift_tier] > dirOrder[cur.worst] ? c.drift_tier : cur.worst,
       })
     }
     return Array.from(map.entries())
@@ -533,28 +566,25 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
         <div className="bg-red-900/20 border border-red-700/40 rounded-lg px-4 py-3 text-red-400 text-sm">{error}</div>
       )}
 
-      {/* RISK SUMMARY CARDS */}
-      {sweep && (
-        <div className="grid grid-cols-4 gap-3">
-          {(['CRITICAL','ALERT','CAUTION','STABLE'] as DriftDirection[]).map(d => {
-            const count = sweep[`${d.toLowerCase()}_count` as keyof Sweep] as number
-            const subtitles = {
-              CRITICAL: 'Loss mitigation now',
-              ALERT: 'Outreach within 72hrs',
-              CAUTION: 'Monitor weekly',
-              STABLE: 'No action needed',
-            }
-            return (
-              <div key={d} style={{ background: DRIFT_BG[d], borderColor: DRIFT_COLORS[d] + '55' }}
-                className="rounded-xl border p-5 text-center">
-                <div className="text-5xl font-black leading-none" style={{ color: DRIFT_COLORS[d] }}>{count}</div>
-                <div className="text-xs font-bold tracking-widest mt-2" style={{ color: DRIFT_COLORS[d] }}>{d}</div>
-                <div className="text-xs text-gray-500 mt-1">{subtitles[d]}</div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      {/* RISK SUMMARY CARDS — counts from enterprise_case_history, not stale sweep metadata */}
+      <div className="grid grid-cols-4 gap-3">
+        {(['CRITICAL','ALERT','CAUTION','STABLE'] as DriftDirection[]).map(d => {
+          const subtitles = {
+            CRITICAL: 'Loss mitigation now',
+            ALERT: 'Outreach within 72hrs',
+            CAUTION: 'Monitor weekly',
+            STABLE: 'No action needed',
+          }
+          return (
+            <div key={d} style={{ background: DRIFT_BG[d], borderColor: DRIFT_COLORS[d] + '55' }}
+              className="rounded-xl border p-5 text-center">
+              <div className="text-5xl font-black leading-none" style={{ color: DRIFT_COLORS[d] }}>{liveCounts[d]}</div>
+              <div className="text-xs font-bold tracking-widest mt-2" style={{ color: DRIFT_COLORS[d] }}>{d}</div>
+              <div className="text-xs text-gray-500 mt-1">{subtitles[d]}</div>
+            </div>
+          )
+        })}
+      </div>
 
       {/* PORTFOLIO SECTION — tabbed */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
@@ -585,8 +615,8 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
             </div>
             <div>
               <div className="text-xs text-gray-500 mb-3">Current risk tier breakdown</div>
-              {sweep
-                ? <CompositionRing sweep={sweep} />
+              {portalCases.length > 0
+                ? <CompositionRing counts={liveCounts} total={portalCases.length} />
                 : <div className="text-gray-600 text-sm text-center py-8">Run a sweep to see composition</div>}
             </div>
           </div>
