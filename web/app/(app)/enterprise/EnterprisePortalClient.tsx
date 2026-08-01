@@ -3,8 +3,10 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-
-const OBJECTIVE_ID = 'b2c3d4e5-0000-0000-0000-000000000001'
+import { ObjectivesPanel } from '@/components/enterprise/ObjectivesPanel'
+import { getObjectivesWithResults } from '@/lib/enterprise/objectives-queries'
+import { updateObjectiveState, runEnterpriseSweep } from './actions'
+import type { ObjectiveWithResult, ObjectiveState } from '@/lib/enterprise/objectives-queries'
 
 interface Props {
   institutionId: string
@@ -227,10 +229,12 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
   const [sweepHistory, setSweepHistory] = useState<Sweep[]>([])
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [keySignals, setKeySignals] = useState<Signal[]>([])
+  const [objectives, setObjectives] = useState<ObjectiveWithResult[]>([])
   const [loading, setLoading] = useState(true)
   const [sweeping, setSweeping] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState<number>(30)
+  const [portfolioTab, setPortfolioTab] = useState<'Overview' | 'Regions' | 'Cohorts'>('Overview')
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -297,6 +301,10 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
       }
       setKeySignals(top6)
 
+      // Objectives + latest results (FF-035-C)
+      const objs = await getObjectivesWithResults(supabase, institutionId)
+      setObjectives(objs ?? [])
+
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -310,18 +318,23 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
     setSweeping(true)
     setError(null)
     try {
-      const res = await fetch('/api/enterprise/trigger-sweep', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ institution_id: institutionId, objective_id: OBJECTIVE_ID }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Sweep failed')
+      const result = await runEnterpriseSweep(institutionId)
+      if (!result.ok) throw new Error(result.error ?? 'Sweep failed')
       await loadAll()
     } catch (e: any) {
       setError(e.message)
     } finally {
       setSweeping(false)
+    }
+  }
+
+  const handleObjectiveStateChange = async (objectiveId: string, newState: ObjectiveState) => {
+    try {
+      const result = await updateObjectiveState(objectiveId, newState)
+      if (!result.ok) throw new Error(result.error ?? 'State change failed')
+      await loadAll()
+    } catch (e: any) {
+      setError(e.message)
     }
   }
 
@@ -420,79 +433,110 @@ export default function EnterprisePortalClient({ institutionId, institutionName 
         </div>
       )}
 
-      {/* TREND CHART + COMPOSITION RING */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <div className="font-semibold text-sm text-white">Portfolio Drift — 90-Day Trend</div>
-              <div className="text-xs text-gray-500 mt-0.5">Account risk tier movement across sweep history</div>
-            </div>
-            <div className="text-xs text-gray-600 font-mono">{sweepHistory.length} sweep{sweepHistory.length !== 1 ? 's' : ''}</div>
+      {/* PORTFOLIO SECTION — tabbed */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+          <div className="font-semibold text-sm text-white">Portfolio Intelligence</div>
+          <div className="flex gap-1">
+            {(['Overview', 'Regions', 'Cohorts'] as const).map(tab => (
+              <button key={tab} onClick={() => setPortfolioTab(tab)}
+                className={`text-xs px-3 py-1 rounded-md transition-colors ${
+                  portfolioTab === tab
+                    ? 'bg-blue-900/60 text-blue-300 font-semibold'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}>
+                {tab}
+              </button>
+            ))}
           </div>
-          <TrendChart sweeps={sweepHistory} />
         </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <div className="font-semibold text-sm text-white mb-1">Portfolio Composition</div>
-          <div className="text-xs text-gray-500 mb-4">Current risk tier breakdown</div>
-          {sweep
-            ? <CompositionRing sweep={sweep} />
-            : <div className="text-gray-600 text-sm text-center py-8">Run a sweep to see composition</div>}
-        </div>
+
+        {portfolioTab === 'Overview' && (
+          <div className="p-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs text-gray-500">Account risk tier movement across sweep history</div>
+                <div className="text-xs text-gray-600 font-mono">{sweepHistory.length} sweep{sweepHistory.length !== 1 ? 's' : ''}</div>
+              </div>
+              <TrendChart sweeps={sweepHistory} />
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-3">Current risk tier breakdown</div>
+              {sweep
+                ? <CompositionRing sweep={sweep} />
+                : <div className="text-gray-600 text-sm text-center py-8">Run a sweep to see composition</div>}
+            </div>
+          </div>
+        )}
+
+        {portfolioTab === 'Regions' && (
+          <div>
+            <div className="px-4 py-2.5 border-b border-gray-800 flex items-center justify-between">
+              <div className="text-xs text-gray-500">Regional Risk Movers — ranked by average drift score</div>
+              <select value={timeRange} onChange={e => setTimeRange(Number(e.target.value))}
+                className="text-xs bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-gray-300 outline-none">
+                <option value={7}>Last 7 days</option>
+                <option value={30}>Last 30 days</option>
+                <option value={45}>Last 45 days</option>
+                <option value={60}>Last 60 days</option>
+              </select>
+            </div>
+            <div className="divide-y divide-gray-800/50">
+              {regionalData.map((r, i) => (
+                <div key={r.region} className="flex items-center gap-4 px-4 py-3.5">
+                  <div className="text-2xl font-black text-gray-800 w-7 text-center">#{i + 1}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="font-semibold text-gray-100 text-sm">{r.region}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-bold"
+                        style={{ background: DRIFT_BG[r.worst], color: DRIFT_COLORS[r.worst] }}>
+                        {r.worst}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all"
+                          style={{ width: `${r.avgScore}%`, background: DRIFT_COLORS[r.worst] }} />
+                      </div>
+                      <span className="text-xs font-bold tabular-nums" style={{ color: DRIFT_COLORS[r.worst] }}>
+                        {r.avgScore}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 text-right">
+                    {r.count} case{r.count !== 1 ? 's' : ''}
+                  </div>
+                </div>
+              ))}
+              {regionalData.length === 0 && (
+                <div className="px-4 py-8 text-center text-gray-600 text-sm">
+                  Regional data appears after your first sweep
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {portfolioTab === 'Cohorts' && (
+          <div className="px-4 py-10 text-center text-gray-600 text-sm">
+            <div className="text-2xl mb-2">🔬</div>
+            <div className="font-semibold text-gray-500 mb-1">Cohort Pattern Analysis</div>
+            <div className="text-xs">High-risk cohort data is written by the sweep engine — run a sweep to populate.</div>
+          </div>
+        )}
       </div>
 
-      {/* REGIONAL MOVERS + LIVE FUSION DATA */}
+      {/* OBJECTIVES PANEL + LIVE FUSION DATA */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-        {/* Regional Movers */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-            <div>
-              <div className="font-semibold text-sm text-white">Regional Risk Movers</div>
-              <div className="text-xs text-gray-500 mt-0.5">Ranked by average drift score</div>
-            </div>
-            <select value={timeRange} onChange={e => setTimeRange(Number(e.target.value))}
-              className="text-xs bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-300 outline-none">
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={45}>Last 45 days</option>
-              <option value={60}>Last 60 days</option>
-            </select>
-          </div>
-          <div className="divide-y divide-gray-800/50">
-            {regionalData.map((r, i) => (
-              <div key={r.region} className="flex items-center gap-4 px-4 py-3.5">
-                <div className="text-2xl font-black text-gray-800 w-7 text-center">#{i + 1}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="font-semibold text-gray-100 text-sm">{r.region}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-                      style={{ background: DRIFT_BG[r.worst], color: DRIFT_COLORS[r.worst] }}>
-                      {r.worst}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all"
-                        style={{ width: `${r.avgScore}%`, background: DRIFT_COLORS[r.worst] }} />
-                    </div>
-                    <span className="text-xs font-bold tabular-nums" style={{ color: DRIFT_COLORS[r.worst] }}>
-                      {r.avgScore}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500 text-right">
-                  {r.count} case{r.count !== 1 ? 's' : ''}
-                </div>
-              </div>
-            ))}
-            {regionalData.length === 0 && (
-              <div className="px-4 py-8 text-center text-gray-600 text-sm">
-                Regional data appears after your first sweep
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Objectives Panel */}
+        <ObjectivesPanel
+          objectives={objectives}
+          onStateChange={handleObjectiveStateChange}
+          onSweepRequest={runSweep}
+          sweepInProgress={sweeping}
+          lastSweepAt={objectives.flatMap(o => o.latest_result ? [o.latest_result.computed_at] : []).sort().at(-1) ?? null}
+        />
 
         {/* Live Fusion Data */}
         <div className="rounded-xl overflow-hidden" style={{ background: '#fff', border: '1px solid #DDE3EE' }}>
