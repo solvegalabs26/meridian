@@ -1,0 +1,16 @@
+case_ref,region,fico_band,income_band,employment_type,loan_amount,interest_rate_pct,ltv_ratio,dti_ratio,loan_term_months,origination_date,loan_status,days_past_due,current_balance,payments_remaining
+TC-A001,Southeast,620-659,$40K-$60K,full_time,22500,12.9,108.5,42.1,60,2021-08-15,90dpd,94,19800,38
+TC-A002,Southeast,620-659,$40K-$60K,part_time,18000,14.5,112.0,44.8,60,2021-09-01,60dpd,62,16200,39
+TC-A003,Southeast,620-659,$40K-$60K,full_time,25000,13.2,105.0,40.5,72,2021-10-15,30dpd,31,23100,52
+TC-A004,Southeast,620-659,$60K-$80K,self_employed,31000,15.0,118.0,46.0,60,2022-01-01,default,187,28500,35
+TC-A005,Southeast,620-659,$40K-$60K,full_time,19500,13.8,110.0,43.2,60,2021-11-01,charged_off,365,18200,36
+TC-B001,Mountain West,720+,$80K-$100K,full_time,28000,6.9,78.0,28.5,60,2023-03-15,current,0,22400,44
+TC-B002,Midwest,700-719,$60K-$80K,full_time,21000,8.4,85.0,32.0,60,2023-06-01,current,0,17500,46
+TC-B003,Northeast,740+,$100K+,full_time,42000,5.9,72.0,24.0,72,2024-01-15,current,0,39800,66
+TC-B004,Southwest,720+,$80K-$100K,full_time,33000,7.2,80.0,30.0,60,2024-06-01,current,0,31500,58
+TC-B005,Southeast,700-719,$60K-$80K,full_time,24000,9.1,88.0,33.5,60,2023-09-01,current,0,20800,47
+TC-C001,Southeast,660-679,$60K-$80K,full_time,26500,10.5,92.0,36.0,60,2022-06-01,current,0,21800,43
+TC-C002,Southeast,620-659,$40K-$60K,full_time,20000,13.5,103.0,41.0,60,2022-09-15,30dpd,38,17600,44
+TC-C003,Midwest,680-699,$60K-$80K,full_time,23000,9.8,89.0,35.5,60,2023-01-01,current,0,19200,46
+TC-C004,Mountain West,640-659,$60K-$80K,full_time,18500,11.9,96.0,38.0,60,2022-03-01,current,0,14900,42
+TC-C005,Southeast,700-719,$80K-$100K,full_time,29000,8.8,84.0,31.0,60,2023-04-15,current,0,24200,46
