@@ -35,23 +35,6 @@ interface Sweep {
   started_at: string
 }
 
-interface Prediction {
-  id: string
-  case_id: string
-  predicted_direction: DriftDirection
-  drift_score: number
-  confidence_pct: number
-  top_signals: string[]
-  recommended_action: string
-  enterprise_cases: {
-    case_ref: string
-    region: string
-    fico_band: string
-    vehicle_class: string
-    loan_status: string
-  }
-}
-
 interface Signal {
   signal_id: string
   source: string
@@ -299,7 +282,6 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
   const supabase = createClient()
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [sweepHistory, setSweepHistory] = useState<Sweep[]>([])
-  const [predictions, setPredictions] = useState<Prediction[]>([])
   const [liveCounts, setLiveCounts] = useState<Record<DriftDirection, number>>({ CRITICAL: 0, ALERT: 0, CAUTION: 0, STABLE: 0 })
   const [portalCases, setPortalCases] = useState<{ id: string; region: string; drift_tier: DriftDirection; drift_score: number }[]>([])
   const [keySignals, setKeySignals] = useState<Signal[]>([])
@@ -373,17 +355,6 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
       })
       setLiveCounts(counts)
       setPortalCases(enriched)
-
-      // Predictions for regional movers
-      if (latestSweep) {
-        const { data: preds } = await supabase
-          .from('enterprise_predictions')
-          .select('*, enterprise_cases(case_ref, region, fico_band, vehicle_class, loan_status)')
-          .eq('institution_id', institutionId)
-          .eq('sweep_id', latestSweep.id)
-          .order('drift_score', { ascending: false })
-        setPredictions((preds ?? []) as Prediction[])
-      }
 
       // Key fusion signals: diverse sources, most negative first
       const since = new Date()
