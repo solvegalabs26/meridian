@@ -364,11 +364,11 @@ export async function runPortfolioSweep(institutionId: string): Promise<Portfoli
   const alertPct = total > 0 ? tierCounts.alert / total : 0
   const cautionPct = total > 0 ? tierCounts.caution / total : 0
   const rawHealth = 100
-    - (criticalPct * 50)
-    - (alertPct * 30)
+    - (criticalPct * 60)
+    - (alertPct * 35)
     - (cautionPct * 15)
-    - (delinquencyRate * 20)
-    - (projectedTierChanges.length * 2)
+    - (delinquencyRate * 25)
+    - (projectedTierChanges.length * 3)
   const healthScore = Math.max(0, Math.min(100, Math.round(rawHealth)))
 
   // Health trend: compare to previous metric if available
@@ -382,10 +382,11 @@ export async function runPortfolioSweep(institutionId: string): Promise<Portfoli
 
   const prevHealth = prevMetric?.portfolio_health_score ?? null
   const healthTrend =
-    prevHealth == null ? 'stable'
-    : healthScore > prevHealth + 2 ? 'improving'
-    : healthScore < prevHealth - 2 ? 'deteriorating'
-    : 'stable'
+    prevHealth == null
+      ? (healthScore >= 80 ? 'improving' : healthScore >= 50 ? 'stable' : 'deteriorating')
+      : healthScore > prevHealth + 2 ? 'improving'
+      : healthScore < prevHealth - 2 ? 'deteriorating'
+      : 'stable'
 
   // ── Step 9: Concentration flags ──
   const balanceByRegion = new Map<string, number>()
