@@ -12,7 +12,7 @@ export default async function EnterprisePage() {
   // Look up institution by contact email
   const { data: institution } = await supabase
     .from('enterprise_institutions')
-    .select('id, name, slug, tier, pilot_started_at, monthly_fee_usd')
+    .select('id, name, slug, tier, pilot_started_at, monthly_fee_usd, logo_url')
     .eq('contact_email', user.email)
     .eq('status', 'active')
     .single()
@@ -26,6 +26,7 @@ export default async function EnterprisePage() {
     <EnterprisePortalClient
       institutionId={institutionId}
       institutionName={institutionName}
+      logoUrl={institution?.logo_url ?? null}
     />
   )
 }
