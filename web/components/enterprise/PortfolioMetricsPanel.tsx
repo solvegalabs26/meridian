@@ -18,10 +18,6 @@ function timeAgo(iso: string | null): string {
   return `${Math.round(hrs / 24)}d ago`
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 // Inline SVG bar sparkline — 40px tall, full width
 function Sparkline({ values }: { values: number[] }) {
   if (values.length === 0) return <div className="h-10 flex items-center justify-center text-gray-700 text-xs">—</div>
@@ -277,7 +273,7 @@ function VintageHeatmap({ data }: { data: PortfolioMetricsData['vintageHeatmap']
 
 export function PortfolioMetricsPanel({ data }: Props) {
   const { total, delinquencyRate, repoRate, avgLTV, avgFICO, approvalRate, declineRate,
-    healthScore, computedAt, sparklines, vintageHeatmap, driftHistory } = data
+    computedAt, sparklines, vintageHeatmap, driftHistory } = data
 
   function delinquencyLevel(): ThresholdLevel {
     if (delinquencyRate >= 25) return 'red'
