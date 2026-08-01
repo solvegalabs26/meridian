@@ -23,7 +23,7 @@ export type LoanStatus =
   | '60dpd'
   | '90dpd'
   | 'default'
-  | 'charged-off'
+  | 'charged_off'
 
 export type SnapshotType =
   | 'origination'

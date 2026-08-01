@@ -1,7 +1,7 @@
 import type { CsvRow, FailedRow, LoanStatus } from './types'
 
 const VALID_LOAN_STATUSES = new Set<LoanStatus>([
-  'current', '30dpd', '60dpd', '90dpd', 'default', 'charged-off',
+  'current', '30dpd', '60dpd', '90dpd', 'default', 'charged_off',
 ])
 
 const REQUIRED_FIELDS = [
