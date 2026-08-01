@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { ObjectivesPanel } from '@/components/enterprise/ObjectivesPanel'
 import { ObjectiveCard } from '@/components/enterprise/ObjectiveCard'
 import { PortfolioMetricsPanel } from '@/components/enterprise/PortfolioMetricsPanel'
+import { AskMeridianFusion } from '@/components/enterprise/AskMeridianFusion'
 import { getObjectivesWithResults, getMacroEventLinkMap, getPortfolioMetrics } from '@/lib/enterprise/objectives-queries'
 import { updateObjectiveState, runEnterpriseSweep, updateSignalPreferences } from './actions'
 import type { ObjectiveWithResult, ObjectiveState, MacroEventLink, PortfolioMetricsData } from '@/lib/enterprise/objectives-queries'
@@ -740,6 +741,9 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
         </div>
       </div>
 
+      {/* ASK MERIDIAN FUSION */}
+      <AskMeridianFusion institutionId={institutionId} />
+
       {/* PORTFOLIO SWEEP INTELLIGENCE REPORT */}
       <div className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-5 py-4">
         <div>
@@ -752,6 +756,13 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
           className="text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
           View Full Report →
         </a>
+      </div>
+
+      {/* FOOTER DISCLAIMER */}
+      <div className="border-t border-gray-800 pt-3 pb-1 text-center">
+        <p className="text-[11px] text-gray-700">
+          Meridian Arc surfaces AI-generated insights — always use your own judgment for major decisions.
+        </p>
       </div>
 
     </div>

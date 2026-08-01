@@ -77,6 +77,11 @@ export default function AppShell({
         <main className="p-4 md:p-6">
           {children}
         </main>
+        <div className="border-t border-gray-200 dark:border-gray-800 py-3 px-6 text-center">
+          <p className="text-[11px] text-gray-400 dark:text-gray-600">
+            Meridian Arc surfaces AI-generated insights — always use your own judgment for major decisions.
+          </p>
+        </div>
       </div>
 
       <TutorialModal
