@@ -35,6 +35,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/api/admin/sweeps/process-account-queue') ||
     pathname.startsWith('/api/enterprise/ingest') ||
+    pathname.startsWith('/api/enterprise/sweep') ||
     pathname.startsWith('/api/invites/validate') ||
     pathname.startsWith('/api/support/contact') ||
     pathname.startsWith('/api/support/digest') ||
