@@ -12,6 +12,7 @@ type Props = {
   lastSweepAt: string | null
   hideLite?: boolean
   linkMap?: Map<string, MacroEventLink>
+  objTitleMap?: Map<string, string>
 }
 
 function timeAgo(iso: string | null): string {
@@ -34,6 +35,7 @@ export function ObjectivesPanel({
   lastSweepAt,
   hideLite = false,
   linkMap,
+  objTitleMap,
 }: Props) {
   const [pausedExpanded, setPausedExpanded] = useState(false)
   const [changingObjectiveId, setChangingObjectiveId] = useState<string | null>(null)
@@ -91,6 +93,7 @@ export function ObjectivesPanel({
                   onStateChange={handleStateChange}
                   changingState={changingObjectiveId === obj.id}
                   linkMap={linkMap}
+                  objTitleMap={objTitleMap}
                 />
               ))}
             </div>
