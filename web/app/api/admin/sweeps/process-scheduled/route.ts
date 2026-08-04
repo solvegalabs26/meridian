@@ -7,7 +7,8 @@ export const maxDuration = 60 // Kick-off only — account processing handled by
 // Vercel Cron only — never callable by an end user. Secured with CRON_SECRET.
 // Responsibilities:
 //   1. Reap sweep rows stuck at status='running' longer than Vercel's max function duration.
-//   2. Transition bulk_sweep_jobs that are due (scheduled_at <= now) from 'scheduled' -> 'running'.
+//   2. Reap bulk_sweep_job_accounts stuck at sweep_status='running' for >15 min and mark affected jobs complete.
+//   3. Transition bulk_sweep_jobs that are due (scheduled_at <= now) from 'scheduled' -> 'running'.
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
   if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -31,7 +32,45 @@ export async function GET(request: NextRequest) {
     console.log(`[cron:stale-recovery] marked ${staleSweeps.length} stale sweep(s) failed:`, staleSweeps.map(s => s.id))
   }
 
-  // 2. Transition due bulk_sweep_jobs from 'scheduled' -> 'running'.
+  // 2. Reap bulk_sweep_job_accounts stuck at sweep_status='running' for >15 min.
+  // Each process-account-queue invocation has a 600s Vercel budget; 15 min means the invocation died.
+  const stuckAccountThreshold = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+  const { data: stuckAccounts, error: stuckErr } = await supabase
+    .from('bulk_sweep_job_accounts')
+    .update({
+      sweep_status: 'failed',
+      sweep_error: 'Timed out — reaped by watchdog',
+      completed_at: new Date().toISOString(),
+    })
+    .eq('sweep_status', 'running')
+    .or(`started_at.is.null,started_at.lt.${stuckAccountThreshold}`)
+    .select('id, job_id')
+
+  if (stuckErr) {
+    console.error('[cron:stuck-accounts] error reaping stuck accounts:', stuckErr)
+  } else if (stuckAccounts && stuckAccounts.length > 0) {
+    console.log(`[cron:stuck-accounts] reaped ${stuckAccounts.length} stuck account(s)`)
+
+    // Mark any jobs that now have 0 pending/running accounts as complete.
+    const affectedJobIds = Array.from(new Set(stuckAccounts.map(a => a.job_id)))
+    for (const jobId of affectedJobIds) {
+      const { count } = await supabase
+        .from('bulk_sweep_job_accounts')
+        .select('id', { count: 'exact', head: true })
+        .eq('job_id', jobId)
+        .in('sweep_status', ['pending', 'running'])
+
+      if (count === 0) {
+        await supabase.from('bulk_sweep_jobs')
+          .update({ status: 'complete', completed_at: new Date().toISOString() })
+          .eq('id', jobId)
+          .eq('status', 'running')
+        console.log(`[cron:job-complete] job ${jobId} marked complete after stuck-account reap`)
+      }
+    }
+  }
+
+  // 3. Transition due bulk_sweep_jobs from 'scheduled' -> 'running'.
   const { data: dueJobs } = await supabase
     .from('bulk_sweep_jobs')
     .select('id')
@@ -54,10 +93,15 @@ export async function GET(request: NextRequest) {
   }
 
   // Kick off the queue worker once — it self-chains until the queue is empty.
- fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
+  // await with AbortController so the request is guaranteed sent before this function returns.
+  // Aborting client-side does NOT cancel the queue worker — it keeps running independently.
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), 500)
+  await fetch(`${baseUrl}/api/admin/sweeps/process-account-queue`, {
     method: 'GET',
     headers: { 'X-Cron-Secret': secret },
-  }).catch(err => console.error('[cron:kick-off] queue worker invoke failed:', err))
+    signal: controller.signal,
+  }).catch(() => {}) // AbortError expected
 
   return NextResponse.json({ kicked_off: dueJobs.length, stale_reaped: staleSweeps?.length ?? 0 })
 }

@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
   // Mark this account running immediately so the self-chain picks a DIFFERENT account.
   await supabase
     .from('bulk_sweep_job_accounts')
-    .update({ sweep_status: 'running' })
+    .update({ sweep_status: 'running', started_at: new Date().toISOString() })
     .eq('id', nextAccount.id)
     .eq('sweep_status', 'pending') // only if still pending (prevent double-processing)
 
