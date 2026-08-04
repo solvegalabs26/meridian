@@ -102,6 +102,7 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
             id:                obj.id,
             title:             obj.title,
             status:            obj.status,
+            confidence:        obj.confidence ?? null,
             target_date:       obj.target_date ?? null,
             deadline_type:     (obj as { deadline_type?: 'hard' | 'soft' }).deadline_type ?? 'hard',
             reservation_price: (obj as { reservation_price?: number | null }).reservation_price ?? null,

@@ -303,6 +303,29 @@ export async function runSweepForUser(
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — objective changes fetched (${latestChangeByObjId.size} with recent changes)`)
 
+    // 4f. Fetch most recent objective_outcomes row per objective (FF-025).
+    // Objectives with a recorded outcome are typically already closed and won't
+    // appear in active sweeps, but the context is available for any sweep that
+    // includes a recently-closed objective (e.g. a manual sweep scoped by ID).
+    const { data: recentOutcomesRaw } = await supabase
+      .from('objective_outcomes')
+      .select('objective_id, outcome_type, outcome_note, actual_completed_at')
+      .in('objective_id', objectives.map(o => o.id))
+      .order('recorded_at', { ascending: false })
+
+    const latestOutcomeByObjId = new Map<string, { outcome_type: string; outcome_note: string | null; actual_completed_at: string | null }>()
+    for (const row of recentOutcomesRaw ?? []) {
+      if (!latestOutcomeByObjId.has(row.objective_id)) {
+        latestOutcomeByObjId.set(row.objective_id, {
+          outcome_type: row.outcome_type,
+          outcome_note: row.outcome_note,
+          actual_completed_at: row.actual_completed_at,
+        })
+      }
+    }
+
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — outcome rows fetched (${latestOutcomeByObjId.size} objectives with recorded outcomes)`)
+
     // 5. Fetch NewsAPI signals for each objective — in parallel to avoid
     // sequential latency that scales linearly with objective count.
     const newsSignalsMap: Record<string, Awaited<ReturnType<typeof fetchNewsSignals>>> = {}
@@ -352,7 +375,7 @@ export async function runSweepForUser(
       const episodeHistory = episodeHistoryByObjId.get(obj.id) ?? []
       const signalAbsenceCount = episodeHistory.filter(ep => ep.signal_count === 0).length
 
-      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined, askContext: askContext || undefined, episodeHistory, signalAbsenceCount, recentChange: latestChangeByObjId.get(obj.id) ?? null }
+      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined, askContext: askContext || undefined, episodeHistory, signalAbsenceCount, recentChange: latestChangeByObjId.get(obj.id) ?? null, outcomeRow: latestOutcomeByObjId.get(obj.id) ?? null }
     })
 
     // Inject upcoming calendar events for Explorer+ users who have a synced connection.
