@@ -27,6 +27,7 @@ interface ObjectiveStateInput {
   episodeHistory?: EpisodeHistoryEntry[]
   signalAbsenceCount?: number
   recentChange?: { changed_field: string; changed_at: string } | null
+  outcomeRow?: { outcome_type: string; outcome_note: string | null; actual_completed_at: string | null } | null
 }
 
 function truncateNotes(notes: string | null | undefined, objectiveId: string): string | null {
@@ -41,7 +42,7 @@ function truncateNotes(notes: string | null | undefined, objectiveId: string): s
 
 export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
   return {
-    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext, askContext, episodeHistory, signalAbsenceCount, recentChange }) => {
+    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext, askContext, episodeHistory, signalAbsenceCount, recentChange, outcomeRow }) => {
       const obj = objective as Objective & {
         objective_type?: string | null
         deadline_type?: 'hard' | 'soft'
@@ -116,6 +117,20 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
         const when = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`
         Object.assign(base, {
           recent_change: `Objective updated ${when}: ${recentChange.changed_field} was modified.`,
+        })
+      }
+
+      // Inject recorded outcome (FF-025) — most recent objective_outcomes row for this objective.
+      // Key is `recorded_outcome` (not `outcome`) because `outcome` is already the user's desired
+      // outcome string from the objectives table. Omit block entirely when no row exists.
+      if (outcomeRow) {
+        const fmtDate = (d: string | null) =>
+          d ? new Date(d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'unknown date'
+        const noteStr = outcomeRow.outcome_note
+          ? ' ' + (truncateNotes(outcomeRow.outcome_note, obj.id) ?? outcomeRow.outcome_note)
+          : ''
+        Object.assign(base, {
+          recorded_outcome: `Objective completed on ${fmtDate(outcomeRow.actual_completed_at)} with outcome: ${outcomeRow.outcome_type}.${noteStr}`,
         })
       }
 
