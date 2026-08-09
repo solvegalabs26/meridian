@@ -39,6 +39,7 @@ export async function resolveUrl({
         .select('id')
         .eq('objective_id', objectiveId)
         .eq('url_provided', urlProvided)
+        .eq('is_active', true)
         .single(),
     ])
 
@@ -72,8 +73,8 @@ export async function resolveUrl({
   })
 
   const rawText = msg.content
-    .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
-    .map(b => b.text)
+    .filter(b => b.type === 'text')
+    .map(b => (b as { text: string }).text)
     .join('')
     .trim()
     .replace(/^```(?:json)?\s*/i, '')

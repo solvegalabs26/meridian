@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings, X, Archive, Pencil, ChevronLeft, Check } from 'lucide-react'
+import { Settings, X, Archive, Pencil, ChevronLeft, Check, Eye } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import WatchSourcesPanel, { type WatchSource } from '@/components/watchlist/WatchSourcesPanel'
 
 interface ObjProps {
   id: string
@@ -16,6 +17,7 @@ interface ObjProps {
   context: Record<string, unknown>
   objective_type: string | null
   notes: string | null
+  category: string
 }
 
 interface OpenPrediction {
@@ -27,9 +29,12 @@ interface OpenPrediction {
 
 interface Props {
   obj: ObjProps
+  tier: string
+  accountType: string | null
+  initialSources: WatchSource[]
 }
 
-type DrawerView = 'menu' | 'edit'
+type DrawerView = 'menu' | 'edit' | 'watch'
 type ScoreLabel = 'HIT' | 'PARTIAL' | 'MISS'
 
 function outcomeColor(type: ScoreLabel): string {
@@ -40,7 +45,7 @@ function outcomeColor(type: ScoreLabel): string {
 
 const SCORE_VALUE: Record<ScoreLabel, number> = { HIT: 95, PARTIAL: 60, MISS: 10 }
 
-export default function ObjectiveDetailClient({ obj }: Props) {
+export default function ObjectiveDetailClient({ obj, tier, accountType, initialSources }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [view, setView] = useState<DrawerView>('menu')
   const [loading, setLoading] = useState(false)
@@ -275,7 +280,7 @@ export default function ObjectiveDetailClient({ obj }: Props) {
           <div className="relative w-80 h-full shadow-xl flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--ov-navy-card)' }}>
             {/* Header */}
             <div className="flex items-center justify-between p-5 flex-shrink-0" style={{ borderBottom: '1px solid var(--ov-border)' }}>
-              {view === 'edit' ? (
+              {view !== 'menu' ? (
                 <button
                   onClick={() => setView('menu')}
                   className="flex items-center gap-1 text-[13px]"
@@ -302,6 +307,14 @@ export default function ObjectiveDetailClient({ obj }: Props) {
                 >
                   <Pencil size={14} style={{ color: 'var(--ov-blue)' }} />
                   Edit goal
+                </button>
+                <button
+                  onClick={() => setView('watch')}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] text-left transition-colors"
+                  style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}
+                >
+                  <Eye size={14} style={{ color: 'var(--ov-blue)' }} />
+                  Watch sources
                 </button>
                 <button
                   onClick={openOutcomeModal}
@@ -440,6 +453,17 @@ export default function ObjectiveDetailClient({ obj }: Props) {
                 </button>
               </div>
               </div>
+            )}
+
+            {/* Watch view */}
+            {view === 'watch' && (
+              <WatchSourcesPanel
+                objectiveId={obj.id}
+                category={obj.category}
+                tier={tier}
+                accountType={accountType}
+                initialSources={initialSources}
+              />
             )}
           </div>
         </div>
