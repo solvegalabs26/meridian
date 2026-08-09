@@ -33,14 +33,15 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
   const { data: obj } = await supabase.from('objectives').select('*').eq('id', params.id).eq('user_id', user.id).single()
   if (!obj) notFound()
 
-  const [{ data: scores }, { data: signals }, { data: allObjectives }, { data: profile }, { data: calConnections }, { data: episodes }, { data: doneEngineActions }] = await Promise.all([
+  const [{ data: scores }, { data: signals }, { data: allObjectives }, { data: profile }, { data: calConnections }, { data: episodes }, { data: doneEngineActions }, { data: watchSources }] = await Promise.all([
     supabase.from('confidence_scores').select('id, score, created_at, sweep_id, recommended_actions').eq('objective_id', obj.id).order('created_at', { ascending: false }).limit(7),
     supabase.from('signals').select('*').contains('objective_ids', [obj.id]).order('created_at', { ascending: false }),
     supabase.from('objectives').select('id, title').eq('user_id', user.id),
-    supabase.from('profiles').select('tier').eq('id', user.id).single(),
+    supabase.from('profiles').select('tier, account_type').eq('id', user.id).single(),
     supabase.from('calendar_connections').select('id').eq('user_id', user.id).eq('sync_status', 'ok').limit(1),
     supabase.from('objective_episodes').select('id, episode_number, confidence_start, confidence_end, confidence_delta, narrative, top_action, recommended_actions, signal_gap, top_signals, cross_deps_detected, inference_block, source, signal_count, created_at').eq('objective_id', obj.id).order('episode_number', { ascending: false }),
     supabase.from('objective_actions').select('description').eq('objective_id', obj.id).eq('source', 'engine_recommended').eq('status', 'done'),
+    supabase.from('watch_sources').select('id, url_provided, url_resolved, url_resolved_at, priority_tier, watch_type, target_signal, last_state, last_checked_at, requires_confirmation, is_active').eq('objective_id', obj.id).eq('user_id', user.id).eq('is_active', true).order('priority_tier', { ascending: true }).order('created_at', { ascending: false }),
   ])
 
   const hasCalendar = (calConnections?.length ?? 0) > 0
@@ -98,18 +99,24 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
           <h1 style={{ fontFamily: "'EB Garamond', Georgia, serif", fontSize: 26, color: '#fff', lineHeight: 1.2 }}>
             {obj.title}
           </h1>
-          <ObjectiveDetailClient obj={{
-            id:                obj.id,
-            title:             obj.title,
-            status:            obj.status,
-            confidence:        obj.confidence ?? null,
-            target_date:       obj.target_date ?? null,
-            deadline_type:     (obj as { deadline_type?: 'hard' | 'soft' }).deadline_type ?? 'hard',
-            reservation_price: (obj as { reservation_price?: number | null }).reservation_price ?? null,
-            context:           (obj as { context?: Record<string, unknown> }).context ?? {},
-            objective_type:    (obj as { objective_type?: string | null }).objective_type ?? null,
-            notes:             obj.notes ?? null,
-          }} />
+          <ObjectiveDetailClient
+            obj={{
+              id:                obj.id,
+              title:             obj.title,
+              status:            obj.status,
+              confidence:        obj.confidence ?? null,
+              target_date:       obj.target_date ?? null,
+              deadline_type:     (obj as { deadline_type?: 'hard' | 'soft' }).deadline_type ?? 'hard',
+              reservation_price: (obj as { reservation_price?: number | null }).reservation_price ?? null,
+              context:           (obj as { context?: Record<string, unknown> }).context ?? {},
+              objective_type:    (obj as { objective_type?: string | null }).objective_type ?? null,
+              notes:             obj.notes ?? null,
+              category:          obj.category as string,
+            }}
+            tier={(profile as { tier?: string; account_type?: string } | null)?.tier ?? 'trial'}
+            accountType={(profile as { tier?: string; account_type?: string } | null)?.account_type ?? null}
+            initialSources={(watchSources ?? []) as import('@/components/watchlist/WatchSourcesPanel').WatchSource[]}
+          />
         </div>
         <p className="text-[12px] mb-6" style={{ color: 'var(--ov-text-dim)' }}>
           {obj.target_date
