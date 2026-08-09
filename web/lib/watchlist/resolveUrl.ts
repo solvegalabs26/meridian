@@ -68,7 +68,7 @@ export async function resolveUrl({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 512,
     system:
-      "You are Meridian's URL resolution engine. Given an objective and a provided URL or company name, determine the most specific, direct URL that would contain evidence of progress toward this objective's success condition. Return ONLY valid JSON — no preamble, no markdown, no explanation outside the JSON.",
+      "You are Meridian's URL resolution engine. Given an objective and a provided URL or company name, determine the most specific, direct URL that would contain evidence of progress toward this objective's success condition. Return ONLY valid JSON — no preamble, no markdown, no explanation outside the JSON. If the user provides a company name rather than a URL, resolve to the most specific page relevant to the objective's success condition — not the company homepage or general careers page. For a hiring objective targeting a specific role, resolve to the role category page, not the top-level careers portal. If you cannot determine a specific deep URL with confidence >= 0.85, return the root domain and set requires_confirmation: true.",
     messages: [{ role: 'user', content: userMessage }],
   })
 

@@ -136,6 +136,9 @@ async function checkOne(
         role: 'user',
         content: [
           `TARGET SIGNAL: ${src.target_signal ?? 'Not specified'}`,
+          `TARGET SIGNAL (what specifically to look for): ${src.target_signal ?? 'Not specified'}`,
+          '',
+          'NOISE FILTER: A page change that does not directly relate to the target signal above is NOT a confirmed signal. Company news, product updates, unrelated job categories, or structural page changes must return signal_confirmed: false. Only return signal_confirmed: true if the page content directly evidences progress toward the objective\'s success condition as defined by the target signal.',
           `WATCH TYPE: ${src.watch_type}`,
           '',
           'PAGE CONTENT (extracted):',
