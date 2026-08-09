@@ -73,8 +73,8 @@ export async function resolveUrl({
   })
 
   const rawText = msg.content
-    .filter(b => b.type === 'text')
-    .map(b => (b as { text: string }).text)
+    .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
+    .map(b => b.text)
     .join('')
     .trim()
     .replace(/^```(?:json)?\s*/i, '')
