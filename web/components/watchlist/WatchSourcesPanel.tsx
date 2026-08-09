@@ -179,7 +179,7 @@ export default function WatchSourcesPanel({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[11px] flex-1 truncate min-w-0"
-                      style={{ color: 'var(--ov-blue)' }}
+                      style={{ color: 'var(--ov-text-dim)' }}
                       title={src.url_resolved}
                     >
                       {src.url_resolved.replace(/^https?:\/\//, '')}
@@ -296,9 +296,9 @@ export default function WatchSourcesPanel({
                 className={inputCls}
                 style={inputStyle}
               >
-                <option value={1}>Critical (1)</option>
-                <option value={2}>High (2)</option>
-                <option value={3}>Reference (3)</option>
+                <option value={1} style={{ backgroundColor: '#0a1628', color: '#f0f0f0' }}>Critical (1)</option>
+                <option value={2} style={{ backgroundColor: '#0a1628', color: '#f0f0f0' }}>High (2)</option>
+                <option value={3} style={{ backgroundColor: '#0a1628', color: '#f0f0f0' }}>Reference (3)</option>
               </select>
             </div>
 
@@ -310,10 +310,10 @@ export default function WatchSourcesPanel({
                 className={inputCls}
                 style={inputStyle}
               >
-                <option value="careers_listing">Hiring / Job Listing</option>
-                <option value="registration">Registration</option>
-                <option value="status_page">Status Page</option>
-                <option value="custom">Other</option>
+                <option value="careers_listing" style={{ backgroundColor: '#0a1628', color: '#f0f0f0' }}>Hiring / Job Listing</option>
+                <option value="registration" style={{ backgroundColor: '#0a1628', color: '#f0f0f0' }}>Registration</option>
+                <option value="status_page" style={{ backgroundColor: '#0a1628', color: '#f0f0f0' }}>Status Page</option>
+                <option value="custom" style={{ backgroundColor: '#0a1628', color: '#f0f0f0' }}>Other</option>
               </select>
             </div>
 
