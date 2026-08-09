@@ -113,6 +113,28 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'alerts',
+    label: 'Alerts & Watch Sources',
+    items: [
+      {
+        q: 'Can I add specific websites for Meridian Arc to monitor?',
+        body: [
+          'Yes. Inside any objective\'s settings drawer (gear icon), you can list watch sources — specific URLs or company names you want Meridian to check on every sweep cycle.',
+          'If you provide a company name, Meridian infers the most relevant deep URL based on your objective. For example, if your objective contains a specific role at a specific company, Meridian resolves to the role\'s hiring category page — not the company homepage. (If general or no specific details are listed in your goal, Meridian may not know what to specifically point you at.)',
+          'You can also set a priority tier (Critical, High, or Reference) to control how urgently Meridian treats a state change on that source.',
+        ],
+      },
+      {
+        q: 'Will Meridian Arc alert me when a time-sensitive opportunity appears?',
+        body: [
+          'Yes — and this is one of the most important capabilities for watch and decision objectives. When a watched source confirms a signal relevant to your objective, Meridian fires a priority alert before any other sweep output.',
+          'Critical alerts appear as a gold banner on your dashboard and are delivered via email. SMS and push notifications are available on Accelerator and Command plans.',
+        ],
+        callout: { type: 'gold', text: 'Alerts are validated before they fire — Meridian confirms the page change is specifically relevant to your objective\'s success condition, not just any update on the page, before sending.' },
+      },
+    ],
+  },
+  {
     id: 'predictions',
     label: 'Predictions & Confidence',
     items: [
@@ -468,7 +490,7 @@ export default function FAQPage() {
             Frequently Asked Questions
           </h1>
           <p className="text-[14px]" style={{ color: 'rgba(255,255,255,.5)' }}>
-            17 answers across 6 categories. Click any question to expand.
+            19 answers across 7 categories. Click any question to expand.
           </p>
         </div>
 
