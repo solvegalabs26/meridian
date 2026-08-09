@@ -2,7 +2,10 @@ import { createHash } from 'crypto'
 import { getAnthropicClient } from '@/lib/anthropic/client'
 import { createServiceClient } from '@/lib/supabase/server'
 import { sendWatchAlert } from '@/lib/email/sendWatchAlert'
+import { sendSmsAlert } from '@/lib/watchlist/sendSmsAlert'
+import { sendPushAlert } from '@/lib/watchlist/sendPushAlert'
 import { getEffectiveTier, type TierProfile } from '@/lib/tiers'
+import type webpush from 'web-push'
 
 export type CheckResult = {
   watchSourceId: string
@@ -78,6 +81,8 @@ async function checkOne(
   supabase: ReturnType<typeof createServiceClient>,
   userEmail: string | null,
   tierProfile: TierProfile,
+  phoneNumber: string | null,
+  smsAlertsEnabled: boolean,
 ): Promise<CheckResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 7000)
@@ -224,29 +229,61 @@ async function checkOne(
       .single()
     alertId = alertRow?.id as string | undefined
 
-    if (userEmail) {
-      const effectiveTier = getEffectiveTier(tierProfile)
-      const shouldEmail =
-        (alertLevel === 'critical' && effectiveTier !== 'trial') ||
-        (alertLevel === 'high' && (effectiveTier === 'accelerator' || effectiveTier === 'command'))
+    const effectiveTier = getEffectiveTier(tierProfile)
+    const isAcceleratorPlus = effectiveTier === 'accelerator' || effectiveTier === 'command'
 
-      if (shouldEmail) {
-        let objectiveTitle = ''
-        if (src.objective_id) {
-          const { data: obj } = await supabase
-            .from('objectives')
-            .select('title')
-            .eq('id', src.objective_id)
-            .single()
-          objectiveTitle = (obj?.title as string | undefined) ?? ''
-        }
+    // Gate checks — determine which channels will fire before fetching title
+    const willEmail =
+      !!userEmail &&
+      ((alertLevel === 'critical' && effectiveTier !== 'trial') ||
+        (alertLevel === 'high' && isAcceleratorPlus))
+    const willSms = alertLevel === 'critical' && smsAlertsEnabled && !!phoneNumber && isAcceleratorPlus
+    const willPush = alertLevel === 'critical' && isAcceleratorPlus
+
+    if (willEmail || willSms || willPush) {
+      let objectiveTitle = ''
+      const { data: obj } = await supabase
+        .from('objectives')
+        .select('title')
+        .eq('id', src.objective_id)
+        .single()
+      objectiveTitle = (obj?.title as string | undefined) ?? ''
+
+      if (willEmail) {
         await sendWatchAlert({
-          to: userEmail,
+          to: userEmail!,
           objectiveTitle,
           signalSummary: signal_summary,
           actionText: action_text,
           directUrl: src.url_resolved,
         })
+      }
+
+      if (willSms) {
+        await sendSmsAlert({
+          to: phoneNumber!,
+          objectiveTitle,
+          signalSummary: signal_summary,
+          actionText: action_text,
+          directUrl: src.url_resolved,
+        })
+      }
+
+      if (willPush) {
+        const { data: subs } = await supabase
+          .from('push_subscriptions')
+          .select('subscription')
+          .eq('user_id', userId)
+        await Promise.allSettled(
+          (subs ?? []).map(row =>
+            sendPushAlert({
+              subscription: row.subscription as webpush.PushSubscription,
+              objectiveTitle,
+              signalSummary: signal_summary,
+              actionText: action_text,
+            })
+          )
+        )
       }
     }
   }
@@ -283,7 +320,11 @@ export async function checkWatchSources(userId: string): Promise<CheckResult[]> 
       .eq('is_active', true)
       .not('url_resolved', 'is', null),
     supabase.auth.admin.getUserById(userId),
-    supabase.from('profiles').select('tier, account_type').eq('id', userId).single(),
+    supabase
+      .from('profiles')
+      .select('tier, account_type, phone_number, sms_alerts_enabled')
+      .eq('id', userId)
+      .single(),
   ])
 
   if (error) throw new Error(`checkWatchSources: failed to load sources: ${error.message}`)
@@ -294,9 +335,15 @@ export async function checkWatchSources(userId: string): Promise<CheckResult[]> 
     tier: (profile as { tier?: string | null } | null)?.tier ?? null,
     account_type: (profile as { account_type?: string | null } | null)?.account_type ?? null,
   }
+  const phoneNumber: string | null =
+    (profile as { phone_number?: string | null } | null)?.phone_number ?? null
+  const smsAlertsEnabled: boolean =
+    (profile as { sms_alerts_enabled?: boolean | null } | null)?.sms_alerts_enabled ?? false
 
   const settled = await Promise.allSettled(
-    (sources as WatchSourceRow[]).map(src => checkOne(src, userId, supabase, userEmail, tierProfile))
+    (sources as WatchSourceRow[]).map(src =>
+      checkOne(src, userId, supabase, userEmail, tierProfile, phoneNumber, smsAlertsEnabled)
+    )
   )
 
   return settled.map((r, i) => {
