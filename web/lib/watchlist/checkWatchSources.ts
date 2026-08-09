@@ -1,6 +1,8 @@
 import { createHash } from 'crypto'
 import { getAnthropicClient } from '@/lib/anthropic/client'
 import { createServiceClient } from '@/lib/supabase/server'
+import { sendWatchAlert } from '@/lib/email/sendWatchAlert'
+import { getEffectiveTier, type TierProfile } from '@/lib/tiers'
 
 export type CheckResult = {
   watchSourceId: string
@@ -73,7 +75,9 @@ function extractScopedText(html: string, watchType: string): string {
 async function checkOne(
   src: WatchSourceRow,
   userId: string,
-  supabase: ReturnType<typeof createServiceClient>
+  supabase: ReturnType<typeof createServiceClient>,
+  userEmail: string | null,
+  tierProfile: TierProfile,
 ): Promise<CheckResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 7000)
@@ -216,6 +220,32 @@ async function checkOne(
       .select('id')
       .single()
     alertId = alertRow?.id as string | undefined
+
+    if (userEmail) {
+      const effectiveTier = getEffectiveTier(tierProfile)
+      const shouldEmail =
+        (alertLevel === 'critical' && effectiveTier !== 'trial') ||
+        (alertLevel === 'high' && (effectiveTier === 'accelerator' || effectiveTier === 'command'))
+
+      if (shouldEmail) {
+        let objectiveTitle = ''
+        if (src.objective_id) {
+          const { data: obj } = await supabase
+            .from('objectives')
+            .select('title')
+            .eq('id', src.objective_id)
+            .single()
+          objectiveTitle = (obj?.title as string | undefined) ?? ''
+        }
+        await sendWatchAlert({
+          to: userEmail,
+          objectiveTitle,
+          signalSummary: signal_summary,
+          actionText: action_text,
+          directUrl: src.url_resolved,
+        })
+      }
+    }
   }
 
   const status = (
@@ -238,18 +268,32 @@ async function checkOne(
 export async function checkWatchSources(userId: string): Promise<CheckResult[]> {
   const supabase = createServiceClient()
 
-  const { data: sources, error } = await supabase
-    .from('watch_sources')
-    .select('id, url_resolved, watch_type, target_signal, last_hash, last_state, priority_tier, objective_id')
-    .eq('user_id', userId)
-    .eq('is_active', true)
-    .not('url_resolved', 'is', null)
+  const [
+    { data: sources, error },
+    { data: { user: authUser } },
+    { data: profile },
+  ] = await Promise.all([
+    supabase
+      .from('watch_sources')
+      .select('id, url_resolved, watch_type, target_signal, last_hash, last_state, priority_tier, objective_id')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .not('url_resolved', 'is', null),
+    supabase.auth.admin.getUserById(userId),
+    supabase.from('profiles').select('tier, account_type').eq('id', userId).single(),
+  ])
 
   if (error) throw new Error(`checkWatchSources: failed to load sources: ${error.message}`)
   if (!sources?.length) return []
 
+  const userEmail = authUser?.email ?? null
+  const tierProfile: TierProfile = {
+    tier: (profile as { tier?: string | null } | null)?.tier ?? null,
+    account_type: (profile as { account_type?: string | null } | null)?.account_type ?? null,
+  }
+
   const settled = await Promise.allSettled(
-    (sources as WatchSourceRow[]).map(src => checkOne(src, userId, supabase))
+    (sources as WatchSourceRow[]).map(src => checkOne(src, userId, supabase, userEmail, tierProfile))
   )
 
   return settled.map((r, i) => {

@@ -7,16 +7,28 @@ export default async function ObjectivesPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: objectives, error } = await supabase
-    .from('objectives')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('sort_order', { ascending: true })
+  const [{ data: objectives, error }, { data: unseenAlerts }] = await Promise.all([
+    supabase
+      .from('objectives')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('sort_order', { ascending: true }),
+    supabase
+      .from('watch_alerts')
+      .select('objective_id')
+      .eq('user_id', user.id)
+      .is('user_seen_at', null),
+  ])
+
+  const alertObjectiveIds = new Set(
+    (unseenAlerts ?? []).map(a => a.objective_id as string).filter(Boolean)
+  )
 
   return (
     <ObjectivesClient
       objectives={objectives ?? []}
       error={error?.message ?? null}
+      alertObjectiveIds={alertObjectiveIds}
     />
   )
 }

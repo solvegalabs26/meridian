@@ -19,7 +19,7 @@ const STATUS_STYLES: Record<string, string> = {
   closed:   'bg-[var(--gray-lt)] text-[var(--text3)]',
 }
 
-export default function ObjectiveCard({ obj }: { obj: Objective }) {
+export default function ObjectiveCard({ obj, hasAlert }: { obj: Objective; hasAlert?: boolean }) {
   const catColor = CATEGORY_COLORS[obj.category] ?? '#8098B4'
 
   return (
@@ -42,7 +42,16 @@ export default function ObjectiveCard({ obj }: { obj: Objective }) {
             {obj.title}
           </h3>
         </div>
-        <ChevronRight size={16} className="text-[var(--text3)] flex-shrink-0 mt-1 group-hover:text-[var(--blue)] transition-colors" />
+        <div className="flex items-center gap-1.5 flex-shrink-0 mt-1">
+          {hasAlert && (
+            <span
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: '#C9A227' }}
+              title="Unacknowledged watch alert"
+            />
+          )}
+          <ChevronRight size={16} className="text-[var(--text3)] group-hover:text-[var(--blue)] transition-colors" />
+        </div>
       </div>
 
       <div className="mb-3">
