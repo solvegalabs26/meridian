@@ -365,7 +365,7 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                     value={targetDate}
                     onChange={e => setTargetDate(e.target.value)}
                     className={inputCls}
-                    style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)' }}
+                    style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: '#1a1a2e', colorScheme: 'light' }}
                   />
                 </div>
 

@@ -165,8 +165,8 @@ export default function WatchSourcesPanel({
         </p>
       )}
 
-      {/* Career onboarding prompt — shown above add form when no sources configured */}
-      {sources.length === 0 && isCareer && (
+      {/* Onboarding prompt — shown above add form when no sources configured */}
+      {sources.length === 0 && (
         <div
           className="rounded-xl p-3 text-[12px] leading-relaxed"
           style={{ background: 'rgba(217,162,60,0.08)', border: '1px solid rgba(217,162,60,0.2)', color: 'var(--ov-text-mid)' }}
