@@ -27,8 +27,10 @@ export async function POST(request: NextRequest) {
     .eq('id', user.id)
     .single()
 
-  // Rate limit: 23h minimum gap for all current account types
-  if (RATE_LIMITED_TYPES.has(profile?.account_type ?? 'personal')) {
+  // Rate limit: 23h minimum gap for all current account types.
+  // @solvegalabs.com accounts are exempt — internal use, no cap.
+  const isInternal = user.email?.endsWith('@solvegalabs.com') ?? false
+  if (!isInternal && RATE_LIMITED_TYPES.has(profile?.account_type ?? 'personal')) {
     if (profile?.last_sweep_at) {
       const nextSweepAt = new Date(new Date(profile.last_sweep_at).getTime() + RATE_LIMIT_MS)
       if (nextSweepAt > new Date()) {

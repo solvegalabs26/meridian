@@ -11,9 +11,10 @@ type Tab = 'active' | 'archived' | 'all'
 interface Props {
   objectives: Objective[]
   error: string | null
+  alertObjectiveIds?: Set<string>
 }
 
-export default function ObjectivesClient({ objectives, error }: Props) {
+export default function ObjectivesClient({ objectives, error, alertObjectiveIds }: Props) {
   const [tab, setTab] = useState<Tab>('active')
 
   const active   = objectives.filter(o => o.status === 'active')
@@ -106,7 +107,7 @@ export default function ObjectivesClient({ objectives, error }: Props) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {displayed.map(obj => (
-            <ObjectiveCard key={obj.id} obj={obj} />
+            <ObjectiveCard key={obj.id} obj={obj} hasAlert={alertObjectiveIds?.has(obj.id) ?? false} />
           ))}
         </div>
       )}

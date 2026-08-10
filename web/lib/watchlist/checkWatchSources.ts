@@ -1,6 +1,11 @@
 import { createHash } from 'crypto'
 import { getAnthropicClient } from '@/lib/anthropic/client'
 import { createServiceClient } from '@/lib/supabase/server'
+import { sendWatchAlert } from '@/lib/email/sendWatchAlert'
+import { sendSmsAlert } from '@/lib/watchlist/sendSmsAlert'
+import { sendPushAlert } from '@/lib/watchlist/sendPushAlert'
+import { getEffectiveTier, type TierProfile } from '@/lib/tiers'
+import type webpush from 'web-push'
 
 export type CheckResult = {
   watchSourceId: string
@@ -73,7 +78,11 @@ function extractScopedText(html: string, watchType: string): string {
 async function checkOne(
   src: WatchSourceRow,
   userId: string,
-  supabase: ReturnType<typeof createServiceClient>
+  supabase: ReturnType<typeof createServiceClient>,
+  userEmail: string | null,
+  tierProfile: TierProfile,
+  phoneNumber: string | null,
+  smsAlertsEnabled: boolean,
 ): Promise<CheckResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 7000)
@@ -132,6 +141,9 @@ async function checkOne(
         role: 'user',
         content: [
           `TARGET SIGNAL: ${src.target_signal ?? 'Not specified'}`,
+          `TARGET SIGNAL (what specifically to look for): ${src.target_signal ?? 'Not specified'}`,
+          '',
+          'NOISE FILTER: A page change that does not directly relate to the target signal above is NOT a confirmed signal. Company news, product updates, unrelated job categories, or structural page changes must return signal_confirmed: false. Only return signal_confirmed: true if the page content directly evidences progress toward the objective\'s success condition as defined by the target signal.',
           `WATCH TYPE: ${src.watch_type}`,
           '',
           'PAGE CONTENT (extracted):',
@@ -216,6 +228,64 @@ async function checkOne(
       .select('id')
       .single()
     alertId = alertRow?.id as string | undefined
+
+    const effectiveTier = getEffectiveTier(tierProfile)
+    const isAcceleratorPlus = effectiveTier === 'accelerator' || effectiveTier === 'command' || effectiveTier === 'enterprise'
+
+    // Gate checks — determine which channels will fire before fetching title
+    const willEmail =
+      !!userEmail &&
+      ((alertLevel === 'critical' && effectiveTier !== 'trial') ||
+        (alertLevel === 'high' && isAcceleratorPlus))
+    const willSms = alertLevel === 'critical' && smsAlertsEnabled && !!phoneNumber && isAcceleratorPlus
+    const willPush = alertLevel === 'critical' && isAcceleratorPlus
+
+    if (willEmail || willSms || willPush) {
+      let objectiveTitle = ''
+      const { data: obj } = await supabase
+        .from('objectives')
+        .select('title')
+        .eq('id', src.objective_id)
+        .single()
+      objectiveTitle = (obj?.title as string | undefined) ?? ''
+
+      if (willEmail) {
+        await sendWatchAlert({
+          to: userEmail!,
+          objectiveTitle,
+          signalSummary: signal_summary,
+          actionText: action_text,
+          directUrl: src.url_resolved,
+        })
+      }
+
+      if (willSms) {
+        await sendSmsAlert({
+          to: phoneNumber!,
+          objectiveTitle,
+          signalSummary: signal_summary,
+          actionText: action_text,
+          directUrl: src.url_resolved,
+        })
+      }
+
+      if (willPush) {
+        const { data: subs } = await supabase
+          .from('push_subscriptions')
+          .select('subscription')
+          .eq('user_id', userId)
+        await Promise.allSettled(
+          (subs ?? []).map(row =>
+            sendPushAlert({
+              subscription: row.subscription as webpush.PushSubscription,
+              objectiveTitle,
+              signalSummary: signal_summary,
+              actionText: action_text,
+            })
+          )
+        )
+      }
+    }
   }
 
   const status = (
@@ -238,18 +308,42 @@ async function checkOne(
 export async function checkWatchSources(userId: string): Promise<CheckResult[]> {
   const supabase = createServiceClient()
 
-  const { data: sources, error } = await supabase
-    .from('watch_sources')
-    .select('id, url_resolved, watch_type, target_signal, last_hash, last_state, priority_tier, objective_id')
-    .eq('user_id', userId)
-    .eq('is_active', true)
-    .not('url_resolved', 'is', null)
+  const [
+    { data: sources, error },
+    { data: { user: authUser } },
+    { data: profile },
+  ] = await Promise.all([
+    supabase
+      .from('watch_sources')
+      .select('id, url_resolved, watch_type, target_signal, last_hash, last_state, priority_tier, objective_id')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .not('url_resolved', 'is', null),
+    supabase.auth.admin.getUserById(userId),
+    supabase
+      .from('profiles')
+      .select('tier, account_type, phone_number, sms_alerts_enabled')
+      .eq('id', userId)
+      .single(),
+  ])
 
   if (error) throw new Error(`checkWatchSources: failed to load sources: ${error.message}`)
   if (!sources?.length) return []
 
+  const userEmail = authUser?.email ?? null
+  const tierProfile: TierProfile = {
+    tier: (profile as { tier?: string | null } | null)?.tier ?? null,
+    account_type: (profile as { account_type?: string | null } | null)?.account_type ?? null,
+  }
+  const phoneNumber: string | null =
+    (profile as { phone_number?: string | null } | null)?.phone_number ?? null
+  const smsAlertsEnabled: boolean =
+    (profile as { sms_alerts_enabled?: boolean | null } | null)?.sms_alerts_enabled ?? false
+
   const settled = await Promise.allSettled(
-    (sources as WatchSourceRow[]).map(src => checkOne(src, userId, supabase))
+    (sources as WatchSourceRow[]).map(src =>
+      checkOne(src, userId, supabase, userEmail, tierProfile, phoneNumber, smsAlertsEnabled)
+    )
   )
 
   return settled.map((r, i) => {

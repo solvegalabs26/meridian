@@ -32,6 +32,7 @@ interface Props {
   tier: string
   accountType: string | null
   initialSources: WatchSource[]
+  unseenAlertCount?: number
 }
 
 type DrawerView = 'menu' | 'edit' | 'watch'
@@ -45,7 +46,7 @@ function outcomeColor(type: ScoreLabel): string {
 
 const SCORE_VALUE: Record<ScoreLabel, number> = { HIT: 95, PARTIAL: 60, MISS: 10 }
 
-export default function ObjectiveDetailClient({ obj, tier, accountType, initialSources }: Props) {
+export default function ObjectiveDetailClient({ obj, tier, accountType, initialSources, unseenAlertCount = 0 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [view, setView] = useState<DrawerView>('menu')
   const [loading, setLoading] = useState(false)
@@ -315,6 +316,14 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                 >
                   <Eye size={14} style={{ color: 'var(--ov-blue)' }} />
                   Watch sources
+                  {unseenAlertCount > 0 && (
+                    <span
+                      className="ml-auto flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ backgroundColor: '#C9A227', color: '#0A1628' }}
+                    >
+                      {unseenAlertCount}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={openOutcomeModal}

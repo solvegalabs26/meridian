@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { SWEEP_CREDIT_BUNDLES, ASK_CREDIT_BUNDLES } from '@/lib/subscription/tiers'
+import { getEffectiveTier } from '@/lib/tiers'
+import { registerPushSubscription } from '@/lib/watchlist/registerPush'
 
 interface Profile {
   full_name: string | null
@@ -19,6 +21,8 @@ interface Profile {
   org_source: string | null
   cohort_data_consent: boolean | null
   created_at: string | null
+  phone_number: string | null
+  sms_alerts_enabled: boolean | null
 }
 
 interface Props {
@@ -54,6 +58,23 @@ export default function SettingsClient({ email, profile }: Props) {
   const [consent, setConsent] = useState<boolean>(profile?.cohort_data_consent ?? true)
   const [consentSaving, setConsentSaving] = useState(false)
 
+  // SMS state
+  const [phoneNumber, setPhoneNumber] = useState(profile?.phone_number ?? '')
+  const [smsEnabled, setSmsEnabled] = useState(profile?.sms_alerts_enabled ?? false)
+  const [smsSaving, setSmsSaving] = useState(false)
+  const [smsSaved, setSmsSaved] = useState(false)
+  const [smsError, setSmsError] = useState<string | null>(null)
+
+  // Push state
+  const [pushStatus, setPushStatus] = useState<'idle' | 'requesting' | 'granted' | 'error'>('idle')
+  const [pushError, setPushError] = useState<string | null>(null)
+
+  const effectiveTier = getEffectiveTier({
+    tier: profile?.tier ?? null,
+    account_type: profile?.account_type ?? null,
+  })
+  const canUseSms = effectiveTier === 'accelerator' || effectiveTier === 'command'
+  const canUsePush = effectiveTier === 'accelerator' || effectiveTier === 'command'
 
   async function handleConsentToggle() {
     setConsentSaving(true)
@@ -86,6 +107,36 @@ export default function SettingsClient({ email, profile }: Props) {
       setError(d.error ?? 'Save failed')
     }
     setSaving(false)
+  }
+
+  async function handleSaveSms() {
+    setSmsSaving(true)
+    setSmsError(null)
+    const res = await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone_number: phoneNumber || null, sms_alerts_enabled: smsEnabled }),
+    })
+    if (res.ok) {
+      setSmsSaved(true)
+      setTimeout(() => setSmsSaved(false), 2000)
+    } else {
+      const d = await res.json() as { error?: string }
+      setSmsError(d.error ?? 'Save failed')
+    }
+    setSmsSaving(false)
+  }
+
+  async function handlePushEnable() {
+    setPushStatus('requesting')
+    setPushError(null)
+    try {
+      await registerPushSubscription()
+      setPushStatus('granted')
+    } catch (err) {
+      setPushStatus('error')
+      setPushError(err instanceof Error ? err.message : 'Push registration failed')
+    }
   }
 
   async function handleSignOut() {
@@ -204,6 +255,105 @@ export default function SettingsClient({ email, profile }: Props) {
             >
               {saved ? '✓ Saved' : saving ? 'Saving...' : 'Save changes'}
             </button>
+          </div>
+        </div>
+
+        {/* Notifications */}
+        <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
+          <h2 className="text-[13px] font-semibold text-[var(--text)] uppercase tracking-wider mb-4">Notifications</h2>
+
+          {smsError && (
+            <div className="mb-4 p-3 rounded-lg bg-[var(--red-lt)] text-[var(--red)] text-[13px]">{smsError}</div>
+          )}
+
+          <div className="space-y-5">
+            {/* SMS */}
+            <div>
+              <p className="text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-3">SMS Alerts</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[12px] text-[var(--text3)] mb-1.5">Phone number</label>
+                  <input
+                    value={phoneNumber}
+                    onChange={e => setPhoneNumber(e.target.value)}
+                    placeholder="+1XXXXXXXXXX"
+                    className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[14px] text-[var(--text)] focus:outline-none focus:border-[var(--blue)] transition-colors"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[13px] text-[var(--text2)]">SMS alerts</p>
+                    {!canUseSms && (
+                      <p className="text-[11px] text-[var(--text3)] mt-0.5">SMS alerts available on Accelerator and Command plans</p>
+                    )}
+                  </div>
+                  <div
+                    onClick={() => canUseSms && setSmsEnabled(v => !v)}
+                    className={`relative w-10 h-6 rounded-full transition-colors ${
+                      smsEnabled && canUseSms ? 'bg-navy' : 'bg-gray-300'
+                    } ${canUseSms ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+                  >
+                    <span
+                      className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                        smsEnabled && canUseSms ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleSaveSms}
+                  disabled={smsSaving}
+                  className="w-full py-2 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text2)] hover:border-[var(--blue)] hover:text-[var(--blue)] transition-colors disabled:opacity-50"
+                >
+                  {smsSaved ? '✓ Saved' : smsSaving ? 'Saving...' : 'Save SMS settings'}
+                </button>
+              </div>
+            </div>
+
+            {/* Push */}
+            <div className="pt-4 border-t border-[var(--border)]">
+              <p className="text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-3">Push Notifications</p>
+
+              {pushStatus === 'error' && pushError && (
+                <div className="mb-3 p-3 rounded-lg bg-[var(--red-lt)] text-[var(--red)] text-[13px]">{pushError}</div>
+              )}
+
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[13px] text-[var(--text2)]">
+                    {pushStatus === 'granted' ? 'Push notifications enabled' : 'Enable push notifications'}
+                  </p>
+                  {!canUsePush && (
+                    <p className="text-[11px] text-[var(--text3)] mt-0.5">Available on Accelerator and Command plans</p>
+                  )}
+                  {canUsePush && pushStatus === 'idle' && (
+                    <p className="text-[11px] text-[var(--text3)] mt-0.5">Browser permission prompt will appear</p>
+                  )}
+                  {pushStatus === 'granted' && (
+                    <p className="text-[11px] text-[var(--text3)] mt-0.5">This browser is subscribed to critical alerts</p>
+                  )}
+                </div>
+
+                {pushStatus !== 'granted' && (
+                  <button
+                    onClick={handlePushEnable}
+                    disabled={!canUsePush || pushStatus === 'requesting'}
+                    className={`flex-shrink-0 px-4 py-2 rounded-lg text-[13px] font-medium transition-colors disabled:opacity-50 ${
+                      canUsePush
+                        ? 'bg-navy text-white hover:bg-[var(--night)]'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    {pushStatus === 'requesting' ? 'Requesting...' : 'Enable'}
+                  </button>
+                )}
+                {pushStatus === 'granted' && (
+                  <span className="text-[13px] text-[var(--green)] font-medium">✓ Active</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

@@ -1,10 +1,11 @@
-export type Tier = 'trial' | 'explorer' | 'accelerator' | 'command'
+export type Tier = 'trial' | 'explorer' | 'accelerator' | 'command' | 'enterprise'
 
 const TIER_ORDER: Record<Tier, number> = {
   trial: 0,
   explorer: 1,
   accelerator: 2,
   command: 3,
+  enterprise: 4,
 }
 
 export type TierProfile = {

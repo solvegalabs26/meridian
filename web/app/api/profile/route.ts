@@ -14,7 +14,9 @@ export async function PATCH(request: NextRequest) {
     depth_pref?: string
     onboarded_at?: string
     onboarding_context?: string
-    cohort_data_consent?: boolean  // FF-022: org cohort data sharing opt-out
+    cohort_data_consent?: boolean
+    phone_number?: string | null
+    sms_alerts_enabled?: boolean
   }
 
   const { data, error } = await supabase

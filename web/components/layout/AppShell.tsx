@@ -6,6 +6,7 @@ import TopBar from './TopBar'
 import TutorialModal from '@/components/tutorial/TutorialModal'
 import KeyTermsModal from '@/components/tutorial/KeyTermsModal'
 import CheckinWrapper from '@/components/checkin/CheckinWrapper'
+import WatchAlertBanner from '@/components/alerts/WatchAlertBanner'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -66,6 +67,7 @@ export default function AppShell({
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="md:ml-60">
+        <WatchAlertBanner />
         <TopBar
           userEmail={userEmail}
           lastSweepAt={lastSweepAt}
