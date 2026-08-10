@@ -54,7 +54,11 @@ async function checkOne(
   try {
     const res = await fetch(`https://r.jina.ai/${src.url_resolved}`, {
       signal: controller.signal,
-      headers: { Accept: 'text/plain' },
+      headers: {
+        Accept: 'text/plain',
+        'X-Target-Selector': 'main, [class*="job"], [class*="listing"], [class*="result"], [id*="job"]',
+        'X-Remove-Selector': 'nav, footer, header, [class*="eeo"], [class*="policy"]',
+      },
     })
     clearTimeout(timer)
 
@@ -67,7 +71,7 @@ async function checkOne(
       return { watchSourceId: src.id, url: src.url_resolved, status: 'error', note: errMsg }
     }
 
-    content = (await res.text()).slice(0, 12000)
+    content = (await res.text()).slice(0, 24000)
   } catch (err) {
     clearTimeout(timer)
     const errMsg = err instanceof Error ? err.message : String(err)
