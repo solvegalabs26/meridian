@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 
 export interface ExtractedGoal {
   title: string
-  category: 'Career/Aviation' | 'Finance' | 'Health' | 'Business' | 'Travel' | 'Home' | 'Lifestyle'
+  category: 'Career' | 'Finance' | 'Health' | 'Business' | 'Travel' | 'Home' | 'Lifestyle'
   outcome: string
   target_date: string | null
 }
@@ -25,7 +25,7 @@ The user has shared this description of themselves and their goals:
 
 Extract up to 6 clear, distinct life objectives from this text. For each objective:
 - Write a concise title (5-8 words)
-- Choose the best category from: Career/Aviation, Finance, Health, Business, Travel, Home, Lifestyle
+- Choose the best category from: Career, Finance, Health, Business, Travel, Home, Lifestyle
 - Write an outcome statement starting with "I will have..." that is specific and measurable
 - Estimate a target date if mentioned or implied (YYYY-MM-DD format), otherwise null. If the user mentions a month/season without a year, use the next upcoming occurrence on or after ${currentDate}.
 
