@@ -282,6 +282,13 @@ async function checkOne(
 }
 
 export async function checkWatchSources(userId: string): Promise<CheckResult[]> {
+  console.log('[twilio:config]', {
+    hasSid: !!process.env.TWILIO_ACCOUNT_SID,
+    hasToken: !!process.env.TWILIO_AUTH_TOKEN,
+    hasPhone: !!process.env.TWILIO_PHONE_NUMBER,
+    sidPrefix: process.env.TWILIO_ACCOUNT_SID?.slice(0, 4) ?? 'missing',
+  })
+
   const supabase = createServiceClient()
 
   const [
