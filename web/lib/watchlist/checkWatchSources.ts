@@ -84,17 +84,15 @@ async function checkOne(
   phoneNumber: string | null,
   smsAlertsEnabled: boolean,
 ): Promise<CheckResult> {
+  // Jina Reader renders JavaScript — returns clean plain text (no HTML parsing needed)
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 7000)
+  const timer = setTimeout(() => controller.abort(), 15000)
 
-  let html: string
+  let content: string
   try {
-    const res = await fetch(src.url_resolved, {
+    const res = await fetch(`https://r.jina.ai/${src.url_resolved}`, {
       signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; MeridianArc/1.0)',
-        Accept: 'text/html,application/xhtml+xml',
-      },
+      headers: { Accept: 'text/plain' },
     })
     clearTimeout(timer)
 
@@ -107,7 +105,7 @@ async function checkOne(
       return { watchSourceId: src.id, url: src.url_resolved, status: 'error', note: errMsg }
     }
 
-    html = await res.text()
+    content = (await res.text()).slice(0, 12000)
   } catch (err) {
     clearTimeout(timer)
     const errMsg = err instanceof Error ? err.message : String(err)
@@ -118,9 +116,8 @@ async function checkOne(
     return { watchSourceId: src.id, url: src.url_resolved, status: 'error', note: errMsg }
   }
 
-  const extracted = extractScopedText(html, src.watch_type)
-  console.log(`[watch:page_content] url=${src.url_resolved} watch_type=${src.watch_type} chars=${extracted.length} preview=${extracted.slice(0, 200).replace(/\n/g, ' ')}`)
-  const hash = createHash('sha256').update(extracted).digest('hex')
+  console.log(`[watch:page_content] url=${src.url_resolved} watch_type=${src.watch_type} chars=${content.length} preview=${content.slice(0, 200).replace(/\n/g, ' ')}`)
+  const hash = createHash('sha256').update(content).digest('hex')
 
   if (hash === src.last_hash) {
     await supabase
@@ -147,8 +144,8 @@ async function checkOne(
           'NOISE FILTER: A page change that does not directly relate to the target signal above is NOT a confirmed signal. Company news, product updates, unrelated job categories, or structural page changes must return signal_confirmed: false. Only return signal_confirmed: true if the page content directly evidences progress toward the objective\'s success condition as defined by the target signal.',
           `WATCH TYPE: ${src.watch_type}`,
           '',
-          'PAGE CONTENT (extracted):',
-          extracted.slice(0, 6000),
+          'PAGE CONTENT (rendered):',
+          content,
           '',
           'Return JSON only:',
           '{ "signal_found": boolean, "confidence": number (0-100), "rationale": string, "signal_summary": string (1 sentence describing what was found, or "No signal detected"), "action_text": string (what the user should do next, 1 sentence) }',
