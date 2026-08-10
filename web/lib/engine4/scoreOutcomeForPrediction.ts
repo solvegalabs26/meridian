@@ -1,0 +1,85 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { computeAccuracyScore, mapOutcomeType, type OutcomeResult } from './scoreOutcome'
+import { attributeSignalClasses } from './attributeSignalClasses'
+
+// Orchestrates full scoring pipeline for a single prediction:
+// 1. Fetch prediction + outcome
+// 2. Compute accuracy score
+// 3. Write prediction_scores row
+// 4. Update predictions.status = 'scored'
+// 5. Attribute accuracy to signal classes present during prediction window
+//
+// Expects a service-role client — called from cron and admin contexts where
+// RLS would block cross-user reads.
+export async function scoreOutcomeForPrediction(
+  supabase: SupabaseClient,
+  predictionId: string,
+  outcomeId: string,
+  userId: string
+): Promise<void> {
+  // 1. Fetch prediction — uses confidence_pct (the actual column name)
+  const { data: prediction, error: predErr } = await supabase
+    .from('predictions')
+    .select('id, confidence_pct, objective_id, created_at, horizon_date')
+    .eq('id', predictionId)
+    .single()
+
+  if (predErr || !prediction) throw new Error(`Prediction ${predictionId} not found`)
+
+  // 2. Fetch outcome — outcome_type uses HIT/PARTIAL/MISS enum
+  const { data: outcome, error: outcomeErr } = await supabase
+    .from('objective_outcomes')
+    .select('id, outcome_type, recorded_at')
+    .eq('id', outcomeId)
+    .single()
+
+  if (outcomeErr || !outcome) throw new Error(`Outcome ${outcomeId} not found`)
+
+  // 3. Fetch objective domain (category maps to objective_domain in signal_class_accuracy)
+  const { data: objective } = await supabase
+    .from('objectives')
+    .select('category')
+    .eq('id', prediction.objective_id)
+    .single()
+
+  const domain = (objective?.category as string | null) ?? 'general'
+
+  // 4. Map outcome_type → OutcomeResult and compute accuracy score
+  const actualOutcome: OutcomeResult = mapOutcomeType(outcome.outcome_type as string)
+  const accuracyScore = computeAccuracyScore(prediction.confidence_pct as number, actualOutcome)
+
+  // 5. Write prediction_scores row
+  const { error: insertErr } = await supabase.from('prediction_scores').insert({
+    user_id: userId,
+    prediction_id: predictionId,
+    outcome_id: outcomeId,
+    predicted_confidence: prediction.confidence_pct,
+    actual_outcome: actualOutcome,
+    accuracy_score: accuracyScore,
+    scoring_method: 'auto',
+  })
+
+  if (insertErr) throw new Error(`Failed to write prediction_scores: ${insertErr.message}`)
+
+  // 6. Mark prediction as scored
+  await supabase
+    .from('predictions')
+    .update({ status: 'scored' })
+    .eq('id', predictionId)
+
+  // 7. Attribute accuracy to signal classes active during the prediction window
+  await attributeSignalClasses(
+    supabase,
+    userId,
+    prediction.objective_id as string,
+    domain,
+    prediction.created_at as string,
+    outcome.recorded_at as string,
+    accuracyScore
+  )
+
+  console.log(
+    `[engine4:scored] prediction=${predictionId} confidence=${prediction.confidence_pct}` +
+    ` outcome=${actualOutcome} accuracy=${accuracyScore} domain=${domain}`
+  )
+}

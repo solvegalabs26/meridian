@@ -11,6 +11,7 @@ import { getRecentAskContext } from '@/lib/sweep/getRecentAskContext'
 import { sendConfidenceAlert } from '@/lib/email/resend'
 import { tierAtLeast } from '@/lib/tiers'
 import { autoLogPredictions, ObjectiveWithConfidenceDelta } from '@/lib/sweep/autoLogPredictions'
+import { getSignalClassWeights } from '@/lib/engine4/getSignalClassWeights'
 
 export interface SweepObjectiveResult {
   id: string
@@ -457,6 +458,8 @@ export async function runSweepForUser(
     const perObjectiveSummaries: string[] = []
     const perObjectiveTopActions: string[] = []
     const failedInBatch = new Set<string>()
+    // Engine 4: collect signal weights applied per domain for sweep-level audit write
+    const appliedWeightsMap = new Map<string, Record<string, number>>()
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — starting batched Claude calls (${objectiveInputs.length} objectives, BATCH_SIZE=${BATCH_SIZE})`)
 
@@ -468,6 +471,26 @@ export async function runSweepForUser(
       const batchSettled = await Promise.allSettled(
         batchInputs.map(async (input) => {
           const singleState = buildObjectiveState([input])
+
+          // Engine 4: fetch active signal class weights for this objective's domain
+          const objCategory = (input.objective as { category?: string })?.category ?? 'general'
+          const signalWeights = await getSignalClassWeights(supabase, userId, objCategory)
+          if (signalWeights) appliedWeightsMap.set(objCategory, signalWeights)
+
+          const weightContext = signalWeights
+            ? `\nSignal class accuracy weights for this objective domain:\n${
+                Object.entries(signalWeights)
+                  .map(([cls, w]) => `- ${cls}: ${(w as number).toFixed(2)}×`)
+                  .join('\n')
+              }\nApply these weights when evaluating signal relevance — higher weight = historically more predictive for this objective type.`
+            : ''
+
+          const userContent: TextBlockParam[] = [
+            { type: 'text', text: JSON.stringify(singleState), cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: JSON.stringify(dynamicParams) },
+          ]
+          if (weightContext) userContent.push({ type: 'text', text: weightContext })
+
           const msg = await getAnthropicClient().messages.create({
             model: 'claude-sonnet-4-6',
             max_tokens: 4096,
@@ -477,10 +500,7 @@ export async function runSweepForUser(
             ] satisfies TextBlockParam[],
             messages: [{
               role: 'user',
-              content: [
-                { type: 'text', text: JSON.stringify(singleState), cache_control: { type: 'ephemeral' } },
-                { type: 'text', text: JSON.stringify(dynamicParams) },
-              ] satisfies TextBlockParam[],
+              content: userContent,
             }],
           })
           const responseText = msg.content[0].type === 'text' ? msg.content[0].text : ''
@@ -522,6 +542,12 @@ export async function runSweepForUser(
     }
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — all batches complete: ${parsedResultMap.size}/${objectives.length} succeeded tokens=${tokensUsed} cost=$${costUsd.toFixed(4)}`)
+
+    // Engine 4: write merged signal class weights to sweep record for audit trail
+    if (appliedWeightsMap.size > 0) {
+      const mergedWeights = Object.fromEntries(Array.from(appliedWeightsMap.entries()))
+      await supabase.from('sweeps').update({ signal_class_weights: mergedWeights }).eq('id', sweep.id)
+    }
 
     // FF-016 Phase 2 — Per-objective Haiku inference pass.
     // Runs after main Sonnet sweep so each call receives the sweep result as context.

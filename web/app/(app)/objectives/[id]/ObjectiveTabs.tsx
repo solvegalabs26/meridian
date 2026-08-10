@@ -6,6 +6,13 @@ import ActionsList from './ActionsList'
 import InferencePanel from '@/components/objectives/InferencePanel'
 import type { Factor } from './page'
 
+export interface SignalAccuracyRow {
+  signal_class: string
+  outcomes_scored: number
+  accuracy_avg: number | null
+  weight_modifier: number
+}
+
 interface TabSignal {
   id: string
   title: string
@@ -45,6 +52,8 @@ interface ObjectiveTabsProps {
   tier: string
   hasCalendar: boolean
   episodes: Episode[]
+  objectiveDomain: string
+  signalAccuracy: SignalAccuracyRow[]
 }
 
 const DOT_COLORS: Record<Factor['color'], string> = {
@@ -74,9 +83,9 @@ const ACTION_CLASSES = [
   { value: 'other', label: 'Other' },
 ]
 
-const TABS = ["What's affecting it", 'What this implies', 'What to do', 'Signals', 'History', 'Goal'] as const
+const TABS = ["What's affecting it", 'What this implies', 'What to do', 'Signals', 'History', 'Signal Intel', 'Goal'] as const
 
-export default function ObjectiveTabs({ factors, actions, objId, objectiveId, signals, goalDescription, goalContext, tier, hasCalendar, episodes }: ObjectiveTabsProps) {
+export default function ObjectiveTabs({ factors, actions, objId, objectiveId, signals, goalDescription, goalContext, tier, hasCalendar, episodes, objectiveDomain, signalAccuracy }: ObjectiveTabsProps) {
   const router = useRouter()
   const [active, setActive] = useState<typeof TABS[number]>(TABS[0])
   const [expandedEpisodes, setExpandedEpisodes] = useState<Set<string>>(new Set())
@@ -551,6 +560,68 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                 )
               })}
             </ul>
+          )
+        })()}
+
+        {active === 'Signal Intel' && (() => {
+          if (signalAccuracy.length === 0) {
+            return (
+              <div className="space-y-3">
+                <p className="text-[13px] font-medium" style={{ color: 'var(--ov-text-hi)' }}>
+                  Signal Class Accuracy — {objectiveDomain}
+                </p>
+                <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ov-text-dim)' }}>
+                  Signal accuracy data builds as your predictions are scored. First calibration data expected after your first outcome is recorded.
+                </p>
+              </div>
+            )
+          }
+
+          return (
+            <div className="space-y-4">
+              <p className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--ov-text-dim)' }}>
+                Signal Class Accuracy — {objectiveDomain}
+              </p>
+              <ul className="space-y-4">
+                {signalAccuracy.map(row => {
+                  const avg = row.accuracy_avg ?? 0
+                  const pct = Math.round(avg)
+                  const active = row.outcomes_scored >= 3
+                  const needed = 3 - row.outcomes_scored
+                  const barColor = pct >= 70 ? 'var(--gold)' : pct >= 50 ? '#D97706' : 'var(--ov-red)'
+
+                  return (
+                    <li key={row.signal_class}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[12px] font-mono" style={{ color: 'var(--ov-text-hi)', minWidth: 100 }}>
+                          {row.signal_class}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[12px] font-semibold tabular-nums" style={{ color: barColor }}>
+                            {row.accuracy_avg !== null ? `${pct}%` : '—'}
+                          </span>
+                          <span className="text-[10px]" style={{ color: 'var(--ov-text-dim)' }}>
+                            ({row.outcomes_scored} outcome{row.outcomes_scored !== 1 ? 's' : ''})
+                          </span>
+                        </div>
+                      </div>
+                      {/* Progress bar */}
+                      <div className="w-full rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)', height: 6 }}>
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${pct}%`, backgroundColor: barColor }}
+                        />
+                      </div>
+                      <p className="text-[10px] mt-1" style={{ color: active ? barColor : 'var(--ov-text-dim)' }}>
+                        {active
+                          ? `${row.weight_modifier.toFixed(2)}× weight active`
+                          : `Weight pending — ${needed} more outcome${needed !== 1 ? 's' : ''} needed`}
+                      </p>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
           )
         })()}
 

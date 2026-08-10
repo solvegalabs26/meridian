@@ -33,7 +33,7 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
   const { data: obj } = await supabase.from('objectives').select('*').eq('id', params.id).eq('user_id', user.id).single()
   if (!obj) notFound()
 
-  const [{ data: scores }, { data: signals }, { data: allObjectives }, { data: profile }, { data: calConnections }, { data: episodes }, { data: doneEngineActions }, { data: watchSources }, { count: unseenAlertCount }] = await Promise.all([
+  const [{ data: scores }, { data: signals }, { data: allObjectives }, { data: profile }, { data: calConnections }, { data: episodes }, { data: doneEngineActions }, { data: watchSources }, { count: unseenAlertCount }, { data: signalAccuracy }] = await Promise.all([
     supabase.from('confidence_scores').select('id, score, created_at, sweep_id, recommended_actions').eq('objective_id', obj.id).order('created_at', { ascending: false }).limit(7),
     supabase.from('signals').select('*').contains('objective_ids', [obj.id]).order('created_at', { ascending: false }),
     supabase.from('objectives').select('id, title').eq('user_id', user.id),
@@ -43,6 +43,7 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
     supabase.from('objective_actions').select('description').eq('objective_id', obj.id).eq('source', 'engine_recommended').eq('status', 'done'),
     supabase.from('watch_sources').select('id, url_provided, url_resolved, url_resolved_at, priority_tier, watch_type, target_signal, last_state, last_checked_at, requires_confirmation, is_active').eq('objective_id', obj.id).eq('user_id', user.id).eq('is_active', true).order('priority_tier', { ascending: true }).order('created_at', { ascending: false }),
     supabase.from('watch_alerts').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('objective_id', obj.id).is('user_seen_at', null),
+    supabase.from('signal_class_accuracy').select('signal_class, outcomes_scored, accuracy_avg, weight_modifier').eq('user_id', user.id).eq('objective_domain', obj.category as string).order('outcomes_scored', { ascending: false }),
   ])
 
   const hasCalendar = (calConnections?.length ?? 0) > 0
@@ -151,6 +152,8 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
           tier={(profile as { tier?: string } | null)?.tier ?? 'trial'}
           hasCalendar={hasCalendar}
           episodes={(episodes ?? []) as import('./ObjectiveTabs').Episode[]}
+          objectiveDomain={obj.category as string}
+          signalAccuracy={(signalAccuracy ?? []) as import('./ObjectiveTabs').SignalAccuracyRow[]}
         />
       </div>
     </div>

@@ -3,17 +3,25 @@
 import { useState } from 'react'
 import { Plus, TrendingUp } from 'lucide-react'
 
+interface PredictionScore {
+  accuracy_score: number
+  actual_outcome: string
+  scored_at: string
+}
+
 interface Prediction {
   id: string
   pred_id: string | null
   statement: string
   confidence_pct: number
   horizon_date: string
+  status: string | null
   outcome: string | null
   accuracy_score: number | null
   scored_at: string | null
   notes: string | null
   objectives?: { obj_id: string; title: string } | null
+  prediction_scores?: PredictionScore[] | null
 }
 
 interface Props {
@@ -22,9 +30,20 @@ interface Props {
 }
 
 function getStatus(p: Prediction): 'open' | 'due' | 'scored' {
+  if (p.status === 'scored' || (p.prediction_scores?.length ?? 0) > 0) return 'scored'
   if (p.accuracy_score !== null) return 'scored'
-  if (p.outcome === null && new Date(p.horizon_date) <= new Date()) return 'due'
+  if (new Date(p.horizon_date) <= new Date()) return 'due'
   return 'open'
+}
+
+function getEngine4Score(p: Prediction): number | null {
+  return p.prediction_scores?.[0]?.accuracy_score ?? null
+}
+
+function accuracyColor(score: number): string {
+  if (score >= 70) return 'var(--gold)'
+  if (score >= 50) return '#D97706' // amber
+  return '#DC2626' // red
 }
 
 const STATUS_STYLES = {
@@ -173,6 +192,7 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
                 <th className="text-left px-4 py-3 text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider w-16">Conf</th>
                 <th className="text-left px-4 py-3 text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider">Horizon</th>
                 <th className="text-left px-4 py-3 text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider">Status</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold text-[var(--text3)] uppercase tracking-wider w-20">Accuracy</th>
               </tr>
             </thead>
             <tbody>
@@ -204,9 +224,20 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
                         </button>
                       ) : (
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[status]}`}>
-                          {status === 'scored' ? `Scored ${p.accuracy_score}/5` : 'Open'}
+                          {status === 'scored' ? 'Scored' : 'Open'}
                         </span>
                       )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const score = getEngine4Score(p)
+                        if (score === null) return <span className="text-[12px] text-[var(--text3)]">—</span>
+                        return (
+                          <span className="text-[13px] font-semibold tabular-nums" style={{ color: accuracyColor(score) }}>
+                            {Math.round(score)}
+                          </span>
+                        )
+                      })()}
                     </td>
                   </tr>
                 )
