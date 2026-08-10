@@ -18,12 +18,15 @@ export async function sendSmsAlert({
     process.env.TWILIO_AUTH_TOKEN,
   )
 
-  const body = [
-    `⚠ MERIDIAN ALERT — ${objectiveTitle}`,
-    signalSummary,
-    `ACTION: ${actionText}`,
-    directUrl,
-  ].join('\n\n')
+  const trialPrefix = 'Sent from your Twilio trial account - '
+  const body = process.env.TWILIO_TRIAL_MODE === 'true'
+    ? `${trialPrefix}MERIDIAN ALERT — ${objectiveTitle}: ${signalSummary} ACTION: ${actionText}`
+    : [
+        `⚠ MERIDIAN ALERT — ${objectiveTitle}`,
+        signalSummary,
+        `ACTION: ${actionText}`,
+        directUrl,
+      ].join('\n\n')
 
   try {
     await client.messages.create({
