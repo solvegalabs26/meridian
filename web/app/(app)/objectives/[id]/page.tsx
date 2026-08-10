@@ -37,7 +37,7 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
     supabase.from('confidence_scores').select('id, score, created_at, sweep_id, recommended_actions').eq('objective_id', obj.id).order('created_at', { ascending: false }).limit(7),
     supabase.from('signals').select('*').contains('objective_ids', [obj.id]).order('created_at', { ascending: false }),
     supabase.from('objectives').select('id, title').eq('user_id', user.id),
-    supabase.from('profiles').select('tier, account_type').eq('id', user.id).single(),
+    supabase.from('profiles').select('tier, account_type, sms_alerts_enabled').eq('id', user.id).single(),
     supabase.from('calendar_connections').select('id').eq('user_id', user.id).eq('sync_status', 'ok').limit(1),
     supabase.from('objective_episodes').select('id, episode_number, confidence_start, confidence_end, confidence_delta, narrative, top_action, recommended_actions, signal_gap, top_signals, cross_deps_detected, inference_block, source, signal_count, created_at').eq('objective_id', obj.id).order('episode_number', { ascending: false }),
     supabase.from('objective_actions').select('description').eq('objective_id', obj.id).eq('source', 'engine_recommended').eq('status', 'done'),
@@ -116,6 +116,7 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
             }}
             tier={(profile as { tier?: string; account_type?: string } | null)?.tier ?? 'trial'}
             accountType={(profile as { tier?: string; account_type?: string } | null)?.account_type ?? null}
+            smsAlertsEnabled={(profile as { sms_alerts_enabled?: boolean } | null)?.sms_alerts_enabled ?? false}
             initialSources={(watchSources ?? []) as import('@/components/watchlist/WatchSourcesPanel').WatchSource[]}
             unseenAlertCount={unseenAlertCount ?? 0}
           />

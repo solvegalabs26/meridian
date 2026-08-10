@@ -33,6 +33,7 @@ interface Props {
   accountType: string | null
   initialSources: WatchSource[]
   unseenAlertCount?: number
+  smsAlertsEnabled?: boolean
 }
 
 type DrawerView = 'menu' | 'edit' | 'watch'
@@ -46,7 +47,7 @@ function outcomeColor(type: ScoreLabel): string {
 
 const SCORE_VALUE: Record<ScoreLabel, number> = { HIT: 95, PARTIAL: 60, MISS: 10 }
 
-export default function ObjectiveDetailClient({ obj, tier, accountType, initialSources, unseenAlertCount = 0 }: Props) {
+export default function ObjectiveDetailClient({ obj, tier, accountType, initialSources, unseenAlertCount = 0, smsAlertsEnabled = false }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [view, setView] = useState<DrawerView>('menu')
   const [loading, setLoading] = useState(false)
@@ -364,7 +365,7 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                     value={targetDate}
                     onChange={e => setTargetDate(e.target.value)}
                     className={inputCls}
-                    style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)' }}
+                    style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: '#1a1a2e', colorScheme: 'light' }}
                   />
                 </div>
 
@@ -468,10 +469,10 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
             {view === 'watch' && (
               <WatchSourcesPanel
                 objectiveId={obj.id}
-                category={obj.category}
                 tier={tier}
                 accountType={accountType}
                 initialSources={initialSources}
+                smsAlertsEnabled={smsAlertsEnabled}
               />
             )}
           </div>
