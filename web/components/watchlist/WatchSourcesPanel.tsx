@@ -65,8 +65,7 @@ export default function WatchSourcesPanel({
   initialSources,
   smsAlertsEnabled = false,
 }: Props) {
-  const canAdd      = tierAtLeast({ tier, account_type: accountType }, 'explorer')
-  const isCareer    = category === 'career' || category.startsWith('career.')
+  const canAdd        = tierAtLeast({ tier, account_type: accountType }, 'explorer')
   const effectiveTier = getEffectiveTier({ tier, account_type: accountType })
   const sourceLimit   = TIER_LIMITS[effectiveTier] ?? 1
   const smsLocked     = effectiveTier === 'trial' || effectiveTier === 'explorer'
