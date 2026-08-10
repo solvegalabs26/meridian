@@ -52,6 +52,28 @@ export async function resolveUrl({
     )
   }
 
+  // Full URL provided — user's explicit URL is ground truth, skip Haiku inference.
+  if (urlProvided.startsWith('https://')) {
+    await supabase
+      .from('watch_sources')
+      .update({
+        url_resolved: urlProvided,
+        url_resolved_at: new Date().toISOString(),
+        requires_confirmation: false,
+      })
+      .eq('id', watchSource.id as string)
+      .throwOnError()
+
+    return {
+      watchSourceId: watchSource.id as string,
+      resolvedUrl: urlProvided,
+      confidence: 1.0,
+      requiresConfirmation: false,
+      rationale: 'User provided a full URL — used as-is.',
+      written: true,
+    }
+  }
+
   const anthropic = getAnthropicClient()
 
   const userMessage = [

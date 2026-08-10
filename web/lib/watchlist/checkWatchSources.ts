@@ -19,6 +19,7 @@ export type CheckResult = {
 
 type WatchSourceRow = {
   id: string
+  url_provided: string
   url_resolved: string
   watch_type: string
   target_signal: string | null
@@ -75,21 +76,18 @@ function extractScopedText(html: string, watchType: string): string {
   }
 }
 
-async function checkOne(
-  src: WatchSourceRow,
-  userId: string,
-  supabase: ReturnType<typeof createServiceClient>,
-  userEmail: string | null,
-  tierProfile: TierProfile,
-  phoneNumber: string | null,
-  smsAlertsEnabled: boolean,
-): Promise<CheckResult> {
+// Fetch a URL and run the AI signal-detection pass. Returns the parsed payload
+// or null on fetch/parse failure. Does NOT update the DB — caller owns that.
+async function fetchAndAnalyze(
+  url: string,
+  src: Pick<WatchSourceRow, 'watch_type' | 'target_signal'>,
+): Promise<SonnetPayload | null> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 7000)
 
   let html: string
   try {
-    const res = await fetch(src.url_resolved, {
+    const res = await fetch(url, {
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; MeridianArc/1.0)',
@@ -97,39 +95,15 @@ async function checkOne(
       },
     })
     clearTimeout(timer)
-
-    if (!res.ok) {
-      const errMsg = `HTTP ${res.status} ${res.statusText}`
-      await supabase
-        .from('watch_sources')
-        .update({ last_checked_at: new Date().toISOString(), last_error: errMsg })
-        .eq('id', src.id)
-      return { watchSourceId: src.id, url: src.url_resolved, status: 'error', note: errMsg }
-    }
-
+    if (!res.ok) return null
     html = await res.text()
-  } catch (err) {
+  } catch {
     clearTimeout(timer)
-    const errMsg = err instanceof Error ? err.message : String(err)
-    await supabase
-      .from('watch_sources')
-      .update({ last_checked_at: new Date().toISOString(), last_error: errMsg })
-      .eq('id', src.id)
-    return { watchSourceId: src.id, url: src.url_resolved, status: 'error', note: errMsg }
+    return null
   }
 
   const extracted = extractScopedText(html, src.watch_type)
-  const hash = createHash('sha256').update(extracted).digest('hex')
 
-  if (hash === src.last_hash) {
-    await supabase
-      .from('watch_sources')
-      .update({ last_checked_at: new Date().toISOString(), last_error: null })
-      .eq('id', src.id)
-    return { watchSourceId: src.id, url: src.url_resolved, status: 'hash_match', note: 'Content unchanged' }
-  }
-
-  // Content changed — run AI validation pass
   const anthropic = getAnthropicClient()
   const aiMsg = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
@@ -165,44 +139,212 @@ async function checkOne(
     .replace(/\s*```$/i, '')
     .trim()
 
-  let payload: SonnetPayload
   try {
-    payload = JSON.parse(rawText) as SonnetPayload
+    return JSON.parse(rawText) as SonnetPayload
   } catch {
-    const errMsg = `Sonnet returned non-JSON: ${rawText.slice(0, 200)}`
-    await supabase
-      .from('watch_sources')
-      .update({ last_checked_at: new Date().toISOString(), last_hash: hash, last_error: errMsg })
-      .eq('id', src.id)
-    return { watchSourceId: src.id, url: src.url_resolved, status: 'error', note: errMsg }
+    return null
+  }
+}
+
+async function fireAlert(
+  src: WatchSourceRow,
+  userId: string,
+  supabase: ReturnType<typeof createServiceClient>,
+  userEmail: string | null,
+  tierProfile: TierProfile,
+  phoneNumber: string | null,
+  smsAlertsEnabled: boolean,
+  payload: SonnetPayload,
+  triggeredByUrl: string,
+): Promise<string | undefined> {
+  const alertLevel =
+    src.priority_tier === 1 ? 'critical' : src.priority_tier === 2 ? 'high' : 'medium'
+
+  const { data: alertRow } = await supabase
+    .from('watch_alerts')
+    .insert({
+      user_id: userId,
+      watch_source_id: src.id,
+      objective_id: src.objective_id,
+      alert_level: alertLevel,
+      signal_summary: payload.signal_summary,
+      action_text: payload.action_text,
+      direct_url: triggeredByUrl,
+      confidence: Math.round(payload.confidence),
+      triggered_by_url: triggeredByUrl,
+    })
+    .select('id')
+    .single()
+
+  const alertId = alertRow?.id as string | undefined
+
+  const effectiveTier = getEffectiveTier(tierProfile)
+  const isAcceleratorPlus =
+    effectiveTier === 'accelerator' || effectiveTier === 'command' || effectiveTier === 'enterprise'
+
+  const willEmail =
+    !!userEmail &&
+    ((alertLevel === 'critical' && effectiveTier !== 'trial') ||
+      (alertLevel === 'high' && isAcceleratorPlus))
+  const willSms = alertLevel === 'critical' && smsAlertsEnabled && !!phoneNumber && isAcceleratorPlus
+  const willPush = alertLevel === 'critical' && isAcceleratorPlus
+
+  if (willEmail || willSms || willPush) {
+    const { data: obj } = await supabase
+      .from('objectives')
+      .select('title')
+      .eq('id', src.objective_id!)
+      .single()
+    const objectiveTitle = (obj?.title as string | undefined) ?? ''
+
+    if (willEmail) {
+      await sendWatchAlert({
+        to: userEmail!,
+        objectiveTitle,
+        signalSummary: payload.signal_summary,
+        actionText: payload.action_text,
+        directUrl: triggeredByUrl,
+      })
+    }
+
+    if (willSms) {
+      await sendSmsAlert({
+        to: phoneNumber!,
+        objectiveTitle,
+        signalSummary: payload.signal_summary,
+        actionText: payload.action_text,
+        directUrl: triggeredByUrl,
+      })
+    }
+
+    if (willPush) {
+      const { data: subs } = await supabase
+        .from('push_subscriptions')
+        .select('subscription')
+        .eq('user_id', userId)
+      await Promise.allSettled(
+        (subs ?? []).map(row =>
+          sendPushAlert({
+            subscription: row.subscription as webpush.PushSubscription,
+            objectiveTitle,
+            signalSummary: payload.signal_summary,
+            actionText: payload.action_text,
+          })
+        )
+      )
+    }
   }
 
-  const { confidence, signal_found, rationale, signal_summary, action_text } = payload
+  return alertId
+}
 
-  // Determine new state
+async function checkOne(
+  src: WatchSourceRow,
+  userId: string,
+  supabase: ReturnType<typeof createServiceClient>,
+  userEmail: string | null,
+  tierProfile: TierProfile,
+  phoneNumber: string | null,
+  smsAlertsEnabled: boolean,
+): Promise<CheckResult> {
+  // --- Primary check: url_resolved (hash-gated) ---
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 7000)
+
+  let primaryHtml: string | null = null
+  let primaryHash: string | null = null
+  let fetchError: string | null = null
+
+  try {
+    const res = await fetch(src.url_resolved, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; MeridianArc/1.0)',
+        Accept: 'text/html,application/xhtml+xml',
+      },
+    })
+    clearTimeout(timer)
+
+    if (!res.ok) {
+      fetchError = `HTTP ${res.status} ${res.statusText}`
+    } else {
+      primaryHtml = await res.text()
+      primaryHash = createHash('sha256').update(extractScopedText(primaryHtml, src.watch_type)).digest('hex')
+    }
+  } catch (err) {
+    clearTimeout(timer)
+    fetchError = err instanceof Error ? err.message : String(err)
+  }
+
+  if (fetchError) {
+    await supabase
+      .from('watch_sources')
+      .update({ last_checked_at: new Date().toISOString(), last_error: fetchError })
+      .eq('id', src.id)
+    return { watchSourceId: src.id, url: src.url_resolved, status: 'error', note: fetchError }
+  }
+
+  // Hash match on primary — check secondary before declaring unchanged
+  const primaryUnchanged = primaryHash === src.last_hash
+
+  // --- Secondary check: url_provided (if it's a valid https:// URL distinct from url_resolved) ---
+  const checkSecondary =
+    src.url_provided.startsWith('https://') && src.url_provided !== src.url_resolved
+
+  // Run secondary independently (no hash gating — always fresh)
+  const secondaryPayload = checkSecondary
+    ? await fetchAndAnalyze(src.url_provided, src)
+    : null
+
+  const secondarySignals =
+    secondaryPayload !== null &&
+    secondaryPayload.signal_found &&
+    secondaryPayload.confidence >= 50
+
+  // If primary is unchanged AND secondary has no signal, return early
+  if (primaryUnchanged && !secondarySignals) {
+    await supabase
+      .from('watch_sources')
+      .update({ last_checked_at: new Date().toISOString(), last_error: null })
+      .eq('id', src.id)
+    return { watchSourceId: src.id, url: src.url_resolved, status: 'hash_match', note: 'Content unchanged' }
+  }
+
+  // --- Analyze primary (if content changed) ---
+  let primaryPayload: SonnetPayload | null = null
+  if (!primaryUnchanged && primaryHtml !== null) {
+    primaryPayload = await fetchAndAnalyze(src.url_resolved, src)
+  }
+
+  const primarySignals =
+    primaryPayload !== null &&
+    primaryPayload.signal_found &&
+    primaryPayload.confidence >= 50
+
+  // Decide which signal wins — primary takes precedence; secondary is fallback
+  const winningPayload = primarySignals ? primaryPayload : secondarySignals ? secondaryPayload : null
+  const triggeredByUrl = primarySignals
+    ? src.url_resolved
+    : secondarySignals
+    ? src.url_provided
+    : src.url_resolved
+
+  const hadSignal = src.last_state === 'signal_confirmed' || src.last_state === 'signal_detected'
+  const shouldAlert = winningPayload !== null
+
   let newState: string
-  let shouldAlert = false
-
-  const hadSignal =
-    src.last_state === 'signal_confirmed' || src.last_state === 'signal_detected'
-
-  if (signal_found && confidence >= 70) {
+  if (winningPayload && winningPayload.confidence >= 70) {
     newState = 'signal_confirmed'
-    shouldAlert = true
-  } else if (signal_found && confidence >= 50) {
+  } else if (winningPayload && winningPayload.confidence >= 50) {
     newState = 'signal_detected'
-    shouldAlert = true
   } else {
     newState = hadSignal ? 'signal_gone' : 'no_signal'
   }
 
-  const alertLevel =
-    src.priority_tier === 1 ? 'critical' : src.priority_tier === 2 ? 'high' : 'medium'
-
   await supabase
     .from('watch_sources')
     .update({
-      last_hash: hash,
+      last_hash: primaryHash ?? src.last_hash,
       last_checked_at: new Date().toISOString(),
       last_state: newState,
       last_error: null,
@@ -212,80 +354,12 @@ async function checkOne(
     .throwOnError()
 
   let alertId: string | undefined
-  if (shouldAlert && src.objective_id) {
-    const { data: alertRow } = await supabase
-      .from('watch_alerts')
-      .insert({
-        user_id: userId,
-        watch_source_id: src.id,
-        objective_id: src.objective_id,
-        alert_level: alertLevel,
-        signal_summary,
-        action_text,
-        direct_url: src.url_resolved,
-        confidence: Math.round(confidence),
-      })
-      .select('id')
-      .single()
-    alertId = alertRow?.id as string | undefined
-
-    const effectiveTier = getEffectiveTier(tierProfile)
-    const isAcceleratorPlus = effectiveTier === 'accelerator' || effectiveTier === 'command' || effectiveTier === 'enterprise'
-
-    // Gate checks — determine which channels will fire before fetching title
-    const willEmail =
-      !!userEmail &&
-      ((alertLevel === 'critical' && effectiveTier !== 'trial') ||
-        (alertLevel === 'high' && isAcceleratorPlus))
-    const willSms = alertLevel === 'critical' && smsAlertsEnabled && !!phoneNumber && isAcceleratorPlus
-    const willPush = alertLevel === 'critical' && isAcceleratorPlus
-
-    if (willEmail || willSms || willPush) {
-      let objectiveTitle = ''
-      const { data: obj } = await supabase
-        .from('objectives')
-        .select('title')
-        .eq('id', src.objective_id)
-        .single()
-      objectiveTitle = (obj?.title as string | undefined) ?? ''
-
-      if (willEmail) {
-        await sendWatchAlert({
-          to: userEmail!,
-          objectiveTitle,
-          signalSummary: signal_summary,
-          actionText: action_text,
-          directUrl: src.url_resolved,
-        })
-      }
-
-      if (willSms) {
-        await sendSmsAlert({
-          to: phoneNumber!,
-          objectiveTitle,
-          signalSummary: signal_summary,
-          actionText: action_text,
-          directUrl: src.url_resolved,
-        })
-      }
-
-      if (willPush) {
-        const { data: subs } = await supabase
-          .from('push_subscriptions')
-          .select('subscription')
-          .eq('user_id', userId)
-        await Promise.allSettled(
-          (subs ?? []).map(row =>
-            sendPushAlert({
-              subscription: row.subscription as webpush.PushSubscription,
-              objectiveTitle,
-              signalSummary: signal_summary,
-              actionText: action_text,
-            })
-          )
-        )
-      }
-    }
+  if (shouldAlert && src.objective_id && winningPayload) {
+    alertId = await fireAlert(
+      src, userId, supabase, userEmail, tierProfile,
+      phoneNumber, smsAlertsEnabled, winningPayload, triggeredByUrl,
+    )
+    console.log(`[watch:alert] source=${src.id} triggered_by=${triggeredByUrl} state=${newState}`)
   }
 
   const status = (
@@ -297,10 +371,10 @@ async function checkOne(
 
   return {
     watchSourceId: src.id,
-    url: src.url_resolved,
+    url: triggeredByUrl,
     status,
-    confidence,
-    rationale,
+    confidence: winningPayload?.confidence,
+    rationale: winningPayload?.rationale,
     alertId,
   }
 }
@@ -315,7 +389,7 @@ export async function checkWatchSources(userId: string): Promise<CheckResult[]> 
   ] = await Promise.all([
     supabase
       .from('watch_sources')
-      .select('id, url_resolved, watch_type, target_signal, last_hash, last_state, priority_tier, objective_id')
+      .select('id, url_provided, url_resolved, watch_type, target_signal, last_hash, last_state, priority_tier, objective_id')
       .eq('user_id', userId)
       .eq('is_active', true)
       .not('url_resolved', 'is', null),
