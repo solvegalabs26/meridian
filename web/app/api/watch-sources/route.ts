@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { resolveUrl } from '@/lib/watchlist/resolveUrl'
+import { getEffectiveTier } from '@/lib/tiers'
+
+const TIER_LIMITS: Record<string, number> = {
+  trial:       1,
+  explorer:    5,
+  accelerator: 15,
+  command:     25,
+  enterprise:  Infinity,
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +54,23 @@ export async function POST(request: NextRequest) {
   }
 
   const svc = createServiceClient()
+
+  // Enforce tier watch source limit
+  const [{ data: profile }, { count: existingCount }] = await Promise.all([
+    svc.from('profiles').select('tier, account_type').eq('id', user.id).single(),
+    svc.from('watch_sources').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_active', true),
+  ])
+  const effectiveTier = getEffectiveTier({
+    tier: (profile as { tier?: string } | null)?.tier ?? null,
+    account_type: (profile as { account_type?: string } | null)?.account_type ?? null,
+  })
+  const limit = TIER_LIMITS[effectiveTier] ?? 1
+  if (limit !== Infinity && (existingCount ?? 0) >= limit) {
+    return NextResponse.json(
+      { error: `Watch source limit reached for your plan (${effectiveTier}: ${limit} max). Upgrade to add more.` },
+      { status: 403 }
+    )
+  }
   const { data: row, error: insertError } = await svc
     .from('watch_sources')
     .insert({
