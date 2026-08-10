@@ -241,7 +241,7 @@ function makeRes(opts: {
 }
 
 function makeReq() {
-  const req = new EventEmitter() as {
+  const req = new EventEmitter() as unknown as {
     setTimeout: ReturnType<typeof vi.fn>
     destroy: ReturnType<typeof vi.fn>
     end: ReturnType<typeof vi.fn>
@@ -310,7 +310,7 @@ describe('fetchIcsText — happy path', () => {
 
     // Invoke the agent's lookup directly and confirm it uses the array form
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const agent = capturedAgentOpts?.agent as { options?: { lookup?: (...a: any[]) => void } }
+    const agent = (capturedAgentOpts as any)?.agent as { options?: { lookup?: (...a: any[]) => void } }
     const lookup = agent?.options?.lookup
     if (lookup) {
       let callbackArgs: unknown[] = []
