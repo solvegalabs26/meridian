@@ -206,6 +206,16 @@ async function checkOne(
     const willSms = alertLevel === 'critical' && smsAlertsEnabled && !!phoneNumber && isAcceleratorPlus
     const willPush = alertLevel === 'critical' && isAcceleratorPlus
 
+    console.log('[watch:channels]', {
+      tier: effectiveTier,
+      alertLevel,
+      willEmail,
+      willSms,
+      willPush,
+      smsEnabled: smsAlertsEnabled,
+      hasPhone: !!phoneNumber,
+    })
+
     if (willEmail || willSms || willPush) {
       let objectiveTitle = ''
       const { data: obj } = await supabase
