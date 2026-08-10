@@ -46,6 +46,8 @@ export async function buildCoherencePackage(
       .not('url_resolved', 'is', null),
   ])
 
+  console.log(`[coherence] objective=${objectiveId} watch_sources_count=${watchResult.data?.length ?? 0} error=${watchResult.error?.message ?? 'none'}`)
+
   const watchSources: WatchSourceEntry[] = (watchResult.data ?? []) as WatchSourceEntry[]
 
   // No watch sources → no coherence package needed
