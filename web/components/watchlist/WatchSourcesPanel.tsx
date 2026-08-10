@@ -21,7 +21,6 @@ export type WatchSource = {
 
 interface Props {
   objectiveId: string
-  category: string
   tier: string
   accountType: string | null
   initialSources: WatchSource[]
@@ -59,7 +58,6 @@ const TIER_LIMITS: Record<string, number> = {
 
 export default function WatchSourcesPanel({
   objectiveId,
-  category,
   tier,
   accountType,
   initialSources,

@@ -469,7 +469,6 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
             {view === 'watch' && (
               <WatchSourcesPanel
                 objectiveId={obj.id}
-                category={obj.category}
                 tier={tier}
                 accountType={accountType}
                 initialSources={initialSources}
