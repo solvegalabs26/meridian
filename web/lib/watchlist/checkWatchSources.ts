@@ -36,44 +36,6 @@ type SonnetPayload = {
   action_text: string
 }
 
-function extractScopedText(html: string, watchType: string): string {
-  const stripped = html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-  const LIMIT = 8000
-
-  switch (watchType) {
-    case 'careers_listing': {
-      const matches = stripped.match(
-        /(?:job|position|role|career|hiring|opening|officer|captain|pilot|flight|requisition|vacancies?)[\s\S]{0,2000}/gi
-      )
-      return matches ? matches.slice(0, 6).join('\n\n').slice(0, LIMIT) : stripped.slice(0, LIMIT)
-    }
-    case 'registration': {
-      const matches = stripped.match(
-        /(?:register|sign.?up|enroll|apply|registration|open|available|spots?)[\s\S]{0,2000}/gi
-      )
-      return matches ? matches.slice(0, 6).join('\n\n').slice(0, LIMIT) : stripped.slice(0, LIMIT)
-    }
-    case 'status_page': {
-      const matches = stripped.match(
-        /(?:status|operational|degraded|outage|incident|maintenance|all systems|disruption)[\s\S]{0,2000}/gi
-      )
-      return matches ? matches.slice(0, 6).join('\n\n').slice(0, LIMIT) : stripped.slice(0, LIMIT)
-    }
-    default:
-      return stripped.slice(0, LIMIT)
-  }
-}
 
 async function checkOne(
   src: WatchSourceRow,
