@@ -1,5 +1,5 @@
 export const PERSONAL_CATEGORIES = [
-  'Career/Aviation',
+  'Career',
   'Finance',
   'Health',
   'Business',
@@ -42,7 +42,7 @@ export function getCategoriesForAccount(accountType: string | null | undefined):
 // Color map covering all categories
 export const CATEGORY_COLORS: Record<string, string> = {
   // Personal
-  'Career/Aviation': '#2E7CB8',
+  'Career': '#2E7CB8',
   'Finance':         '#0F6E56',
   'Health':          '#C9A227',
   'Business':        '#534AB7',

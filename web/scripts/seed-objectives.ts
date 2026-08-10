@@ -11,7 +11,7 @@ const objectives = [
     user_id: JASON_USER_ID,
     obj_id: 'OBJ-01',
     title: 'Alaska Airlines First Officer Hire',
-    category: 'Career/Aviation',
+    category: 'Career',
     outcome: 'Receive and accept a Conditional Job Offer from Alaska Airlines as a First Officer with a confirmed training class date, advancing my pilot career from regional to major airline.',
     success_condition: 'Notified when application is open. Successful application submission. Interview invitation and completion. Conditional Job Offer with First Officer training class expectation and hard date.',
     target_date: '2026-11-30',
