@@ -27,21 +27,21 @@ const SOURCE_OPTIONS = [
 ]
 
 const CONFIDENCE_OPTIONS = [
-  { value: 'none',     label: 'Scores look right to me',  sub: 'No disagreement this week' },
-  { value: 'too-high', label: 'A score feels too high',   sub: 'The system is more optimistic than I am' },
-  { value: 'too-low',  label: 'A score feels too low',    sub: 'The system is more pessimistic than I am' },
-  { value: 'multiple', label: 'Multiple scores feel off', sub: "I'll note details below" },
+  { value: 'behind',    emoji: '🔴', label: 'Behind',    sub: 'I feel further away than my score suggests' },
+  { value: 'uncertain', emoji: '🟡', label: 'Uncertain', sub: 'Mixed signals, hard to read' },
+  { value: 'on_track',  emoji: '🟢', label: 'On track',  sub: 'Score feels right' },
+  { value: 'ahead',     emoji: '🚀', label: 'Ahead',     sub: 'I feel closer than my score suggests' },
 ]
 
 const FEATURE_CHIPS = [
-  { value: 'signal-quality',      label: 'Signal quality' },
-  { value: 'action-relevance',    label: 'Action relevance' },
-  { value: 'confidence-accuracy', label: 'Confidence accuracy' },
-  { value: 'inference-tab',       label: 'What this implies tab' },
-  { value: 'ask-meridian',        label: 'Ask Meridian' },
-  { value: 'ui-navigation',       label: 'UI / navigation' },
-  { value: 'missing-feature',     label: 'Missing feature' },
-  { value: 'notifications',       label: 'Notifications' },
+  { value: 'caught-something-missed', label: '✓ Caught something I\'d have missed' },
+  { value: 'actions-specific-useful', label: '✓ Actions were specific and useful' },
+  { value: 'cross-dep-spot-on',       label: '✓ Cross-dependency was spot on' },
+  { value: 'signal-quality-high',     label: '✓ Signal quality was high' },
+  { value: 'missed-key-signal',       label: '✗ Missed a key signal' },
+  { value: 'actions-too-generic',     label: '✗ Actions were too generic' },
+  { value: 'confidence-score-off',    label: '✗ Confidence score felt off' },
+  { value: 'nothing-new',             label: '✗ Nothing new this week' },
 ]
 
 interface Objective {
@@ -141,8 +141,8 @@ export default function WeeklyCheckinModal({
   }
 
   function eyebrow(): string {
-    if (step === 3) return `Confidence Review · Field 4 of ${STEPS.length}`
-    if (step === 4) return `Feedback · Field 5 of ${STEPS.length}`
+    if (step === 3) return `Confidence Check · Field 4 of ${STEPS.length}`
+    if (step === 4) return `Quick Feedback · Field 5 of ${STEPS.length}`
     return `Weekly check-in · ${step + 1} of ${STEPS.length}`
   }
 
@@ -275,8 +275,8 @@ function stepTitle(step: number): string {
     case 0: return 'Anything the sweep missed this week?'
     case 1: return 'Did you find anything relevant on your own?'
     case 2: return 'How useful was this week\'s briefing?'
-    case 3: return 'Does any confidence score feel off to you?'
-    case 4: return 'Anything Meridian should do better?'
+    case 3: return 'How are you feeling about your most important objective right now?'
+    case 4: return 'What did Meridian do well or miss this week?'
     default: return ''
   }
 }
@@ -475,8 +475,9 @@ function renderStep(step: number, props: StepProps): React.ReactNode {
                   onClick={() => props.setConfidenceFlag(selected ? null : opt.value)}
                   style={{
                     display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
                     padding: '12px 14px',
                     borderRadius: 10,
                     border: `1.5px solid ${selected ? P.gold : P.line}`,
@@ -486,11 +487,14 @@ function renderStep(step: number, props: StepProps): React.ReactNode {
                     transition: 'border-color .15s, background-color .15s',
                   }}
                 >
-                  <span style={{ fontSize: 13, fontWeight: 600, color: selected ? P.navy : P.body }}>
-                    {opt.label}
-                  </span>
-                  <span style={{ fontSize: 12, color: P.muted, marginTop: 2 }}>
-                    {opt.sub}
+                  <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>{opt.emoji}</span>
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: selected ? P.navy : P.body }}>
+                      {opt.label}
+                    </span>
+                    <span style={{ fontSize: 12, color: P.muted }}>
+                      {opt.sub}
+                    </span>
                   </span>
                 </button>
               )
@@ -509,7 +513,7 @@ function renderStep(step: number, props: StepProps): React.ReactNode {
           </div>
 
           <p style={hintStyle}>
-            Your read matters. If a score doesn&apos;t match what you&apos;re seeing on the ground, flag it — both scores are tracked and calibrated over time.
+            This helps Meridian calibrate whether your confidence score matches your gut.
           </p>
         </div>
       )
@@ -561,7 +565,7 @@ function renderStep(step: number, props: StepProps): React.ReactNode {
           </div>
 
           <p style={hintStyle}>
-            One click is enough. Add a note below if you want to give more detail. This goes directly to the team.
+            Takes 10 seconds. Helps the engine improve.
           </p>
         </div>
       )
