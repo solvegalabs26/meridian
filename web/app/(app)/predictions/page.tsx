@@ -12,7 +12,7 @@ export default async function PredictionsPage() {
   const [{ data: predictions }, { data: objectives }] = await Promise.all([
     supabase
       .from('predictions')
-      .select('*, objectives(obj_id, title)')
+      .select('*, objectives(obj_id, title), prediction_scores(accuracy_score, actual_outcome, scored_at)')
       .eq('user_id', user.id)
       .order('horizon_date', { ascending: true }),
     supabase
