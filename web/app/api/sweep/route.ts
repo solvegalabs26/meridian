@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { runSweepForUser } from '@/lib/sweep/runSweepForUser'
+import { checkWatchSources } from '@/lib/watchlist/checkWatchSources'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 600 // Vercel Pro — 12000 token budget at ~267s leaves 333s runway
@@ -57,6 +58,15 @@ export async function POST(request: NextRequest) {
     .from('profiles')
     .update({ last_sweep_at: new Date().toISOString() })
     .eq('id', user.id)
+
+  // Check watch sources post-sweep — non-fatal
+  try {
+    const watchResults = await checkWatchSources(user.id)
+    const fired = watchResults.filter(r => r.status === 'signal_confirmed' || r.status === 'signal_detected').length
+    console.log(`[watch:done] sources=${watchResults.length} alerts_fired=${fired}`)
+  } catch (err) {
+    console.error('[watch:error] checkWatchSources failed:', err)
+  }
 
   return NextResponse.json({
     sweep_id: result.sweepId,

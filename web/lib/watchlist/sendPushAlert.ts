@@ -1,11 +1,5 @@
 import webpush from 'web-push'
 
-webpush.setVapidDetails(
-  `mailto:${process.env.VAPID_EMAIL}`,
-  process.env.VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!,
-)
-
 export async function sendPushAlert({
   subscription,
   objectiveTitle,
@@ -17,6 +11,13 @@ export async function sendPushAlert({
   signalSummary: string
   actionText: string
 }): Promise<void> {
+  // Initialise lazily so missing VAPID keys don't crash the module at import time.
+  webpush.setVapidDetails(
+    `mailto:${process.env.VAPID_EMAIL}`,
+    process.env.VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!,
+  )
+
   const payload = JSON.stringify({
     title: `⚠ Meridian Alert — ${objectiveTitle}`,
     body: `${signalSummary}\n\nACTION: ${actionText}`,
