@@ -12,6 +12,7 @@ import { sendConfidenceAlert } from '@/lib/email/resend'
 import { tierAtLeast } from '@/lib/tiers'
 import { autoLogPredictions, ObjectiveWithConfidenceDelta } from '@/lib/sweep/autoLogPredictions'
 import { getSignalClassWeights } from '@/lib/engine4/getSignalClassWeights'
+import { buildCoherencePackage, formatCoherencePackageForPrompt, type CoherencePackage } from '@/lib/sweep/buildCoherencePackage'
 
 export interface SweepObjectiveResult {
   id: string
@@ -356,6 +357,40 @@ export async function runSweepForUser(
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — market comps fetched (${Object.keys(compsMap).length} resale objectives)`)
 
+    // 5c. Build signal coherence packages for objectives with active watch sources.
+    // Runs in parallel — individual failures are caught per-objective and do not
+    // abort the sweep (Promise.allSettled semantics preserved).
+    const coherenceMap: Record<string, CoherencePackage | null> = {}
+    await Promise.allSettled(
+      objectives.map(async obj => {
+        try {
+          coherenceMap[obj.id] = await buildCoherencePackage(supabase, obj.id)
+        } catch (err) {
+          console.error(`[sweep:coherence] buildCoherencePackage failed for objective ${obj.id} (${obj.obj_id}):`, err)
+          coherenceMap[obj.id] = null
+        }
+      })
+    )
+
+    const coherenceCount = Object.values(coherenceMap).filter(Boolean).length
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — coherence packages built (${coherenceCount}/${objectives.length} objectives have watch sources)`)
+
+    // Engine 1 augmentation: for objectives with watch sources, add target_signal
+    // values as additional keywords so NewsAPI targeting is watch-source-led.
+    for (const obj of objectives) {
+      const pkg = coherenceMap[obj.id]
+      if (!pkg) continue
+      const extraKeywords = pkg.watchSources
+        .map(ws => ws.target_signal)
+        .filter((s): s is string => typeof s === 'string' && s.length > 0)
+      if (extraKeywords.length > 0) {
+        const existing: string[] = obj.signal_keywords ?? []
+        const merged = Array.from(new Set([...extraKeywords, ...existing]))
+        // Mutate in place — only affects this sweep's signal collection loop
+        ;(obj as { signal_keywords: string[] }).signal_keywords = merged
+      }
+    }
+
     // 6. Build objective state JSON
     const objectiveInputs = objectives.map(obj => {
       const history = (allScores ?? [])
@@ -376,7 +411,7 @@ export async function runSweepForUser(
       const episodeHistory = episodeHistoryByObjId.get(obj.id) ?? []
       const signalAbsenceCount = episodeHistory.filter(ep => ep.signal_count === 0).length
 
-      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined, askContext: askContext || undefined, episodeHistory, signalAbsenceCount, recentChange: latestChangeByObjId.get(obj.id) ?? null, outcomeRow: latestOutcomeByObjId.get(obj.id) ?? null }
+      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined, askContext: askContext || undefined, episodeHistory, signalAbsenceCount, recentChange: latestChangeByObjId.get(obj.id) ?? null, outcomeRow: latestOutcomeByObjId.get(obj.id) ?? null, coherencePackage: coherenceMap[obj.id] ?? null }
     })
 
     // Inject upcoming calendar events for Explorer+ users who have a synced connection.
@@ -478,11 +513,16 @@ export async function runSweepForUser(
           if (signalWeights) appliedWeightsMap.set(objCategory, signalWeights)
 
           const weightContext = signalWeights
-            ? `\nSignal class accuracy weights for this objective domain:\n${
+            ? `\nSignal class accuracy weights for this objective domain (signals in the objective state are pre-ordered by these weights):\n${
                 Object.entries(signalWeights)
                   .map(([cls, w]) => `- ${cls}: ${(w as number).toFixed(2)}×`)
                   .join('\n')
-              }\nApply these weights when evaluating signal relevance — higher weight = historically more predictive for this objective type.`
+              }\nHigher weight = historically more predictive for this objective type.`
+            : ''
+
+          const coherencePkg = input.coherencePackage ?? null
+          const coherenceContext = coherencePkg
+            ? `\nPRECISION TARGETING CONTEXT (from user's watch sources — treat as primary interpretive frame):\n${formatCoherencePackageForPrompt(coherencePkg)}\n\nSynthesize signals with this context as your primary frame. A signal that directly addresses the watch source domain is Tier 1. A signal that corroborates from an adjacent domain is Tier 2. A signal unrelated to the watch source domain should be noted only if it represents a meaningful cross-objective dependency.`
             : ''
 
           const userContent: TextBlockParam[] = [
@@ -490,6 +530,7 @@ export async function runSweepForUser(
             { type: 'text', text: JSON.stringify(dynamicParams) },
           ]
           if (weightContext) userContent.push({ type: 'text', text: weightContext })
+          if (coherenceContext) userContent.push({ type: 'text', text: coherenceContext })
 
           const msg = await getAnthropicClient().messages.create({
             model: 'claude-sonnet-4-6',
@@ -974,6 +1015,7 @@ export async function runSweepForUser(
       cost_usd: costUsd,
       completed_at: new Date().toISOString(),
       error_message: sweepErrorMsg,
+      coherence_package_used: coherenceCount > 0,
       inference_block: Array.from(parsedResultMap.entries())
         .filter(([, r]) => r.inference_block)
         .map(([, r]) => ({ obj_id: r.obj_id, ...r.inference_block })),
