@@ -119,6 +119,7 @@ async function checkOne(
   }
 
   const extracted = extractScopedText(html, src.watch_type)
+  console.log(`[watch:page_content] url=${src.url_resolved} watch_type=${src.watch_type} chars=${extracted.length} preview=${extracted.slice(0, 200).replace(/\n/g, ' ')}`)
   const hash = createHash('sha256').update(extracted).digest('hex')
 
   if (hash === src.last_hash) {
@@ -168,7 +169,9 @@ async function checkOne(
   let payload: SonnetPayload
   try {
     payload = JSON.parse(rawText) as SonnetPayload
+    console.log(`[watch:validation] url=${src.url_resolved} signal_found=${payload.signal_found} confidence=${payload.confidence} rationale=${payload.rationale?.slice(0, 120)}`)
   } catch {
+    console.log(`[watch:validation] url=${src.url_resolved} parse_failed raw=${rawText.slice(0, 120)}`)
     const errMsg = `Sonnet returned non-JSON: ${rawText.slice(0, 200)}`
     await supabase
       .from('watch_sources')
