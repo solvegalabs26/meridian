@@ -33,6 +33,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/test-sms') ||
     pathname.startsWith('/api/admin/sweeps/process-account-queue') ||
     pathname.startsWith('/api/admin/sweeps/process-scheduled') ||
     pathname.startsWith('/api/enterprise/ingest') ||
