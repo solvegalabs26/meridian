@@ -230,7 +230,7 @@ async function checkOne(
     alertId = alertRow?.id as string | undefined
 
     const effectiveTier = getEffectiveTier(tierProfile)
-    const isAcceleratorPlus = effectiveTier === 'accelerator' || effectiveTier === 'command'
+    const isAcceleratorPlus = effectiveTier === 'accelerator' || effectiveTier === 'command' || effectiveTier === 'enterprise'
 
     // Gate checks — determine which channels will fire before fetching title
     const willEmail =
