@@ -10,7 +10,6 @@ export interface WatchSourceEntry {
   url_provided: string
   watch_type: string
   target_signal: string | null
-  label: string | null
 }
 
 export interface CoherencePackage {
@@ -40,7 +39,7 @@ export async function buildCoherencePackage(
       .single(),
     supabase
       .from('watch_sources')
-      .select('url_resolved, url_provided, watch_type, target_signal, label')
+      .select('url_resolved, url_provided, watch_type, target_signal')
       .eq('objective_id', objectiveId)
       .eq('is_active', true)
       .not('url_resolved', 'is', null),
@@ -124,8 +123,7 @@ export function formatCoherencePackageForPrompt(pkg: CoherencePackage): string {
 
   lines.push('WATCH SOURCES (primary targeting — check these first):')
   for (const ws of pkg.watchSources) {
-    const label = ws.label ?? ws.url_provided ?? ws.url_resolved
-    lines.push(`  - [${ws.watch_type}] ${label}: ${ws.url_resolved}`)
+    lines.push(`  - [${ws.watch_type}] ${ws.url_provided}: ${ws.url_resolved}`)
     if (ws.target_signal) lines.push(`    Looking for: ${ws.target_signal}`)
   }
   lines.push('')

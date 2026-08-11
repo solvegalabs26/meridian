@@ -142,10 +142,9 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
       // cross-objective dependencies.
       if (coherencePackage && coherencePackage.watchSources.length > 0) {
         const watchDomains = coherencePackage.watchSources.map(ws => {
-          const label = ws.label ?? ws.url_provided ?? ws.url_resolved
           return ws.target_signal
-            ? `[${ws.watch_type}] ${label} — looking for: ${ws.target_signal}`
-            : `[${ws.watch_type}] ${label}`
+            ? `[${ws.watch_type}] ${ws.url_provided} — looking for: ${ws.target_signal}`
+            : `[${ws.watch_type}] ${ws.url_provided}`
         })
         Object.assign(base, {
           precision_targeting_context: {
