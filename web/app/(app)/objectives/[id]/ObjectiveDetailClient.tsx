@@ -5,6 +5,8 @@ import { Settings, X, Archive, Pencil, ChevronLeft, Check, Eye } from 'lucide-re
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import WatchSourcesPanel, { type WatchSource } from '@/components/watchlist/WatchSourcesPanel'
+import CloseModal from '@/components/objectives/CloseModal'
+import AbandonModal from '@/components/objectives/AbandonModal'
 
 interface ObjProps {
   id: string
@@ -48,6 +50,9 @@ function outcomeColor(type: ScoreLabel): string {
 const SCORE_VALUE: Record<ScoreLabel, number> = { HIT: 95, PARTIAL: 60, MISS: 10 }
 
 export default function ObjectiveDetailClient({ obj, tier, accountType, initialSources, unseenAlertCount = 0, smsAlertsEnabled = false }: Props) {
+  const [closeModalOpen, setCloseModalOpen]   = useState(false)
+  const [abandonModalOpen, setAbandonModalOpen] = useState(false)
+
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [view, setView] = useState<DrawerView>('menu')
   const [loading, setLoading] = useState(false)
@@ -110,43 +115,27 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
     setOutcomeSaving(true)
     setOutcomeError(null)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setOutcomeError('Not authenticated — please refresh and try again.')
-      setOutcomeSaving(false)
-      return
-    }
-
-    const [outcomeResult, archiveResult] = await Promise.all([
-      supabase
-        .from('objective_outcomes')
-        .insert([{
-          user_id: user.id,
-          objective_id: obj.id,
-          outcome_type: outcomeType,
-          outcome_note: outcomeNote.trim() || null,
-          actual_completed_at: actualCompletedAt,
-          swept_at_close: obj.confidence ?? null,
-          prediction_id: null,
-        }])
-        .select('id')
-        .single(),
-      supabase
-        .from('objectives')
-        .update({ status: 'closed', updated_at: new Date().toISOString() })
-        .eq('id', obj.id),
-    ])
+    const res = await fetch(`/api/objectives/${obj.id}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        outcome_type: outcomeType,
+        outcome_note: outcomeNote.trim() || null,
+        actual_completed_at: actualCompletedAt,
+        confidence_retrospective: null,
+        prediction_scores: [],
+      }),
+    })
 
     setOutcomeSaving(false)
 
-    if (outcomeResult.error || archiveResult.error) {
-      setOutcomeError(
-        outcomeResult.error?.message ?? archiveResult.error?.message ?? 'Save failed — please try again.'
-      )
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      setOutcomeError(d.error ?? 'Save failed — please try again.')
       return
     }
 
-    const rowId = outcomeResult.data?.id ?? null
+    const { outcome_id: rowId } = await res.json() as { outcome_id: string }
     setOutcomeRowId(rowId)
 
     // Query for unscored predictions linked to this objective
@@ -274,6 +263,26 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
       >
         <Settings size={16} />
       </button>
+
+      {/* Primary action buttons — shown on the main page, not inside the drawer */}
+      {obj.status !== 'closed' && obj.status !== 'abandoned' && (
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={() => setCloseModalOpen(true)}
+            className="flex-1 py-2.5 rounded-xl text-[13px] font-medium transition-colors"
+            style={{ background: 'var(--gold)', color: '#0a1628' }}
+          >
+            Close Goal
+          </button>
+          <button
+            onClick={() => setAbandonModalOpen(true)}
+            className="flex-1 py-2.5 rounded-xl text-[13px] font-medium border transition-colors"
+            style={{ border: '1px solid rgba(200,90,84,.5)', color: '#C85A54', backgroundColor: 'rgba(200,90,84,.06)' }}
+          >
+            Abandon
+          </button>
+        </div>
+      )}
 
       {/* Settings drawer */}
       {drawerOpen && (
@@ -479,7 +488,39 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
         </div>
       )}
 
-      {/* Outcome capture modal */}
+      {/* Close Goal modal */}
+      {closeModalOpen && (
+        <CloseModal
+          objectiveId={obj.id}
+          objectiveTitle={obj.title}
+          objectiveCategory={obj.category}
+          objectiveContext={obj.context}
+          currentConfidence={obj.confidence}
+          onClose={() => setCloseModalOpen(false)}
+          onComplete={() => {
+            setCloseModalOpen(false)
+            router.push('/objectives')
+            router.refresh()
+          }}
+        />
+      )}
+
+      {/* Abandon Goal modal */}
+      {abandonModalOpen && (
+        <AbandonModal
+          objectiveId={obj.id}
+          objectiveTitle={obj.title}
+          activeChildObjectives={[]}
+          onClose={() => setAbandonModalOpen(false)}
+          onAbandon={() => {
+            setAbandonModalOpen(false)
+            router.push('/objectives')
+            router.refresh()
+          }}
+        />
+      )}
+
+      {/* Outcome capture modal (legacy Archive flow) */}
       {outcomeModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60" onClick={predSurface ? undefined : () => setOutcomeModalOpen(false)} />
