@@ -34,6 +34,7 @@ interface Props {
   activeChildObjectives: Array<{ id: string; title: string }>
   onClose: () => void
   onAbandon: () => void
+  onArchiveInstead: () => void
 }
 
 const REASONS: { value: AbandonReason; label: string }[] = [
@@ -51,6 +52,7 @@ export default function AbandonModal({
   activeChildObjectives,
   onClose,
   onAbandon,
+  onArchiveInstead,
 }: Props) {
   const supabase = createClient()
 
@@ -258,7 +260,7 @@ export default function AbandonModal({
               Yes, I want to abandon this
             </button>
             <button
-              onClick={onClose}
+              onClick={onArchiveInstead}
               style={{
                 width: '100%', padding: '12px', borderRadius: '10px', fontSize: '14px',
                 border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)',
