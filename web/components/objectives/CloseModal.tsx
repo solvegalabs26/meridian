@@ -58,7 +58,6 @@ export default function CloseModal({
   const [predScores, setPredScores] = useState<Record<string, OutcomeType>>({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [outcomeId, setOutcomeId] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -102,7 +101,6 @@ export default function CloseModal({
       }
 
       const { outcome_id } = await res.json() as { outcome_id: string }
-      setOutcomeId(outcome_id)
       setSaving(false)
       return outcome_id
     } catch {
