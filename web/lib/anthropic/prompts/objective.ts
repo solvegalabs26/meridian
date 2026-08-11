@@ -1,5 +1,6 @@
 import { Objective } from '@/lib/utils/types'
 import { CompsResult } from '@/lib/sweep/fetchComps'
+import type { CoherencePackage } from '@/lib/sweep/buildCoherencePackage'
 
 interface RecentSignal {
   title: string
@@ -28,6 +29,7 @@ interface ObjectiveStateInput {
   signalAbsenceCount?: number
   recentChange?: { changed_field: string; changed_at: string } | null
   outcomeRow?: { outcome_type: string; outcome_note: string | null; actual_completed_at: string | null } | null
+  coherencePackage?: CoherencePackage | null
 }
 
 function truncateNotes(notes: string | null | undefined, objectiveId: string): string | null {
@@ -42,7 +44,7 @@ function truncateNotes(notes: string | null | undefined, objectiveId: string): s
 
 export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
   return {
-    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext, askContext, episodeHistory, signalAbsenceCount, recentChange, outcomeRow }) => {
+    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext, askContext, episodeHistory, signalAbsenceCount, recentChange, outcomeRow, coherencePackage }) => {
       const obj = objective as Objective & {
         objective_type?: string | null
         deadline_type?: 'hard' | 'soft'
@@ -131,6 +133,26 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
           : ''
         Object.assign(base, {
           recorded_outcome: `Objective completed on ${fmtDate(outcomeRow.actual_completed_at)} with outcome: ${outcomeRow.outcome_type}.${noteStr}`,
+        })
+      }
+
+      // Inject Engine 3 precision targeting context when watch sources are present.
+      // Signals that directly address the watched domains are Tier 1; adjacent
+      // domain signals are Tier 2; unrelated signals should only surface as
+      // cross-objective dependencies.
+      if (coherencePackage && coherencePackage.watchSources.length > 0) {
+        const watchDomains = coherencePackage.watchSources.map(ws => {
+          return ws.target_signal
+            ? `[${ws.watch_type}] ${ws.url_provided} — looking for: ${ws.target_signal}`
+            : `[${ws.watch_type}] ${ws.url_provided}`
+        })
+        Object.assign(base, {
+          precision_targeting_context: {
+            instruction: 'PRECISION TARGETING CONTEXT (from user\'s watch sources — treat as primary interpretive frame). A signal that directly addresses the watch source domain is Tier 1. A signal that corroborates from an adjacent domain is Tier 2. A signal unrelated to the watch source domain should only surface if it is a meaningful cross-objective dependency.',
+            watch_sources: watchDomains,
+            current_confidence: coherencePackage.current_confidence,
+            open_actions_count: coherencePackage.openActions.length,
+          },
         })
       }
 
