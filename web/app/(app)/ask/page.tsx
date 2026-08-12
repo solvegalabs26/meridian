@@ -22,7 +22,7 @@ export default async function AskPage({ searchParams }: { searchParams: { q?: st
   const [{ data: objectives }, { data: latestSweep }, { data: profile }, { count: monthlyCount }] = await Promise.all([
     supabase.from('objectives').select('id, title, confidence, confidence_prev, category, status').eq('user_id', user!.id).eq('status', 'active'),
     supabase.from('sweeps').select('summary, raw_response, completed_at').eq('user_id', user!.id).eq('status', 'complete').not('raw_response', 'is', null).order('completed_at', { ascending: false }).limit(1).single(),
-    supabase.from('profiles').select('tier, pricing_tier, complimentary_expires_at, ask_credits').eq('id', user!.id).single(),
+    supabase.from('profiles').select('tier, pricing_tier, complimentary_expires_at, ask_credits, account_type').eq('id', user!.id).single(),
     supabase.from('ask_queries').select('id', { count: 'exact', head: true }).gte('created_at', monthStart.toISOString()),
   ])
 
