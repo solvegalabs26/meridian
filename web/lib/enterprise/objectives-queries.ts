@@ -32,6 +32,7 @@ export type ObjectiveWithResult = {
   lite_sweep_cadence_days: number | null
   last_focus_sweep_at: string | null
   last_lite_sweep_at: string | null
+  escalated_at: string | null
   latest_result: ObjectiveResult | null
 }
 
@@ -45,6 +46,7 @@ type RawObjective = {
   lite_sweep_cadence_days: number | null
   last_focus_sweep_at: string | null
   last_lite_sweep_at: string | null
+  escalated_at: string | null
   enterprise_objective_results: ObjectiveResult[]
 }
 
@@ -64,7 +66,7 @@ export async function getObjectivesWithResults(
     .select(`
       id, obj_id, title, statement, objective_state,
       objective_order, lite_sweep_cadence_days,
-      last_focus_sweep_at, last_lite_sweep_at,
+      last_focus_sweep_at, last_lite_sweep_at, escalated_at,
       enterprise_objective_results (
         id, sweep_type, confidence_score, alert_triggered, alert_reason,
         affecting_it, implies, signals, what_to_do,

@@ -89,6 +89,10 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
   const router = useRouter()
   const [active, setActive] = useState<typeof TABS[number]>(TABS[0])
   const [expandedEpisodes, setExpandedEpisodes] = useState<Set<string>>(new Set())
+  const [showAllDeps, setShowAllDeps] = useState(false)
+  const [showAllActions, setShowAllActions] = useState(false)
+  const [showAllSignals, setShowAllSignals] = useState(false)
+  const [showAllEpisodes, setShowAllEpisodes] = useState(false)
 
   function toggleEpisode(id: string) {
     setExpandedEpisodes(prev => {
@@ -190,7 +194,7 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                   {factors.length > 0 && <div className="mb-3" style={{ borderTop: '1px solid var(--ov-border)' }} />}
                   <p className="text-[10px] uppercase tracking-wide mb-2.5" style={{ color: 'var(--ov-text-dim)' }}>Cross-goal dependencies</p>
                   <ul className="space-y-3">
-                    {depSignals.map(sig => (
+                    {(showAllDeps ? depSignals : depSignals.slice(0, 5)).map(sig => (
                       <li key={sig.id} className="flex gap-3">
                         <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: 'var(--blue-mid)' }} />
                         <div className="min-w-0 flex-1">
@@ -203,6 +207,11 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       </li>
                     ))}
                   </ul>
+                  {depSignals.length > 5 && (
+                    <button onClick={() => setShowAllDeps(v => !v)} className="text-[10px] mt-2 block" style={{ color: 'var(--ov-text-dim)' }}>
+                      {showAllDeps ? 'Show less ↑' : `Show all ${depSignals.length} →`}
+                    </button>
+                  )}
                 </div>
               )}
               {userActionSignals.length > 0 && (
@@ -210,7 +219,7 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                   {(factors.length > 0 || depSignals.length > 0) && <div className="mb-3" style={{ borderTop: '1px solid var(--ov-border)' }} />}
                   <p className="text-[10px] uppercase tracking-wide mb-2.5" style={{ color: 'var(--ov-text-dim)' }}>What you&apos;ve done</p>
                   <ul className="space-y-3">
-                    {userActionSignals.map(sig => (
+                    {(showAllActions ? userActionSignals : userActionSignals.slice(0, 5)).map(sig => (
                       <li key={sig.id} className="flex gap-3">
                         <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: 'var(--gold)' }} />
                         <div className="min-w-0 flex-1">
@@ -225,6 +234,11 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       </li>
                     ))}
                   </ul>
+                  {userActionSignals.length > 5 && (
+                    <button onClick={() => setShowAllActions(v => !v)} className="text-[10px] mt-2 block" style={{ color: 'var(--ov-text-dim)' }}>
+                      {showAllActions ? 'Show less ↑' : `Show all ${userActionSignals.length} →`}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -370,8 +384,9 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
           return feedSignals.length === 0 ? (
             <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>No signals yet for this goal.</p>
           ) : (
+            <>
             <ul className="space-y-2.5">
-              {feedSignals.map(sig => {
+              {(showAllSignals ? feedSignals : feedSignals.slice(0, 7)).map(sig => {
                 const badge = SOURCE_BADGES[sig.source_type ?? ''] ?? { label: sig.source_type ?? 'Signal', color: 'var(--ov-text-dim)' }
                 return (
                   <li key={sig.id} className="flex items-start gap-2.5">
@@ -407,6 +422,12 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                 )
               })}
             </ul>
+            {feedSignals.length > 7 && (
+              <button onClick={() => setShowAllSignals(v => !v)} className="text-[10px] mt-2 block" style={{ color: 'var(--ov-text-dim)' }}>
+                {showAllSignals ? 'Show less ↑' : `Show all ${feedSignals.length} →`}
+              </button>
+            )}
+            </>
           )
         })()}
 
@@ -426,8 +447,9 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
           }
 
           return (
+            <>
             <ul className="space-y-3">
-              {episodes.map(ep => {
+              {(showAllEpisodes ? episodes : episodes.slice(0, 5)).map(ep => {
                 const expanded = expandedEpisodes.has(ep.id)
                 const delta = ep.confidence_delta
                 const deltaStr = delta !== null
@@ -560,6 +582,12 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                 )
               })}
             </ul>
+            {episodes.length > 5 && (
+              <button onClick={() => setShowAllEpisodes(v => !v)} className="text-[10px] mt-3 block" style={{ color: 'var(--ov-text-dim)' }}>
+                {showAllEpisodes ? 'Show less ↑' : `Show all ${episodes.length} →`}
+              </button>
+            )}
+            </>
           )
         })()}
 
