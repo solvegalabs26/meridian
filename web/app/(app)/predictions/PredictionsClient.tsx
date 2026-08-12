@@ -70,6 +70,10 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
   const [scoreOutcome, setScoreOutcome] = useState('')
   const [scoreRating, setScoreRating] = useState(3)
 
+  // Accuracy-only scoring
+  const [accuracyId, setAccuracyId] = useState<string | null>(null)
+  const [accuracyRating, setAccuracyRating] = useState(3)
+
   const filtered = predictions.filter(p => filterStatus === 'all' || getStatus(p) === filterStatus)
 
   async function handleCreate() {
@@ -100,6 +104,20 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
       setPredictions(prev => prev.map(p => p.id === id ? data.prediction : p))
       setScoringId(null)
       setScoreOutcome(''); setScoreRating(3)
+    }
+  }
+
+  async function handleAccuracy(id: string) {
+    const res = await fetch('/api/predictions', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, accuracy_score: accuracyRating }),
+    })
+    if (res.ok) {
+      const data = await res.json() as { prediction: Prediction }
+      setPredictions(prev => prev.map(p => p.id === id ? data.prediction : p))
+      setAccuracyId(null)
+      setAccuracyRating(3)
     }
   }
 
@@ -231,7 +249,15 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
                     <td className="px-4 py-3">
                       {(() => {
                         const score = getEngine4Score(p)
-                        if (score === null) return <span className="text-[12px] text-[var(--text3)]">—</span>
+                        if (score === null) return (
+                          <button
+                            onClick={() => { setAccuracyId(p.id); setAccuracyRating(3) }}
+                            className="text-[11px] font-semibold underline"
+                            style={{ color: 'var(--gold)', cursor: 'pointer' }}
+                          >
+                            Score
+                          </button>
+                        )
                         return (
                           <span className="text-[13px] font-semibold tabular-nums" style={{ color: accuracyColor(score) }}>
                             {Math.round(score)}
@@ -277,6 +303,35 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
                   Submit score
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Accuracy scoring modal */}
+      {accuracyId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setAccuracyId(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-start gap-3 mb-4 p-3 rounded-xl" style={{ backgroundColor: '#FEF3C7', border: '1px solid #FDE68A' }}>
+              <span className="flex-shrink-0 mt-0.5" style={{ color: '#D97706' }}>⚠</span>
+              <p className="text-[12px] leading-relaxed" style={{ color: '#92400E' }}>
+                Accuracy reflects how well Meridian&apos;s engine analysis matched reality — not whether your prediction was right.{' '}
+                <a href="/faq#what-is-accuracy" className="underline">Learn more</a>
+              </p>
+            </div>
+            <h2 className="text-[15px] font-semibold text-[var(--text)] mb-1">Rate engine accuracy</h2>
+            <p className="text-[12px] text-[var(--text3)] mb-4">How accurate was Meridian&apos;s analysis?</p>
+            <div className="flex gap-2 mb-2">
+              {[1,2,3,4,5].map(s => (
+                <button key={s} onClick={() => setAccuracyRating(s)}
+                  className={`text-[28px] transition-colors ${s <= accuracyRating ? 'text-[var(--gold)]' : 'text-[var(--border)]'}`}>★</button>
+              ))}
+            </div>
+            <p className="text-[11px] text-[var(--text3)] mb-4">1 = Way off · 5 = Spot on</p>
+            <div className="flex gap-2">
+              <button onClick={() => setAccuracyId(null)} className="flex-1 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text2)]">Cancel</button>
+              <button onClick={() => handleAccuracy(accuracyId)} className="flex-1 py-2.5 rounded-lg bg-navy text-white text-[13px] font-medium">Submit</button>
             </div>
           </div>
         </div>
