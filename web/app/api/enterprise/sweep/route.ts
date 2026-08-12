@@ -49,6 +49,17 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[FF-035-B] Fork 1 failed:', msg)
+    await supabase.from('enterprise_sweeps').insert({
+      institution_id: institutionId,
+      trigger_type: 'manual',
+      status: 'failed',
+      fork: 'portfolio',
+      sweep_type: 'portfolio',
+      engine_version: 'ff-035b-v1',
+      started_at: new Date(startMs).toISOString(),
+      completed_at: new Date().toISOString(),
+      error_message: msg,
+    })
     return NextResponse.json({ error: `Portfolio sweep failed: ${msg}` }, { status: 500 })
   }
 
@@ -56,7 +67,7 @@ export async function POST(request: NextRequest) {
   // Load objectives in focus state (or the specifically requested ones)
   let objectivesQuery = supabase
     .from('enterprise_objectives')
-    .select('id, obj_id')
+    .select('id, obj_id, objective_state')
     .eq('institution_id', institutionId)
     .eq('status', 'active')
 
@@ -88,6 +99,21 @@ export async function POST(request: NextRequest) {
       const msg = result.reason instanceof Error ? result.reason.message : String(result.reason)
       console.error(`[FF-035-B] Fork 2 failed for ${obj.obj_id} (${obj.id}):`, msg)
       failedObjectiveIds.push(obj.id as string)
+
+      // Record the rejection so the sweep health dashboard can surface it —
+      // runObjectiveSweep failures otherwise leave no row in enterprise_sweeps.
+      await supabase.from('enterprise_sweeps').insert({
+        institution_id: institutionId,
+        objective_id: obj.id,
+        trigger_type: 'manual',
+        status: 'failed',
+        fork: 'objective',
+        sweep_type: obj.objective_state === 'monitoring_lite' ? 'lite' : 'full',
+        engine_version: 'ff-035b-v1',
+        started_at: new Date(startMs).toISOString(),
+        completed_at: new Date().toISOString(),
+        error_message: msg,
+      })
     }
   }
 
