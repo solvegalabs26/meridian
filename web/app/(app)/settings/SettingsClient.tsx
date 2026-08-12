@@ -447,7 +447,7 @@ export default function SettingsClient({ email, profile }: Props) {
 
               {/* Ask query credit bundles */}
               <div className="mt-5 pt-4 border-t border-[var(--border)]">
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text3)] mb-3">Add ask query credits</p>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text3)] mb-3">Ask Arc Credits</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {ASK_CREDIT_BUNDLES.map(b => (
                     <div
