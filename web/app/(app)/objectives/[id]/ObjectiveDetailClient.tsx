@@ -370,7 +370,7 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                     value={deadlineType}
                     onChange={e => setDeadlineType(e.target.value as 'hard' | 'soft')}
                     className={inputCls}
-                    style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)' }}
+                    style={{ background: '#0a1628', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', colorScheme: 'dark' }}
                   >
                     <option value="hard">Hard — must complete by date</option>
                     <option value="soft">Soft — reservation / optional (retained is OK)</option>
