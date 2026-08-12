@@ -538,7 +538,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
       )}
 
       {/* RISK SUMMARY CARDS — counts from enterprise_case_history, not stale sweep metadata */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {(['CRITICAL','ALERT','CAUTION','STABLE'] as DriftDirection[]).map(d => {
           const subtitles = {
             CRITICAL: 'Loss mitigation now',
@@ -548,8 +548,8 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
           }
           return (
             <div key={d} style={{ background: DRIFT_BG[d], borderColor: DRIFT_COLORS[d] + '55' }}
-              className="rounded-xl border p-5 text-center">
-              <div className="text-5xl font-black leading-none" style={{ color: DRIFT_COLORS[d] }}>{liveCounts[d]}</div>
+              className="rounded-xl border p-3 sm:p-5 text-center">
+              <div className="text-3xl sm:text-5xl font-black leading-none" style={{ color: DRIFT_COLORS[d] }}>{liveCounts[d]}</div>
               <div className="text-xs font-bold tracking-widest mt-2" style={{ color: DRIFT_COLORS[d] }}>{d}</div>
               <div className="text-xs text-gray-500 mt-1">{subtitles[d]}</div>
             </div>
