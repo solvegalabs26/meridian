@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings, X, Archive, Pencil, ChevronLeft, Check, Eye } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { Settings, X, Archive, Pencil, ChevronLeft, Eye, RotateCcw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import WatchSourcesPanel, { type WatchSource } from '@/components/watchlist/WatchSourcesPanel'
+import CloseModal from '@/components/objectives/CloseModal'
+import AbandonModal from '@/components/objectives/AbandonModal'
 
 interface ObjProps {
   id: string
@@ -20,13 +21,6 @@ interface ObjProps {
   category: string
 }
 
-interface OpenPrediction {
-  id: string
-  statement: string
-  confidence_pct: number
-  horizon_date: string
-}
-
 interface Props {
   obj: ObjProps
   tier: string
@@ -37,23 +31,33 @@ interface Props {
 }
 
 type DrawerView = 'menu' | 'edit' | 'watch'
-type ScoreLabel = 'HIT' | 'PARTIAL' | 'MISS'
+type ArchiveReason = 'Personal Bandwidth Low' | 'Refocus' | 'Priority Change' | 'Other'
 
-function outcomeColor(type: ScoreLabel): string {
-  if (type === 'HIT') return 'var(--ov-green)'
-  if (type === 'PARTIAL') return 'var(--ov-amber)'
-  return 'var(--ov-red)'
-}
-
-const SCORE_VALUE: Record<ScoreLabel, number> = { HIT: 95, PARTIAL: 60, MISS: 10 }
+const ARCHIVE_REASONS: ArchiveReason[] = ['Personal Bandwidth Low', 'Refocus', 'Priority Change', 'Other']
 
 export default function ObjectiveDetailClient({ obj, tier, accountType, initialSources, unseenAlertCount = 0, smsAlertsEnabled = false }: Props) {
+  const [closeModalOpen, setCloseModalOpen]   = useState(false)
+  const [abandonModalOpen, setAbandonModalOpen] = useState(false)
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false)
+
+  // Archive form state
+  const today = new Date().toISOString().split('T')[0]
+  const [archiveReason, setArchiveReason]                   = useState<ArchiveReason | ''>('')
+  const [archiveNote, setArchiveNote]                       = useState('')
+  const [archiveDate, setArchiveDate]                       = useState(today)
+  const [estimatedReactivateDate, setEstimatedReactivateDate] = useState('')
+  const [archiveSaving, setArchiveSaving]                   = useState(false)
+  const [archiveError, setArchiveError]                     = useState<string | null>(null)
+
+  // Reopen confirmation state
+  const [reopenConfirm, setReopenConfirm] = useState(false)
+  const [reopenSaving, setReopenSaving]   = useState(false)
+
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [view, setView] = useState<DrawerView>('menu')
   const [loading, setLoading] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
 
   // Edit form state
   const [title, setTitle]                   = useState(obj.title)
@@ -67,149 +71,71 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
   const [targetPrice, setTargetPrice]       = useState((ctx.target_price as string | undefined) ?? '')
   const [floorPrice, setFloorPrice]         = useState((ctx.floor_price as string | undefined) ?? '')
 
-  // Outcome capture modal state
-  const [outcomeModalOpen, setOutcomeModalOpen]     = useState(false)
-  const [outcomeType, setOutcomeType]               = useState<ScoreLabel | null>(null)
-  const [outcomeNote, setOutcomeNote]               = useState('')
-  const [actualCompletedAt, setActualCompletedAt]   = useState(new Date().toISOString().split('T')[0])
-  const [outcomeSaving, setOutcomeSaving]           = useState(false)
-  const [outcomeError, setOutcomeError]             = useState<string | null>(null)
-
-  // Prediction surface state (shown after outcome is saved)
-  const [outcomeRowId, setOutcomeRowId]   = useState<string | null>(null)
-  const [openPreds, setOpenPreds]         = useState<OpenPrediction[]>([])
-  const [predSurface, setPredSurface]     = useState(false)
-  const [scoredMap, setScoredMap]         = useState<Record<string, ScoreLabel>>({})
-  const [predScoringId, setPredScoringId] = useState<string | null>(null)
-  const [predError, setPredError]         = useState<string | null>(null)
-
   function openDrawer() {
     setView('menu')
     setSaveError(null)
+    setReopenConfirm(false)
     setDrawerOpen(true)
   }
 
   function closeDrawer() {
     setDrawerOpen(false)
+    setReopenConfirm(false)
   }
 
-  function openOutcomeModal() {
-    setOutcomeType(null)
-    setOutcomeNote('')
-    setActualCompletedAt(new Date().toISOString().split('T')[0])
-    setOutcomeError(null)
-    setPredSurface(false)
-    setScoredMap({})
-    setOutcomeRowId(null)
+  function openArchiveModal() {
+    setArchiveReason('')
+    setArchiveNote('')
+    setArchiveDate(new Date().toISOString().split('T')[0])
+    setEstimatedReactivateDate('')
+    setArchiveError(null)
     closeDrawer()
-    setOutcomeModalOpen(true)
+    setArchiveModalOpen(true)
   }
 
-  async function handleOutcomeSubmit() {
-    if (!outcomeType || !actualCompletedAt) return
-    setOutcomeSaving(true)
-    setOutcomeError(null)
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setOutcomeError('Not authenticated — please refresh and try again.')
-      setOutcomeSaving(false)
+  async function handleArchiveSubmit() {
+    if (!archiveReason || !archiveDate || !estimatedReactivateDate) return
+    if (estimatedReactivateDate <= archiveDate) {
+      setArchiveError('Estimated reactivation date must be after archive date.')
       return
     }
+    setArchiveSaving(true)
+    setArchiveError(null)
 
-    const [outcomeResult, archiveResult] = await Promise.all([
-      supabase
-        .from('objective_outcomes')
-        .insert([{
-          user_id: user.id,
-          objective_id: obj.id,
-          outcome_type: outcomeType,
-          outcome_note: outcomeNote.trim() || null,
-          actual_completed_at: actualCompletedAt,
-          swept_at_close: obj.confidence ?? null,
-          prediction_id: null,
-        }])
-        .select('id')
-        .single(),
-      supabase
-        .from('objectives')
-        .update({ status: 'closed', updated_at: new Date().toISOString() })
-        .eq('id', obj.id),
-    ])
-
-    setOutcomeSaving(false)
-
-    if (outcomeResult.error || archiveResult.error) {
-      setOutcomeError(
-        outcomeResult.error?.message ?? archiveResult.error?.message ?? 'Save failed — please try again.'
-      )
-      return
-    }
-
-    const rowId = outcomeResult.data?.id ?? null
-    setOutcomeRowId(rowId)
-
-    // Query for unscored predictions linked to this objective
-    const { data: preds } = await supabase
-      .from('predictions')
-      .select('id, statement, confidence_pct, horizon_date')
-      .eq('objective_id', obj.id)
-      .is('accuracy_score', null)
-      .order('created_at', { ascending: false })
-
-    const found = (preds ?? []) as OpenPrediction[]
-    if (found.length === 0) {
-      setOutcomeModalOpen(false)
-      router.push('/objectives')
-      router.refresh()
-      return
-    }
-
-    setOpenPreds(found)
-    setPredSurface(true)
-  }
-
-  async function handleScorePrediction(predId: string, score: ScoreLabel) {
-    if (predScoringId) return // debounce
-    setPredScoringId(predId)
-    setPredError(null)
-
-    const accuracyScore = SCORE_VALUE[score]
-
-    const [predRes, outcomeRes] = await Promise.all([
-      fetch('/api/predictions', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: predId, outcome: score, accuracy_score: accuracyScore }),
+    const res = await fetch(`/api/objectives/${obj.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'archived',
+        archive_reason: archiveReason,
+        archive_date: archiveDate,
+        estimated_reactivate_date: estimatedReactivateDate,
+        notes: archiveNote.trim() || null,
       }),
-      outcomeRowId
-        ? fetch(`/api/outcomes/${outcomeRowId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prediction_id: predId }),
-          })
-        : Promise.resolve(new Response('{}', { status: 200 })),
-    ])
+    })
 
-    setPredScoringId(null)
+    setArchiveSaving(false)
 
-    if (!predRes.ok) {
-      const body = await predRes.json().catch(() => ({})) as { error?: string }
-      setPredError(body.error ?? 'Score failed — please try again.')
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({})) as { error?: string }
+      setArchiveError(d.error ?? 'Save failed — please try again.')
       return
     }
 
-    if (!outcomeRes.ok) {
-      // Non-fatal: prediction is scored, only the backlink failed
-      console.warn('[ff025] outcome prediction_id backfill failed')
-    }
-
-    setScoredMap(prev => ({ ...prev, [predId]: score }))
+    setArchiveModalOpen(false)
+    router.push('/objectives')
+    router.refresh()
   }
 
-  function handleDone() {
-    setOutcomeModalOpen(false)
-    router.push('/objectives')
+  async function handleReopen() {
+    setReopenSaving(true)
+    await fetch(`/api/objectives/${obj.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'active', closure_type: null }),
+    })
+    setReopenSaving(false)
+    closeDrawer()
     router.refresh()
   }
 
@@ -217,8 +143,8 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
     setSaveError(null)
 
     if (targetDate) {
-      const today = new Date().toISOString().split('T')[0]
-      if (targetDate < today) {
+      const todayStr = new Date().toISOString().split('T')[0]
+      if (targetDate < todayStr) {
         setSaveError('Target date cannot be in the past.')
         return
       }
@@ -261,21 +187,46 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
     router.refresh()
   }
 
+  const isActive   = obj.status === 'active'
+  const isClosed   = obj.status === 'closed' || obj.status === 'abandoned'
+  const isArchived = obj.status === 'archived'
+
   const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide mb-1'
   const inputCls = 'w-full px-3 py-2 rounded-lg border text-[13px] focus:outline-none transition-colors'
 
   return (
     <>
-      <button
-        onClick={openDrawer}
-        className="p-2 rounded-lg flex-shrink-0 transition-colors"
-        style={{ color: 'var(--ov-text-dim)' }}
-        aria-label="Goal settings"
-      >
-        <Settings size={16} />
-      </button>
+      {/* ── Header controls: gear + action buttons, all in one flex-shrink-0 row ── */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {isActive && (
+          <>
+            <button
+              onClick={() => setCloseModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap"
+              style={{ background: 'var(--gold)', color: '#0a1628' }}
+            >
+              Close Goal
+            </button>
+            <button
+              onClick={() => setAbandonModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap"
+              style={{ border: '1px solid rgba(200,90,84,.5)', color: '#C85A54', backgroundColor: 'rgba(200,90,84,.06)' }}
+            >
+              Abandon
+            </button>
+          </>
+        )}
+        <button
+          onClick={openDrawer}
+          className="p-2 rounded-lg flex-shrink-0 transition-colors"
+          style={{ color: 'var(--ov-text-dim)' }}
+          aria-label="Goal settings"
+        >
+          <Settings size={16} />
+        </button>
+      </div>
 
-      {/* Settings drawer */}
+      {/* ── Settings drawer ── */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/50" onClick={closeDrawer} />
@@ -302,6 +253,7 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
             {view === 'menu' && (
               <div className="p-5 flex flex-col gap-3 overflow-y-auto flex-1">
                 <p className="text-[12px] mb-1 leading-relaxed" style={{ color: 'var(--ov-text-mid)' }}>{obj.title}</p>
+
                 <button
                   onClick={() => setView('edit')}
                   className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] text-left transition-colors"
@@ -310,6 +262,7 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                   <Pencil size={14} style={{ color: 'var(--ov-blue)' }} />
                   Edit goal
                 </button>
+
                 <button
                   onClick={() => setView('watch')}
                   className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] text-left transition-colors"
@@ -326,15 +279,57 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                     </span>
                   )}
                 </button>
-                <button
-                  onClick={openOutcomeModal}
-                  disabled={loading || obj.status === 'closed'}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] text-left disabled:opacity-40 transition-colors"
-                  style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}
-                >
-                  <Archive size={14} style={{ color: 'var(--ov-amber)' }} />
-                  {obj.status === 'closed' ? 'Already archived' : 'Archive goal'}
-                </button>
+
+                {/* Archive — only for active goals */}
+                {isActive && (
+                  <button
+                    onClick={openArchiveModal}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] text-left transition-colors"
+                    style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}
+                  >
+                    <Archive size={14} style={{ color: 'var(--ov-amber)' }} />
+                    Archive goal
+                  </button>
+                )}
+
+                {/* Reopen / Reactivate — for closed, abandoned, or archived goals */}
+                {(isClosed || isArchived) && (
+                  <div>
+                    {!reopenConfirm ? (
+                      <button
+                        onClick={() => setReopenConfirm(true)}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] text-left transition-colors"
+                        style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}
+                      >
+                        <RotateCcw size={14} style={{ color: 'var(--ov-green)' }} />
+                        {isArchived ? 'Reactivate goal' : 'Reopen goal'}
+                      </button>
+                    ) : (
+                      <div className="rounded-xl p-4 flex flex-col gap-3" style={{ border: '1px solid var(--ov-border-md)', backgroundColor: 'rgba(255,255,255,.03)' }}>
+                        <p className="text-[13px]" style={{ color: 'var(--ov-text-hi)' }}>
+                          {isArchived ? 'Reactivate this goal?' : 'Reopen this goal?'} It will return to active tracking.
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setReopenConfirm(false)}
+                            className="flex-1 py-2 rounded-lg text-[12px] transition-colors"
+                            style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-dim)' }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleReopen}
+                            disabled={reopenSaving}
+                            className="flex-1 py-2 rounded-lg text-[12px] font-medium transition-colors disabled:opacity-50"
+                            style={{ backgroundColor: 'var(--ov-green)', color: '#0a1628' }}
+                          >
+                            {reopenSaving ? 'Saving...' : 'Confirm'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -479,175 +474,136 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
         </div>
       )}
 
-      {/* Outcome capture modal */}
-      {outcomeModalOpen && (
+      {/* ── Close Goal modal ── */}
+      {closeModalOpen && (
+        <CloseModal
+          objectiveId={obj.id}
+          objectiveTitle={obj.title}
+          objectiveCategory={obj.category}
+          objectiveContext={obj.context}
+          currentConfidence={obj.confidence}
+          onClose={() => setCloseModalOpen(false)}
+          onComplete={() => {
+            setCloseModalOpen(false)
+            router.push('/objectives')
+            router.refresh()
+          }}
+        />
+      )}
+
+      {/* ── Abandon Goal modal ── */}
+      {abandonModalOpen && (
+        <AbandonModal
+          objectiveId={obj.id}
+          objectiveTitle={obj.title}
+          activeChildObjectives={[]}
+          onClose={() => setAbandonModalOpen(false)}
+          onAbandon={() => {
+            setAbandonModalOpen(false)
+            router.push('/objectives')
+            router.refresh()
+          }}
+          onArchiveInstead={() => {
+            setAbandonModalOpen(false)
+            openArchiveModal()
+          }}
+        />
+      )}
+
+      {/* ── Archive modal ── */}
+      {archiveModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={predSurface ? undefined : () => setOutcomeModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/60" onClick={() => setArchiveModalOpen(false)} />
           <div
-            className="relative w-full max-w-sm rounded-2xl shadow-xl flex flex-col p-6"
+            className="relative w-full max-w-sm rounded-2xl shadow-xl flex flex-col p-6 gap-5"
             style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)', maxHeight: '90vh', overflowY: 'auto' }}
           >
-            {!predSurface ? (
-              /* ── Outcome form ── */
-              <div className="flex flex-col gap-5">
-                <div>
-                  <h2 className="text-[16px] font-semibold mb-0.5" style={{ color: 'var(--ov-text-hi)' }}>Record outcome</h2>
-                  <p className="text-[12px]" style={{ color: 'var(--ov-text-dim)' }}>{obj.title}</p>
-                </div>
+            <div>
+              <h2 className="text-[16px] font-semibold mb-0.5" style={{ color: 'var(--ov-text-hi)' }}>Archive Goal</h2>
+              <p className="text-[12px]" style={{ color: 'var(--ov-text-dim)' }}>
+                {obj.title}
+              </p>
+              <p className="text-[12px] mt-2" style={{ color: 'var(--ov-text-mid)' }}>
+                Archiving pauses this goal. It stays in your history and can be reactivated any time.
+              </p>
+            </div>
 
-                {/* Outcome type */}
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--ov-text-dim)' }}>
-                    Outcome <span style={{ color: 'var(--ov-red)' }}>*</span>
-                  </label>
-                  <div className="flex gap-2">
-                    {(['HIT', 'PARTIAL', 'MISS'] as const).map(type => (
-                      <button
-                        key={type}
-                        onClick={() => setOutcomeType(type)}
-                        className="flex-1 py-2 rounded-lg text-[12px] font-semibold transition-all"
-                        style={{
-                          border: `1px solid ${outcomeType === type ? outcomeColor(type) : 'var(--ov-border-md)'}`,
-                          backgroundColor: outcomeType === type ? `${outcomeColor(type)}20` : 'transparent',
-                          color: outcomeType === type ? outcomeColor(type) : 'var(--ov-text-dim)',
-                        }}
-                      >
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+            {/* Archived For */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>
+                Archived For <span style={{ color: 'var(--ov-red)' }}>*</span>
+              </label>
+              <select
+                value={archiveReason}
+                onChange={e => setArchiveReason(e.target.value as ArchiveReason)}
+                className="w-full px-3 py-2 rounded-lg text-[13px] focus:outline-none"
+                style={{ backgroundColor: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: archiveReason ? 'var(--ov-text-hi)' : 'var(--ov-text-dim)' }}
+              >
+                <option value="" disabled>Select a reason…</option>
+                {ARCHIVE_REASONS.map(r => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
 
-                {/* Outcome note */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--ov-text-dim)' }}>
-                      What happened <span style={{ color: 'var(--ov-text-dim)', fontWeight: 400 }}>(optional)</span>
-                    </label>
-                    <span
-                      className="text-[10px]"
-                      style={{ color: outcomeNote.length > 450 ? 'var(--ov-amber)' : 'var(--ov-text-dim)' }}
-                    >
-                      {outcomeNote.length}/500
-                    </span>
-                  </div>
-                  <textarea
-                    rows={3}
-                    value={outcomeNote}
-                    onChange={e => setOutcomeNote(e.target.value.slice(0, 500))}
-                    placeholder="Describe what happened and the result..."
-                    className="w-full px-3 py-2 rounded-lg text-[12px] resize-none focus:outline-none"
-                    style={{ backgroundColor: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)' }}
-                  />
-                </div>
+            {/* Notes */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>
+                Notes <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span>
+              </label>
+              <textarea
+                rows={3}
+                value={archiveNote}
+                onChange={e => setArchiveNote(e.target.value.slice(0, 500))}
+                placeholder="Anything to note about this pause?"
+                className="w-full px-3 py-2 rounded-lg text-[13px] resize-none focus:outline-none"
+                style={{ backgroundColor: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)' }}
+              />
+            </div>
 
-                {/* Completion date */}
-                <div>
-                  <label className="block text-[11px] font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--ov-text-dim)' }}>
-                    Completion date <span style={{ color: 'var(--ov-red)' }}>*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={actualCompletedAt}
-                    onChange={e => setActualCompletedAt(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-[12px] focus:outline-none"
-                    style={{ backgroundColor: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)' }}
-                  />
-                </div>
+            {/* Archive Date */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>
+                Archive Date <span style={{ color: 'var(--ov-red)' }}>*</span>
+              </label>
+              <input
+                type="date"
+                value={archiveDate}
+                onChange={e => setArchiveDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-[13px] focus:outline-none"
+                style={{ backgroundColor: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', colorScheme: 'dark' }}
+              />
+            </div>
 
-                {outcomeError && (
-                  <div className="px-3 py-2 rounded-lg text-[11px]" style={{ backgroundColor: 'rgba(200,90,84,.12)', color: '#C85A54' }}>
-                    {outcomeError}
-                  </div>
-                )}
+            {/* Estimated Reactivate Date */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>
+                Estimated Reactivate Date <span style={{ color: 'var(--ov-red)' }}>*</span>
+              </label>
+              <input
+                type="date"
+                value={estimatedReactivateDate}
+                min={archiveDate ? (() => { const d = new Date(archiveDate); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0] })() : today}
+                onChange={e => setEstimatedReactivateDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg text-[13px] focus:outline-none"
+                style={{ backgroundColor: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', colorScheme: 'dark' }}
+              />
+            </div>
 
-                <button
-                  onClick={handleOutcomeSubmit}
-                  disabled={outcomeSaving || !outcomeType || !actualCompletedAt}
-                  className="w-full py-2.5 rounded-xl text-[14px] font-medium transition-colors disabled:opacity-40"
-                  style={{ background: 'var(--gold)', color: '#0a1628' }}
-                >
-                  {outcomeSaving ? 'Saving...' : 'Record & archive goal'}
-                </button>
-              </div>
-            ) : (
-              /* ── Prediction scoring surface ── */
-              <div className="flex flex-col gap-5">
-                <div>
-                  <h2 className="text-[16px] font-semibold mb-0.5" style={{ color: 'var(--ov-text-hi)' }}>Score your predictions</h2>
-                  <p className="text-[12px]" style={{ color: 'var(--ov-text-dim)' }}>
-                    {openPreds.length} open prediction{openPreds.length !== 1 ? 's' : ''} linked to this goal
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  {openPreds.map(pred => {
-                    const scored = scoredMap[pred.id]
-                    const isScoring = predScoringId === pred.id
-                    return (
-                      <div
-                        key={pred.id}
-                        className="rounded-xl p-4 flex flex-col gap-3 transition-opacity"
-                        style={{
-                          border: '1px solid var(--ov-border-md)',
-                          backgroundColor: 'var(--ov-navy)',
-                          opacity: scored ? 0.55 : 1,
-                        }}
-                      >
-                        <p className="text-[13px] leading-snug" style={{ color: 'var(--ov-text-hi)' }}>
-                          {pred.statement}
-                        </p>
-                        <div className="flex items-center gap-3 text-[11px]" style={{ color: 'var(--ov-text-dim)' }}>
-                          <span>{pred.confidence_pct}% confidence</span>
-                          <span>·</span>
-                          <span>
-                            {new Date(pred.horizon_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                        </div>
-                        {scored ? (
-                          <div className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: outcomeColor(scored) }}>
-                            <Check size={13} />
-                            {scored}
-                          </div>
-                        ) : (
-                          <div className="flex gap-2">
-                            {(['HIT', 'PARTIAL', 'MISS'] as const).map(s => (
-                              <button
-                                key={s}
-                                onClick={() => handleScorePrediction(pred.id, s)}
-                                disabled={isScoring || !!predScoringId}
-                                className="flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all disabled:opacity-40"
-                                style={{
-                                  border: `1px solid var(--ov-border-md)`,
-                                  backgroundColor: 'transparent',
-                                  color: 'var(--ov-text-dim)',
-                                }}
-                              >
-                                {isScoring ? '...' : s}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {predError && (
-                  <div className="px-3 py-2 rounded-lg text-[11px]" style={{ backgroundColor: 'rgba(200,90,84,.12)', color: '#C85A54' }}>
-                    {predError}
-                  </div>
-                )}
-
-                <button
-                  onClick={handleDone}
-                  className="w-full py-2.5 rounded-xl text-[14px] font-medium transition-colors"
-                  style={{ background: 'var(--gold)', color: '#0a1628' }}
-                >
-                  Done
-                </button>
+            {archiveError && (
+              <div className="px-3 py-2 rounded-lg text-[11px]" style={{ backgroundColor: 'rgba(200,90,84,.12)', color: '#C85A54' }}>
+                {archiveError}
               </div>
             )}
+
+            <button
+              onClick={handleArchiveSubmit}
+              disabled={archiveSaving || !archiveReason || !archiveDate || !estimatedReactivateDate}
+              className="w-full py-2.5 rounded-xl text-[14px] font-medium transition-colors disabled:opacity-40"
+              style={{ background: 'var(--gold)', color: '#0a1628' }}
+            >
+              {archiveSaving ? 'Archiving...' : 'Archive Goal'}
+            </button>
           </div>
         </div>
       )}

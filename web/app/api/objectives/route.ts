@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     deadline_type?: 'hard' | 'soft'
     reservation_price?: number
     context?: Record<string, unknown>
+    parent_objective_id?: string | null
   }
 
   const [{ data: profile }, { data: existingObjs }] = await Promise.all([
@@ -93,6 +94,7 @@ export async function POST(request: NextRequest) {
       deadline_type: body.deadline_type ?? 'hard',
       reservation_price: body.reservation_price ?? null,
       context: body.context ?? {},
+      parent_objective_id: body.parent_objective_id ?? null,
       status: 'active',
       confidence: 50,
       sort_order: currentCount + 1,
@@ -123,5 +125,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ objective: data })
+  return NextResponse.json({ id: data?.id, objective: data })
 }
