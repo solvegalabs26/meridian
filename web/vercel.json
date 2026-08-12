@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/score-horizons",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/enterprise/lite-sweep-cron",
+      "schedule": "0 14 * * *"
     }
   ]
 }
