@@ -26,7 +26,15 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
+  // Vercel's apex-to-www edge redirect (308) strips the Authorization header
+  // before middleware sees the request on www. Detect valid cron tokens here so
+  // these routes are never redirected to login — the route handler re-validates.
+  const isCronAuth =
+    !!process.env.CRON_SECRET &&
+    request.headers.get('authorization') === `Bearer ${process.env.CRON_SECRET}`
+
   const isPublicPath =
+    isCronAuth ||
     pathname === '/' ||
     pathname.startsWith('/home') ||
     pathname.startsWith('/alpha') ||
