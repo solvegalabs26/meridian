@@ -357,8 +357,9 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                 : Math.round(ec.drift_score))
             return (
               <div key={ec.id} id={cardId} style={{ background: C.card, border: `1px solid ${isFlashing ? '#C9A227' : C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${color}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
-                {/* Header row */}
-                <div style={{ display: 'grid', gridTemplateColumns: '100px 110px 100px 90px 80px 120px 100px 90px', alignItems: 'stretch' }}>
+                {/* Header row — scrolls horizontally on narrow viewports */}
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '100px 110px 100px 90px 80px 120px 100px 90px', alignItems: 'stretch', minWidth: 800 }}>
                   {/* Case ID */}
                   <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
                     <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Case ID</div>
@@ -404,6 +405,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                     <div title={OUTCOME_TOOLTIP[ec.drift_tier] ?? ''} style={{ fontSize: 13, fontWeight: 700, cursor: 'help' }}>{confPct}%</div>
                   </div>
                 </div>
+                </div>{/* end overflow-x scroll wrapper */}
                 {/* Body: only render if supplementary prediction data exists */}
                 {ec.pred && (
                   <div style={{ background: '#FAFBFD', padding: '10px 12px 14px', borderTop: `1px solid ${C.border}`, display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
