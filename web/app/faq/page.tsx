@@ -10,6 +10,7 @@ type CalloutType = 'info' | 'gold' | 'caution'
 type Step = { text: string }
 
 type FAQItem = {
+  id?: string
   q: string
   steps?: Step[]
   body?: string[]
@@ -132,6 +133,16 @@ const SECTIONS: Section[] = [
         ],
         callout: { type: 'gold', text: 'Alerts are validated before they fire — Meridian confirms the page change is specifically relevant to your objective\'s success condition, not just any update on the page, before sending.' },
       },
+      {
+        q: 'How do I add my phone number to receive SMS alerts?',
+        steps: [
+          { text: 'Go to Settings → Notifications.' },
+          { text: 'Find the SMS Alerts section and tap Add phone number.' },
+          { text: 'Enter your mobile number and tap Send verification code. A 6-digit code is sent immediately.' },
+          { text: 'Enter the code to confirm. Once verified, Meridian will send SMS alerts for Critical-tier signal events and priority changes on your active objectives.' },
+        ],
+        callout: { type: 'info', text: 'SMS alerts are available on Accelerator and Command plans. Explorer users receive email alerts only. You can remove or change your number at any time from Settings → Notifications.' },
+      },
     ],
   },
   {
@@ -155,6 +166,46 @@ const SECTIONS: Section[] = [
           'Scores move up when new positive signals emerge or when you take meaningful action. They move down when conditions shift against your goal or when no progress is logged over time. The confidence history graph shows the full trajectory and the reason for each change.',
         ],
         callout: { type: 'info', text: 'Confidence scores are analytical outputs only. They are not financial, legal, career, or medical advice. Always verify recommendations independently before acting.' },
+      },
+      {
+        id: 'what-is-a-prediction',
+        q: 'What is a Prediction and How is it Used?',
+        body: [
+          'A prediction is a specific, time-bound forecast tied to one of your objectives — a statement of what you expect to happen by a specific date.',
+          'Predictions are different from your overall confidence score. Your confidence score reflects the engine\'s ongoing probability estimate across all available evidence. A prediction is your own hypothesis: a bet you\'re making about a specific outcome with a specific deadline.',
+          'Meridian scores each prediction when its horizon date arrives — was it accurate? Partially right? Missed the mark? These scored outcomes feed directly into the engine\'s calibration, making future confidence estimates more precise over time.',
+        ],
+        callout: { type: 'info', text: 'Each prediction you add is a data point in your own intelligence record. The more you log and score, the better Meridian learns what signals actually predict success for your specific objectives.' },
+      },
+      {
+        id: 'adding-a-prediction',
+        q: 'How do I add a prediction to a goal?',
+        steps: [
+          { text: 'Open any active objective and tap the Predictions tab.' },
+          { text: 'Tap + New prediction. Write a specific, time-bound statement: "By [date], [specific outcome] will occur."' },
+          { text: 'Set your confidence percentage (how likely you believe this is, from 10–95%) and a horizon date — the date by which you expect it to resolve.' },
+          { text: 'Optionally link the prediction to a specific objective and add notes. Tap Create prediction.' },
+        ],
+        callout: { type: 'gold', text: 'Be specific. "I\'ll receive the job offer by September 15" is scorable. "Things will go well" is not. The more precise your prediction, the more useful the accuracy data when it resolves.' },
+      },
+      {
+        id: 'what-is-accuracy',
+        q: 'What is Accuracy and How is it Determined?',
+        body: [
+          'Accuracy measures how well a specific prediction matched what actually happened — not how successful the underlying outcome was.',
+          'When a prediction\'s horizon date passes, you score it on a 1–5 scale: 5 = exactly right (outcome happened as stated); 3 = partially correct (right direction, wrong timing or magnitude); 1 = completely wrong.',
+          'Accuracy scores are not the same as your confidence score. A confidence score estimates probability going forward. An accuracy score is a historical record of whether a specific forecast came true.',
+        ],
+        callout: { type: 'caution', text: 'Score honestly. Accuracy data feeds Meridian\'s calibration engine. Inflated scores make the engine less accurate for you over time, not more. The system is designed to help you see patterns clearly — including patterns of overconfidence.' },
+      },
+      {
+        q: 'I logged an action and my confidence stayed the same or went down — why?',
+        body: [
+          'Logging an action is a positive input, but it does not automatically push confidence up. Confidence reflects the full picture: your logged progress and external signals and market conditions and time remaining.',
+          'If external conditions worsened during the same sweep cycle — a hiring freeze announced, a competitor launched, rates moved against you — the engine may have absorbed negative signals that offset your logged progress. The net result can be flat or slightly lower.',
+          'If no sweep has run since you logged the action, the impact won\'t show yet. Sweeps are the scoring cycle. Actions inform the next sweep, but don\'t bypass it.',
+        ],
+        callout: { type: 'info', text: 'You can trigger an on-demand sweep any time from the objective\'s page. If you\'ve made significant progress and want the score to reflect it now, a manual sweep is the fastest way to recalibrate.' },
       },
     ],
   },
@@ -182,6 +233,41 @@ const SECTIONS: Section[] = [
           { text: 'Type your question in plain language. Be as specific as possible — include names, timeframes, and the decision you\'re trying to make.' },
           { text: 'Meridian searches the web, combines the results with your objective context, and returns a grounded answer with source citations and recommended next actions.' },
         ],
+      },
+      {
+        q: 'How do Ask Arc credits work?',
+        body: [
+          'Ask Arc credits are query allotments you can purchase on top of your monthly plan quota. Each credit entitles you to one Ask query — a real-time, objective-grounded intelligence response.',
+          'Credits are available in bundles from Settings → Billing → Add Ask Query Credits. They do not expire and stack with your monthly allowance.',
+        ],
+        list: [
+          'Explorer — 5 queries/month included',
+          'Accelerator — 10 queries/month included',
+          'Command — 20 queries/month included',
+        ],
+        callout: { type: 'gold', text: 'Unused monthly queries do not roll over. Purchase credits if you anticipate a period of high-frequency use — a job search, a fast-moving acquisition, or a major financial decision.' },
+      },
+    ],
+  },
+  {
+    id: 'enterprise',
+    label: 'Enterprise',
+    items: [
+      {
+        q: 'What is Meridian Fusion?',
+        body: [
+          'Meridian Fusion is the enterprise intelligence layer — a dedicated deployment of Meridian Arc built for teams, organizations, and high-stakes decision environments where a single-user account is not enough.',
+          'Fusion expands the core platform to support multiple users tracking shared objectives, collaborative sweep analysis, team-level confidence aggregation, and organization-wide signal monitoring across parallel workstreams.',
+        ],
+        list: [
+          'Shared objective libraries across a team or department',
+          'Role-based access — analysts, decision-makers, and administrators with distinct permissions',
+          'Aggregated confidence views across all active objectives in a portfolio',
+          'Custom signal sources and watch lists at the organizational level',
+          'Priority alert routing to team leads, Slack channels, or external systems via webhook',
+          'Dedicated account support and custom sweep cadence',
+        ],
+        callout: { type: 'gold', text: 'Meridian Fusion is available by arrangement. Contact connect@solvega.ai for pricing, a custom demo, or to discuss requirements.' },
       },
     ],
   },
@@ -387,6 +473,7 @@ function FAQRow({ item, isOpen, onToggle }: { item: FAQItem; isOpen: boolean; on
       className="rounded-xl overflow-hidden transition-colors"
       style={{ border: `1px solid ${isOpen ? 'rgba(201,162,39,.25)' : 'rgba(255,255,255,.07)'}` }}
     >
+      {item.id && <span id={item.id} className="sr-only" />}
       <button
         className="w-full flex items-start justify-between gap-4 px-5 py-4 text-left"
         style={{ background: isOpen ? 'rgba(201,162,39,.04)' : 'rgba(255,255,255,.02)' }}
@@ -490,7 +577,7 @@ export default function FAQPage() {
             Frequently Asked Questions
           </h1>
           <p className="text-[14px]" style={{ color: 'rgba(255,255,255,.5)' }}>
-            19 answers across 7 categories. Click any question to expand.
+            26 answers across 8 categories. Click any question to expand.
           </p>
         </div>
 

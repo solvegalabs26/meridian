@@ -83,7 +83,7 @@ const ACTION_CLASSES = [
   { value: 'other', label: 'Other' },
 ]
 
-const TABS = ["What's affecting it", 'What this implies', 'What to do', 'Signals', 'History', 'Signal Intel', 'Goal'] as const
+const TABS = ["What's affecting it", 'What this Means', 'What to do', 'Signals', 'History', 'Signal Intel', 'Goal'] as const
 
 export default function ObjectiveTabs({ factors, actions, objId, objectiveId, signals, goalDescription, goalContext, tier, hasCalendar, episodes, objectiveDomain, signalAccuracy }: ObjectiveTabsProps) {
   const router = useRouter()
@@ -193,6 +193,12 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                 <div>
                   {factors.length > 0 && <div className="mb-3" style={{ borderTop: '1px solid var(--ov-border)' }} />}
                   <p className="text-[10px] uppercase tracking-wide mb-2.5" style={{ color: 'var(--ov-text-dim)' }}>Cross-goal dependencies</p>
+                  {/* Summary: first sentence of first dep as a synthesized lead */}
+                  {depSignals[0] && (
+                    <p className="text-[12px] leading-relaxed mb-2.5" style={{ color: 'var(--ov-text-mid)' }}>
+                      {(depSignals[0].body ?? depSignals[0].title ?? '').split(/\.\s/)[0].replace(/\.$/, '') + (depSignals.length > 1 ? `, along with ${depSignals.length - 1} other cross-goal link${depSignals.length > 2 ? 's' : ''}.` : '.')}
+                    </p>
+                  )}
                   <ul className="space-y-3">
                     {(showAllDeps ? depSignals : depSignals.slice(0, 5)).map(sig => (
                       <li key={sig.id} className="flex gap-3">
@@ -245,7 +251,7 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
           )
         })()}
 
-        {active === 'What this implies' && (() => {
+        {active === 'What this Means' && (() => {
           // Find the most recent episode that has an inference_block
           const latestWithInference = episodes.find(ep => ep.inference_block)
           if (!latestWithInference?.inference_block) {
@@ -446,10 +452,11 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
             manual: 'Manual',
           }
 
+          const visibleEpisodes = showAllEpisodes ? episodes : episodes.slice(0, 5)
           return (
             <>
             <ul className="space-y-3">
-              {(showAllEpisodes ? episodes : episodes.slice(0, 5)).map(ep => {
+              {visibleEpisodes.map(ep => {
                 const expanded = expandedEpisodes.has(ep.id)
                 const delta = ep.confidence_delta
                 const deltaStr = delta !== null
