@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { scoreOutcomeForPrediction } from '@/lib/engine4/scoreOutcomeForPrediction'
 
 export const dynamic = 'force-dynamic'
 
 // Path A: user closes an objective with a recorded outcome.
 // Writes objective_outcomes, updates objective status/closure_type,
-// and triggers Engine 4 prediction scoring via Promise.allSettled.
-//
-// Written to be additive: if Engine 4 Step 11 (closure synthesis) is later
-// merged into scoreOutcomeForPrediction, it activates automatically here.
+// and triggers Engine 4 prediction scoring + closure synthesis.
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -73,11 +71,10 @@ export async function POST(
     .eq('id', params.id)
     .eq('user_id', user.id)
 
-  // 4. Engine 4 prediction scoring (non-blocking — never block the outcome write)
+  // 4. Engine 4 prediction scoring + closure synthesis (non-blocking)
   try {
     const serviceClient = createServiceClient()
 
-    // Find all active predictions for this objective
     const { data: activePredictions } = await serviceClient
       .from('predictions')
       .select('id, user_id')
@@ -85,33 +82,30 @@ export async function POST(
       .eq('status', 'active')
 
     if (activePredictions?.length) {
-      // Dynamic import so this route works standalone if Engine 4 isn't present
-      let scoreOutcomeForPrediction: ((
-        supabase: typeof serviceClient,
-        predictionId: string,
-        outcomeId: string,
-        userId: string
-      ) => Promise<void>) | null = null
-
-      try {
-        const mod = await import('@/lib/engine4/scoreOutcomeForPrediction')
-        scoreOutcomeForPrediction = mod.scoreOutcomeForPrediction
-      } catch {
-        // Engine 4 not available — skip automatic scoring
-      }
-
-      if (scoreOutcomeForPrediction) {
-        await Promise.allSettled(
-          activePredictions.map(pred =>
-            scoreOutcomeForPrediction!(
-              serviceClient,
-              pred.id as string,
-              outcomeRow.id,
-              pred.user_id as string
-            )
+      const results = await Promise.allSettled(
+        activePredictions.map(pred =>
+          scoreOutcomeForPrediction(
+            serviceClient,
+            pred.id as string,
+            outcomeRow.id,
+            pred.user_id as string
           )
         )
+      )
+
+      const failures = results
+        .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+        .map(r => String(r.reason))
+
+      if (failures.length) {
+        console.error(`[complete] ${failures.length} scoring failure(s) for objective ${params.id}:`, failures)
       }
+
+      console.log(
+        `[complete] objective=${params.id} outcome=${body.outcome_type}` +
+        ` predictions_scored=${results.filter(r => r.status === 'fulfilled').length}` +
+        ` predictions_failed=${failures.length}`
+      )
     }
   } catch (err) {
     console.error(`[complete] Engine 4 scoring failed for objective ${params.id}:`, err)
