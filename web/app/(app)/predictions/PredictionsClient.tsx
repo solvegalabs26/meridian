@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Plus, TrendingUp, Info, X, AlertTriangle } from 'lucide-react'
+import { Plus, TrendingUp, X, AlertTriangle } from 'lucide-react'
 
 interface PredictionScore {
   accuracy_score: number
