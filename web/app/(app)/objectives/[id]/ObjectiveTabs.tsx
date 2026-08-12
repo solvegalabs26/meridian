@@ -213,13 +213,9 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       </li>
                     ))}
                   </ul>
-                  {!showAllDeps && depSignals.length > 5 && (
-                    <button
-                      onClick={() => setShowAllDeps(true)}
-                      className="text-[10px] mt-2"
-                      style={{ color: 'var(--ov-text-dim)' }}
-                    >
-                      Show all {depSignals.length} dependencies →
+                  {depSignals.length > 5 && (
+                    <button onClick={() => setShowAllDeps(v => !v)} className="text-[10px] mt-2 block" style={{ color: 'var(--ov-text-dim)' }}>
+                      {showAllDeps ? 'Show less ↑' : `Show all ${depSignals.length} →`}
                     </button>
                   )}
                 </div>
@@ -244,13 +240,9 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                       </li>
                     ))}
                   </ul>
-                  {!showAllActions && userActionSignals.length > 5 && (
-                    <button
-                      onClick={() => setShowAllActions(true)}
-                      className="text-[10px] mt-2"
-                      style={{ color: 'var(--ov-text-dim)' }}
-                    >
-                      Show all {userActionSignals.length} actions →
+                  {userActionSignals.length > 5 && (
+                    <button onClick={() => setShowAllActions(v => !v)} className="text-[10px] mt-2 block" style={{ color: 'var(--ov-text-dim)' }}>
+                      {showAllActions ? 'Show less ↑' : `Show all ${userActionSignals.length} →`}
                     </button>
                   )}
                 </div>
@@ -395,57 +387,52 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
         {active === 'Signals' && (() => {
           // Dependency, user_action belong in "What's affecting it" — not here.
           const feedSignals = signals.filter(s => s.signal_class !== 'dependency' && s.signal_class !== 'user_action')
-          const visibleSignals = showAllSignals ? feedSignals : feedSignals.slice(0, 7)
           return feedSignals.length === 0 ? (
             <p className="text-[13px]" style={{ color: 'var(--ov-text-dim)' }}>No signals yet for this goal.</p>
           ) : (
             <>
-              <ul className="space-y-2.5">
-                {visibleSignals.map(sig => {
-                  const badge = SOURCE_BADGES[sig.source_type ?? ''] ?? { label: sig.source_type ?? 'Signal', color: 'var(--ov-text-dim)' }
-                  return (
-                    <li key={sig.id} className="flex items-start gap-2.5">
-                      <span
-                        className="text-[9px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 whitespace-nowrap"
-                        style={{ backgroundColor: `${badge.color}22`, color: badge.color }}
-                      >
-                        {badge.label}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        {/* body exists only when title was sliced at 120 chars — show full text */}
-                        <p className="text-[12px]" style={{ color: 'var(--ov-text-hi)' }}>{sig.body ?? sig.title}</p>
-                        <p className="text-[10px] mt-0.5" style={{ color: 'var(--ov-text-dim)' }}>
-                          {new Date(sig.created_at).toLocaleDateString()}
-                        </p>
-                        {sig.source && (
-                          sig.source.startsWith('http') ? (
-                            <a
-                              href={sig.source}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[10px] mt-0.5 inline-block"
-                              style={{ color: 'var(--blue-mid)' }}
-                            >
-                              View source ↗
-                            </a>
-                          ) : (
-                            <p className="text-[10px] mt-0.5" style={{ color: 'var(--ov-text-dim)' }}>{sig.source}</p>
-                          )
-                        )}
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-              {!showAllSignals && feedSignals.length > 7 && (
-                <button
-                  onClick={() => setShowAllSignals(true)}
-                  className="text-[10px] mt-3"
-                  style={{ color: 'var(--ov-text-dim)' }}
-                >
-                  Show all {feedSignals.length} signals →
-                </button>
-              )}
+            <ul className="space-y-2.5">
+              {(showAllSignals ? feedSignals : feedSignals.slice(0, 7)).map(sig => {
+                const badge = SOURCE_BADGES[sig.source_type ?? ''] ?? { label: sig.source_type ?? 'Signal', color: 'var(--ov-text-dim)' }
+                return (
+                  <li key={sig.id} className="flex items-start gap-2.5">
+                    <span
+                      className="text-[9px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 whitespace-nowrap"
+                      style={{ backgroundColor: `${badge.color}22`, color: badge.color }}
+                    >
+                      {badge.label}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      {/* body exists only when title was sliced at 120 chars — show full text */}
+                      <p className="text-[12px]" style={{ color: 'var(--ov-text-hi)' }}>{sig.body ?? sig.title}</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: 'var(--ov-text-dim)' }}>
+                        {new Date(sig.created_at).toLocaleDateString()}
+                      </p>
+                      {sig.source && (
+                        sig.source.startsWith('http') ? (
+                          <a
+                            href={sig.source}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] mt-0.5 inline-block"
+                            style={{ color: 'var(--blue-mid)' }}
+                          >
+                            View source ↗
+                          </a>
+                        ) : (
+                          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ov-text-dim)' }}>{sig.source}</p>
+                        )
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+            {feedSignals.length > 7 && (
+              <button onClick={() => setShowAllSignals(v => !v)} className="text-[10px] mt-2 block" style={{ color: 'var(--ov-text-dim)' }}>
+                {showAllSignals ? 'Show less ↑' : `Show all ${feedSignals.length} →`}
+              </button>
+            )}
             </>
           )
         })()}
@@ -602,13 +589,9 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
                 )
               })}
             </ul>
-            {!showAllEpisodes && episodes.length > 5 && (
-              <button
-                onClick={() => setShowAllEpisodes(true)}
-                className="text-[10px] mt-3"
-                style={{ color: 'var(--ov-text-dim)' }}
-              >
-                Show all {episodes.length} episodes →
+            {episodes.length > 5 && (
+              <button onClick={() => setShowAllEpisodes(v => !v)} className="text-[10px] mt-3 block" style={{ color: 'var(--ov-text-dim)' }}>
+                {showAllEpisodes ? 'Show less ↑' : `Show all ${episodes.length} →`}
               </button>
             )}
             </>

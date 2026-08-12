@@ -148,11 +148,11 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
     }
   }
 
-  async function handleAccuracyScore(id: string) {
+  async function handleAccuracy(id: string) {
     const res = await fetch('/api/predictions', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, outcome: '', accuracy_score: accuracyRating }),
+      body: JSON.stringify({ id, accuracy_score: accuracyRating }),
     })
     if (res.ok) {
       const data = await res.json() as { prediction: Prediction }
@@ -314,18 +314,15 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
                     <td className="px-4 py-3">
                       {(() => {
                         const score = getEngine4Score(p)
-                        if (score === null) {
-                          return (
-                            <button
-                              onClick={() => { setAccuracyId(p.id); setAccuracyRating(3) }}
-                              className="text-[12px] hover:opacity-70 transition-opacity"
-                              style={{ color: 'var(--text3)' }}
-                              title="Tap to score accuracy"
-                            >
-                              —
-                            </button>
-                          )
-                        }
+                        if (score === null) return (
+                          <button
+                            onClick={() => { setAccuracyId(p.id); setAccuracyRating(3) }}
+                            className="text-[11px] font-semibold underline"
+                            style={{ color: 'var(--gold)', cursor: 'pointer' }}
+                          >
+                            Score
+                          </button>
+                        )
                         return (
                           <span className="text-[13px] font-semibold tabular-nums" style={{ color: accuracyColor(score) }}>
                             {Math.round(score)}
@@ -423,7 +420,7 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
 
             <div className="flex gap-2">
               <button onClick={() => setAccuracyId(null)} className="flex-1 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text2)]">Cancel</button>
-              <button onClick={() => handleAccuracyScore(accuracyId)}
+              <button onClick={() => handleAccuracy(accuracyId)}
                 className="flex-1 py-2.5 rounded-lg bg-navy text-white text-[13px] font-medium">
                 Save score
               </button>

@@ -23,7 +23,7 @@ export default async function AskPage({ searchParams }: { searchParams: { q?: st
     supabase.from('objectives').select('id, title, confidence, confidence_prev, category, status').eq('user_id', user!.id).eq('status', 'active'),
     supabase.from('sweeps').select('summary, raw_response, completed_at').eq('user_id', user!.id).eq('status', 'complete').not('raw_response', 'is', null).order('completed_at', { ascending: false }).limit(1).single(),
     supabase.from('profiles').select('tier, pricing_tier, complimentary_expires_at, ask_credits, account_type').eq('id', user!.id).single(),
-    supabase.from('ask_queries').select('id', { count: 'exact', head: true }).gte('created_at', monthStart.toISOString()),
+    supabase.from('ask_queries').select('id', { count: 'exact', head: true }).eq('user_id', user!.id).gte('created_at', monthStart.toISOString()),
   ])
 
   const objectiveList = objectives ?? []
@@ -45,6 +45,9 @@ export default async function AskPage({ searchParams }: { searchParams: { q?: st
         <p style={{ fontFamily: "'EB Garamond', Georgia, serif", fontStyle: 'italic', fontSize: 16, color: '#fff' }}>
           Ask Meridian Arc
         </p>
+        <Link href="/settings?tab=billing" className="ml-auto text-[11px] font-medium" style={{ color: 'var(--ov-text-dim)' }}>
+          Ask Arc Credits: {remaining} / {baseLimit}
+        </Link>
       </div>
 
       {/* Description + credit balance */}
