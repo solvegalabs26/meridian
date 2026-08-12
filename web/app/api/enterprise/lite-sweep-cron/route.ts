@@ -92,14 +92,34 @@ export async function GET(request: NextRequest) {
   const succeeded = settled.filter(r => r.status === 'fulfilled').length
   const errors: Array<{ objective_id: string; obj_id: string; error: string }> = []
 
+  const failureLogs: Array<PromiseLike<unknown>> = []
   settled.forEach((r, i) => {
     if (r.status === 'rejected') {
       const obj = due[i]
       const msg = r.reason instanceof Error ? r.reason.message : String(r.reason)
       console.error(`[FF-035D:lite-sweep-cron] sweep failed for ${obj.obj_id} (${obj.id}):`, msg)
       errors.push({ objective_id: obj.id as string, obj_id: obj.obj_id as string, error: msg })
+
+      // Record the rejection so the sweep health dashboard can surface it —
+      // a rejected runObjectiveSweep() call otherwise leaves no trace in
+      // enterprise_sweeps.
+      failureLogs.push(
+        supabase.from('enterprise_sweeps').insert({
+          institution_id: obj.institution_id,
+          objective_id: obj.id,
+          trigger_type: 'scheduled',
+          status: 'failed',
+          fork: 'objective',
+          sweep_type: 'lite',
+          engine_version: 'ff-035b-v1',
+          started_at: new Date(now).toISOString(),
+          completed_at: new Date().toISOString(),
+          error_message: msg,
+        })
+      )
     }
   })
+  await Promise.allSettled(failureLogs)
 
   return NextResponse.json({
     checked: liteObjectives?.length ?? 0,
