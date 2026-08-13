@@ -45,12 +45,9 @@ export async function buildCoherencePackage(
       .not('url_resolved', 'is', null),
   ])
 
-  console.log(`[coherence] objective=${objectiveId} watch_sources_count=${watchResult.data?.length ?? 0} error=${watchResult.error?.message ?? 'none'}`)
-
   const watchSources: WatchSourceEntry[] = (watchResult.data ?? []) as WatchSourceEntry[]
 
-  // No watch sources → no coherence package needed
-  if (watchSources.length === 0) return null
+  console.log(`[coherence] objective=${objectiveId} watch_sources_count=${watchSources.length} error=${watchResult.error?.message ?? 'none'}`)
 
   const obj = objResult.data
   if (!obj) return null
@@ -121,12 +118,14 @@ export function formatCoherencePackageForPrompt(pkg: CoherencePackage): string {
   if (pkg.outcome) lines.push(`TARGET SIGNAL: ${pkg.outcome}`)
   lines.push('')
 
-  lines.push('WATCH SOURCES (primary targeting — check these first):')
-  for (const ws of pkg.watchSources) {
-    lines.push(`  - [${ws.watch_type}] ${ws.url_provided}: ${ws.url_resolved}`)
-    if (ws.target_signal) lines.push(`    Looking for: ${ws.target_signal}`)
+  if (pkg.watchSources.length > 0) {
+    lines.push('WATCH SOURCES (primary targeting — check these first):')
+    for (const ws of pkg.watchSources) {
+      lines.push(`  - [${ws.watch_type}] ${ws.url_provided}: ${ws.url_resolved}`)
+      if (ws.target_signal) lines.push(`    Looking for: ${ws.target_signal}`)
+    }
+    lines.push('')
   }
-  lines.push('')
 
   if (pkg.predictions.length > 0) {
     lines.push('PREDICTION TRAJECTORY:')
