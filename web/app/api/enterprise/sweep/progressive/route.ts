@@ -5,6 +5,7 @@ import {
   calculateMinimalSweepSet,
 } from '@/lib/enterprise/progressiveSweep'
 import { computeCohortMembership } from '@/lib/enterprise/computeCohortMembership'
+import { runAdaptiveLearning } from '@/lib/enterprise/adaptiveLearning'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 600
@@ -91,6 +92,13 @@ export async function POST(request: NextRequest) {
     magnitude: 3,
     direction: 'neutral',
     expires_at: new Date(Date.now() + 4 * 3600000).toISOString(), // 4h plan window
+  })
+
+  // Run adaptive learning in background — fire-and-forget, must not block response
+  runAdaptiveLearning(institution_id).then(result => {
+    console.log(`[adaptive-learning] Institution ${institution_id}:`, result)
+  }).catch(err => {
+    console.error('[adaptive-learning] Error:', err)
   })
 
   return NextResponse.json({
