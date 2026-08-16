@@ -46,6 +46,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/admin/sweeps/process-scheduled') ||
     pathname.startsWith('/api/enterprise/ingest') ||
     pathname.startsWith('/api/enterprise/sweep') ||
+    pathname.startsWith('/api/enterprise/learning/') ||
     pathname.startsWith('/api/enterprise/lite-sweep-cron') ||
     pathname.startsWith('/api/invites/validate') ||
     pathname.startsWith('/api/support/contact') ||
