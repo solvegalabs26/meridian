@@ -3,7 +3,6 @@ import { createServiceClient } from '@/lib/supabase/server'
 import {
   identifyTriggeredCases,
   calculateMinimalSweepSet,
-  propagateSignalsToCases,
 } from '@/lib/enterprise/progressiveSweep'
 import { computeCohortMembership } from '@/lib/enterprise/computeCohortMembership'
 
