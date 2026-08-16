@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/admin/sweeps/process-scheduled",
-      "schedule": "35 12 * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/support/digest",
