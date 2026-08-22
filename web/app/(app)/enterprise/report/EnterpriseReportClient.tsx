@@ -5,11 +5,14 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { formatLoanStatus } from '@/lib/enterprise/format-utils'
+import { VerticalReportHeader } from '@/components/enterprise/vertical/VerticalReportHeader'
+import type { VerticalConfig } from '@/lib/vertical/verticalTypes'
 
 interface Props {
   institutionId: string
   institutionName: string
   highlight?: string | null
+  verticalConfig?: VerticalConfig | null
 }
 
 type Dir = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'STABLE'
@@ -150,7 +153,7 @@ function caseId(ref: string) {
   return `case-${ref.replace(/[^a-zA-Z0-9]/g, '-')}`
 }
 
-export default function EnterpriseReportClient({ institutionId, institutionName, highlight }: Props) {
+export default function EnterpriseReportClient({ institutionId, institutionName, highlight, verticalConfig }: Props) {
   const supabase = createClient()
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [enrichedCases, setEnrichedCases] = useState<EnrichedCase[]>([])
@@ -277,6 +280,17 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
 
   const insight = buildInsight(signals, sweep)
 
+  // Compute listing/buyer counts for real estate vertical header
+  const isRealEstate = verticalConfig?.vertical_type === 'real_estate'
+  const listingCount = isRealEstate ? enrichedCases.filter(c => (c.loan_data as any)?.case_type !== 'buyer').length : 0
+  const buyerCount   = isRealEstate ? enrichedCases.filter(c => (c.loan_data as any)?.case_type === 'buyer').length  : 0
+  const tierCounts = {
+    CRITICAL: enrichedCases.filter(c => c.drift_tier === 'CRITICAL').length,
+    ALERT:    enrichedCases.filter(c => c.drift_tier === 'ALERT').length,
+    CAUTION:  enrichedCases.filter(c => c.drift_tier === 'CAUTION').length,
+    STABLE:   enrichedCases.filter(c => c.drift_tier === 'STABLE').length,
+  }
+
   return (
     <div style={{ background: C.bg, minHeight: '100vh', fontFamily: "'Segoe UI', system-ui, sans-serif", color: C.text }}>
       {/* CONFIDENTIAL BANNER */}
@@ -284,33 +298,54 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
         CONFIDENTIAL — SOLVEGA LABS / MERIDIAN ARC — PILOT DEMONSTRATION ONLY
       </div>
 
-      {/* HEADER */}
-      <div style={{ background: C.navy }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 32px 12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 36, height: 36, background: C.gold, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, color: C.navy, fontSize: 16 }}>MA</div>
-            <div>
-              <div style={{ color: 'white', fontSize: 18, fontWeight: 700, letterSpacing: 0.5 }}>MERIDIAN ARC</div>
-              <div style={{ color: C.gold, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' }}>Enterprise Decision Intelligence · Solvega Labs</div>
+      {isRealEstate && verticalConfig ? (
+        <>
+          <VerticalReportHeader
+            institution={{ id: institutionId, name: institutionName }}
+            tiers={tierCounts}
+            config={verticalConfig}
+            lastSweepAt={sweep?.completed_at ?? null}
+            listingCount={listingCount}
+            buyerCount={buyerCount}
+          />
+          <div style={{ padding: '8px 32px', background: C.blue, display: 'flex', alignItems: 'center', gap: 24, fontSize: 11, color: 'rgba(255,255,255,.85)' }}>
+            <span>Fusion Sources: <strong>All Engines</strong></span>
+            <span style={{ marginLeft: 'auto' }}>
+              <Link href="/enterprise/cases" style={{ color: 'rgba(255,255,255,.6)', fontSize: 11, textDecoration: 'none' }}>All Cases →</Link>
+              <span style={{ color: 'rgba(255,255,255,.3)', margin: '0 12px' }}>|</span>
+              <Link href="/enterprise" style={{ color: 'rgba(255,255,255,.6)', fontSize: 11, textDecoration: 'none' }}>← Back to Portal</Link>
+            </span>
+          </div>
+        </>
+      ) : (
+        /* HEADER — existing auto-finance header (do not delete) */
+        <div style={{ background: C.navy }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 32px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 36, height: 36, background: C.gold, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, color: C.navy, fontSize: 16 }}>MA</div>
+              <div>
+                <div style={{ color: 'white', fontSize: 18, fontWeight: 700, letterSpacing: 0.5 }}>MERIDIAN ARC</div>
+                <div style={{ color: C.gold, fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase' }}>Enterprise Decision Intelligence · Solvega Labs</div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right', color: '#8899BB', fontSize: 11, lineHeight: 1.7 }}>
+              <strong style={{ color: 'white' }}>{institutionName}</strong><br />
+              Pilot Demo — Synthetic Data<br />
+              Sweep Date: {fmtDate(sweep?.completed_at ?? null)}
             </div>
           </div>
-          <div style={{ textAlign: 'right', color: '#8899BB', fontSize: 11, lineHeight: 1.7 }}>
-            <strong style={{ color: 'white' }}>{institutionName}</strong><br />
-            Pilot Demo — Synthetic Data<br />
-            Sweep Date: {fmtDate(sweep?.completed_at ?? null)}
+          <div style={{ background: C.blue, padding: '8px 32px', display: 'flex', alignItems: 'center', gap: 24, fontSize: 11, color: 'rgba(255,255,255,.85)' }}>
+            <span><strong>MAIN</strong></span>
+            <span style={{ color: 'rgba(255,255,255,.3)' }}>|</span>
+            <span>Active Loan Drift Detection — 90-Day Window</span>
+            <span style={{ color: 'rgba(255,255,255,.3)' }}>|</span>
+            <span>Fusion Sources: <strong>All Engines</strong></span>
+            <span style={{ marginLeft: 'auto' }}>
+              <Link href="/enterprise" style={{ color: 'rgba(255,255,255,.6)', fontSize: 11, textDecoration: 'none' }}>← Back to Portal</Link>
+            </span>
           </div>
         </div>
-        <div style={{ background: C.blue, padding: '8px 32px', display: 'flex', alignItems: 'center', gap: 24, fontSize: 11, color: 'rgba(255,255,255,.85)' }}>
-          <span><strong>MAIN</strong></span>
-          <span style={{ color: 'rgba(255,255,255,.3)' }}>|</span>
-          <span>Active Loan Drift Detection — 90-Day Window</span>
-          <span style={{ color: 'rgba(255,255,255,.3)' }}>|</span>
-          <span>Fusion Sources: <strong>All Engines</strong></span>
-          <span style={{ marginLeft: 'auto' }}>
-            <Link href="/enterprise" style={{ color: 'rgba(255,255,255,.6)', fontSize: 11, textDecoration: 'none' }}>← Back to Portal</Link>
-          </span>
-        </div>
-      </div>
+      )}
 
       <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
 
