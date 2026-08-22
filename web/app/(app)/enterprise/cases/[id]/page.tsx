@@ -29,19 +29,31 @@ const TIER_COLORS: Record<string, string> = {
   STABLE: '#10b981',
 }
 
-export default async function CaseDetailPage({ params }: { params: { id: string } }) {
+export default async function CaseDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string }
+  searchParams?: { iid?: string }
+}) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Get institution
-  const { data: institution } = await supabase
-    .from('enterprise_institutions')
-    .select('id, name')
-    .eq('contact_email', user.email)
-    .eq('status', 'active')
-    .single()
-  const institutionId = institution?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
+  const iidParam = searchParams?.iid ?? null
+  let institutionId: string
+
+  if (iidParam) {
+    institutionId = iidParam
+  } else {
+    const { data: institution } = await supabase
+      .from('enterprise_institutions')
+      .select('id')
+      .eq('contact_email', user.email)
+      .eq('status', 'active')
+      .single()
+    institutionId = institution?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
+  }
 
   // Fetch case with agent
   let caseData: Awaited<ReturnType<typeof getCaseWithAgent>>

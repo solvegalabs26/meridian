@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ObjectivesPanel } from '@/components/enterprise/ObjectivesPanel'
 import { ObjectiveCard } from '@/components/enterprise/ObjectiveCard'
@@ -11,6 +11,7 @@ import { RecentlyViewedAccounts } from '@/components/enterprise/RecentlyViewedAc
 import { getObjectivesWithResults, getMacroEventLinkMap, getPortfolioMetrics } from '@/lib/enterprise/objectives-queries'
 import { updateObjectiveState, runEnterpriseSweep, updateSignalPreferences } from './actions'
 import type { ObjectiveWithResult, ObjectiveState, MacroEventLink, PortfolioMetricsData } from '@/lib/enterprise/objectives-queries'
+import { InstitutionSwitcher } from '@/components/enterprise/InstitutionSwitcher'
 
 interface Props {
   institutionId: string
@@ -522,6 +523,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <Suspense fallback={null}><InstitutionSwitcher /></Suspense>
           <button onClick={loadAll}
             className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition">
             Refresh

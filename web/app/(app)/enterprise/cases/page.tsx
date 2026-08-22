@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getAgentCases } from '@/lib/supabase/queries/enterprise'
 import { VerticalCaseCard } from '@/components/enterprise/vertical/VerticalCaseCard'
 import type { VerticalConfig, EnterpriseCase, DriftTier } from '@/lib/vertical/verticalTypes'
 
-// Server-render the outer shell; client handles data.
+// Client component — reads ?iid= from search params to scope institution.
 // To avoid making this a full server component (which would need to re-fetch
 // verticalConfig on every navigation), we fetch verticalConfig client-side.
 
@@ -52,8 +53,11 @@ function TierPillRow({ cases }: { cases: Array<{ drift_tier: DriftTier }> }) {
   )
 }
 
-export default function EnterpriseCasesPage() {
+function EnterpriseCasesInner() {
   const supabase = createClient()
+  const searchParams = useSearchParams()
+  const iidParam = searchParams.get('iid')
+
   const [cases, setCases] = useState<AgentCase[]>([])
   const [verticalConfig, setVerticalConfig] = useState<VerticalConfig | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -69,15 +73,19 @@ export default function EnterpriseCasesPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { window.location.href = '/login'; return }
 
-      // Get institution
-      const { data: inst } = await supabase
-        .from('enterprise_institutions')
-        .select('id, name')
-        .eq('contact_email', user.email)
-        .eq('status', 'active')
-        .single()
-
-      const iId = inst?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
+      // Resolve institution: prefer ?iid= param, fall back to email lookup
+      let iId: string
+      if (iidParam) {
+        iId = iidParam
+      } else {
+        const { data: inst } = await supabase
+          .from('enterprise_institutions')
+          .select('id')
+          .eq('contact_email', user.email)
+          .eq('status', 'active')
+          .single()
+        iId = inst?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
+      }
       // Get member role
       const { data: member } = await supabase
         .from('enterprise_members')
@@ -103,7 +111,7 @@ export default function EnterpriseCasesPage() {
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [supabase, iidParam])
 
   useEffect(() => { loadAll() }, [loadAll])
 
@@ -219,5 +227,17 @@ export default function EnterpriseCasesPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function EnterpriseCasesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <EnterpriseCasesInner />
+    </Suspense>
   )
 }

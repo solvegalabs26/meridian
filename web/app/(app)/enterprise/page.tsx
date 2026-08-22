@@ -4,29 +4,50 @@ import EnterprisePortalClient from './EnterprisePortalClient'
 
 export const metadata = { title: 'Enterprise Portal — Meridian Arc' }
 
-export default async function EnterprisePage() {
+export default async function EnterprisePage({
+  searchParams,
+}: {
+  searchParams?: { iid?: string }
+}) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Look up institution by contact email
-  const { data: institution } = await supabase
-    .from('enterprise_institutions')
-    .select('id, name, slug, tier, pilot_started_at, monthly_fee_usd, logo_url')
-    .eq('contact_email', user.email)
-    .eq('status', 'active')
-    .single()
+  const iidParam = searchParams?.iid ?? null
 
-  // Pilot mode: any authenticated user sees enterprise portal
-  // Institution lookup determines whose data to show; fall back to Conquer Group
-  const institutionId = institution?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
-  const institutionName = institution?.name ?? 'Conquer Group / DefaultShield'
+  let institutionId: string
+  let institutionName: string
+  let logoUrl: string | null
+
+  if (iidParam) {
+    // iid provided — look up by id; RLS blocks data if user isn't a member
+    const { data: inst } = await supabase
+      .from('enterprise_institutions')
+      .select('id, name, logo_url')
+      .eq('id', iidParam)
+      .eq('status', 'active')
+      .maybeSingle()
+    institutionId = inst?.id ?? iidParam
+    institutionName = inst?.name ?? 'Unknown Institution'
+    logoUrl = inst?.logo_url ?? null
+  } else {
+    // Default: resolve by contact email
+    const { data: institution } = await supabase
+      .from('enterprise_institutions')
+      .select('id, name, logo_url')
+      .eq('contact_email', user.email)
+      .eq('status', 'active')
+      .single()
+    institutionId = institution?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
+    institutionName = institution?.name ?? 'Conquer Group / DefaultShield'
+    logoUrl = institution?.logo_url ?? null
+  }
 
   return (
     <EnterprisePortalClient
       institutionId={institutionId}
       institutionName={institutionName}
-      logoUrl={institution?.logo_url ?? null}
+      logoUrl={logoUrl}
     />
   )
 }
