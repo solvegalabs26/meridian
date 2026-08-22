@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ObjectivesPanel } from '@/components/enterprise/ObjectivesPanel'
 import { ObjectiveCard } from '@/components/enterprise/ObjectiveCard'
@@ -282,6 +283,8 @@ function CustomizeModal({
 
 export default function EnterprisePortalClient({ institutionId, institutionName, logoUrl, institutions }: Props) {
   const supabase = createClient()
+  const searchParams = useSearchParams()
+  const iid = searchParams.get('iid')
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [sweepHistory, setSweepHistory] = useState<Sweep[]>([])
   const [liveCounts, setLiveCounts] = useState<Record<DriftDirection, number>>({ CRITICAL: 0, ALERT: 0, CAUTION: 0, STABLE: 0 })
@@ -753,7 +756,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
             Per-account risk flags · Fusion signal breakdown · Recommended actions
           </div>
         </div>
-        <a href="/enterprise/report"
+        <a href={`/enterprise/report${iid ? `?iid=${iid}` : ''}`}
           className="text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
           View Full Report →
         </a>

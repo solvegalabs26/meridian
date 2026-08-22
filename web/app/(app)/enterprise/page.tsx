@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import EnterprisePortalClient from './EnterprisePortalClient'
@@ -57,11 +58,13 @@ export default async function EnterprisePage({
   }
 
   return (
-    <EnterprisePortalClient
-      institutionId={resolvedInstitutionId}
-      institutionName={institutionName}
-      logoUrl={logoUrl}
-      institutions={institutions}
-    />
+    <Suspense>
+      <EnterprisePortalClient
+        institutionId={resolvedInstitutionId}
+        institutionName={institutionName}
+        logoUrl={logoUrl}
+        institutions={institutions}
+      />
+    </Suspense>
   )
 }
