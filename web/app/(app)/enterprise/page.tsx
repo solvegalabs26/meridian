@@ -47,7 +47,6 @@ export default async function EnterprisePage({
       .from('enterprise_institutions')
       .select('id, name, logo_url')
       .in('id', memberIds)
-      .eq('status', 'active')
       .order('name', { ascending: true })
 
     institutions = (instRows ?? []).map(r => ({ id: r.id as string, name: r.name as string }))
