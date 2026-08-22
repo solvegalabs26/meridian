@@ -33,7 +33,8 @@ export function InstitutionSwitcher() {
 
       const opts: InstitutionOption[] = []
       for (const m of members) {
-        const inst = m.enterprise_institutions as { id: string; name: string } | null
+        const instArr = m.enterprise_institutions as Array<{ id: string; name: string }> | null
+        const inst = instArr?.[0] ?? null
         if (inst) opts.push({ id: inst.id, name: inst.name })
       }
 
