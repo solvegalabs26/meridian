@@ -37,6 +37,12 @@ export default async function EnterprisePage({
 
   const resolvedInstitutionId = institutionId ?? 'a1b2c3d4-0000-0000-0000-000000000001'
 
+  // Ensure the URL always has an explicit iid so the switcher label and server
+  // data always agree (switcher sorts alphabetically; server sorts by invited_at)
+  if (!paramIid) {
+    redirect(`/enterprise?iid=${resolvedInstitutionId}`)
+  }
+
   // Fetch all institution rows for the switcher (and current name/logo)
   let institutions: Array<{ id: string; name: string }> = []
   let institutionName = 'Unknown Institution'
