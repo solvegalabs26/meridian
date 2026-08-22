@@ -58,7 +58,7 @@ export function ListingCaseCard({ caseData, loanData, driftTier }: Props) {
         {/* Price row */}
         <div className="flex items-center gap-2 mb-2">
           <span className="text-lg font-bold text-gray-900">
-            ${loanData.list_price.toLocaleString()}
+            {loanData.list_price != null ? `$${loanData.list_price.toLocaleString()}` : '—'}
           </span>
           <span className="text-xs text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">
             {loanData.price_band}
