@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { getVerticalConfig } from '@/lib/vertical/getVerticalConfig'
 import EnterpriseReportClient from './EnterpriseReportClient'
 
 export const metadata = { title: 'Sweep Intelligence Report — Meridian Arc' }
@@ -20,11 +21,15 @@ export default async function EnterpriseReportPage({
   const institutionId = institution?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
   const institutionName = institution?.name ?? 'Conquer Group / DefaultShield'
   const highlight = searchParams?.highlight ?? null
+
+  const verticalConfig = await getVerticalConfig(institutionId)
+
   return (
     <EnterpriseReportClient
       institutionId={institutionId}
       institutionName={institutionName}
       highlight={highlight}
+      verticalConfig={verticalConfig}
     />
   )
 }
