@@ -1,54 +1,23 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 
 interface InstitutionOption {
   id: string
   name: string
 }
 
-export function InstitutionSwitcher() {
-  const supabase = createClient()
+interface Props {
+  institutions: InstitutionOption[]
+}
+
+export function InstitutionSwitcher({ institutions }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const currentIid = searchParams.get('iid')
 
-  const [institutions, setInstitutions] = useState<InstitutionOption[]>([])
-  const [loaded, setLoaded] = useState(false)
-
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: members, error: membersErr } = await supabase
-        .from('enterprise_members')
-        .select('institution_id')
-        .eq('user_id', user.id)
-
-      if (membersErr) { console.error('[InstitutionSwitcher] members query:', membersErr.message); return }
-      if (!members || members.length === 0) { setLoaded(true); return }
-
-      const ids = members.map(m => m.institution_id as string)
-
-      const { data: insts, error: instsErr } = await supabase
-        .from('enterprise_institutions')
-        .select('id, name')
-        .in('id', ids)
-        .eq('status', 'active')
-
-      if (instsErr) { console.error('[InstitutionSwitcher] institutions query:', instsErr.message); return }
-
-      setInstitutions((insts ?? []) as InstitutionOption[])
-      setLoaded(true)
-    }
-    load()
-  }, [supabase])
-
-  if (!loaded || institutions.length < 2) return null
+  if (institutions.length < 2) return null
 
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const params = new URLSearchParams(searchParams.toString())

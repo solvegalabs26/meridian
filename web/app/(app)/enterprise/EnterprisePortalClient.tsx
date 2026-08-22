@@ -17,6 +17,7 @@ interface Props {
   institutionId: string
   institutionName: string
   logoUrl?: string | null
+  institutions: Array<{ id: string; name: string }>
 }
 
 type DriftDirection = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'STABLE'
@@ -279,7 +280,7 @@ function CustomizeModal({
   )
 }
 
-export default function EnterprisePortalClient({ institutionId, institutionName, logoUrl }: Props) {
+export default function EnterprisePortalClient({ institutionId, institutionName, logoUrl, institutions }: Props) {
   const supabase = createClient()
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [sweepHistory, setSweepHistory] = useState<Sweep[]>([])
@@ -523,7 +524,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Suspense fallback={null}><InstitutionSwitcher /></Suspense>
+          <Suspense fallback={null}><InstitutionSwitcher institutions={institutions} /></Suspense>
           <button onClick={loadAll}
             className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition">
             Refresh

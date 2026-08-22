@@ -15,47 +15,53 @@ export default async function EnterprisePage({
 
   const paramIid = searchParams?.iid as string | undefined
 
+  // Fetch all memberships once — used for both switcher list and fallback resolution
+  const { data: allMembers } = await supabase
+    .from('enterprise_members')
+    .select('institution_id')
+    .eq('user_id', user.id)
+    .order('invited_at', { ascending: true })
+
+  const memberIds = (allMembers ?? []).map(m => m.institution_id as string)
+
   let institutionId: string | null = null
 
-  if (paramIid) {
-    const { data: membership } = await supabase
-      .from('enterprise_members')
-      .select('institution_id')
-      .eq('institution_id', paramIid)
-      .eq('user_id', user.id)
-      .maybeSingle()
-    institutionId = membership?.institution_id ?? null
+  if (paramIid && memberIds.includes(paramIid)) {
+    institutionId = paramIid
   }
 
   if (!institutionId) {
-    const { data: firstMember } = await supabase
-      .from('enterprise_members')
-      .select('institution_id')
-      .eq('user_id', user.id)
-      .order('invited_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    institutionId = firstMember?.institution_id ?? null
+    institutionId = memberIds[0] ?? null
   }
 
   const resolvedInstitutionId = institutionId ?? 'a1b2c3d4-0000-0000-0000-000000000001'
 
+  // Fetch all institution rows for the switcher (and current name/logo)
+  let institutions: Array<{ id: string; name: string }> = []
   let institutionName = 'Unknown Institution'
   let logoUrl: string | null = null
 
-  const { data: inst } = await supabase
-    .from('enterprise_institutions')
-    .select('name, logo_url')
-    .eq('id', resolvedInstitutionId)
-    .maybeSingle()
-  institutionName = inst?.name ?? 'Unknown Institution'
-  logoUrl = inst?.logo_url ?? null
+  if (memberIds.length > 0) {
+    const { data: instRows } = await supabase
+      .from('enterprise_institutions')
+      .select('id, name, logo_url')
+      .in('id', memberIds)
+      .eq('status', 'active')
+      .order('name', { ascending: true })
+
+    institutions = (instRows ?? []).map(r => ({ id: r.id as string, name: r.name as string }))
+
+    const current = (instRows ?? []).find(r => r.id === resolvedInstitutionId)
+    institutionName = (current?.name as string) ?? 'Unknown Institution'
+    logoUrl = (current?.logo_url as string | null) ?? null
+  }
 
   return (
     <EnterprisePortalClient
       institutionId={resolvedInstitutionId}
       institutionName={institutionName}
       logoUrl={logoUrl}
+      institutions={institutions}
     />
   )
 }
