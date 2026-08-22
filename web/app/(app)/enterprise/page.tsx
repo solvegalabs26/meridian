@@ -56,6 +56,13 @@ export default async function EnterprisePage({
     logoUrl = (current?.logo_url as string | null) ?? null
   }
 
+  console.log('[FF047 SWITCHER DEBUG]', {
+    userId: user?.id,
+    memberIdsCount: memberIds?.length,
+    memberIds: memberIds,
+    institutionsCount: institutions?.length
+  })
+
   return (
     <Suspense>
       <EnterprisePortalClient
