@@ -73,24 +73,36 @@ function EnterpriseCasesInner() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { window.location.href = '/login'; return }
 
-      // Resolve institution: prefer ?iid= param, fall back to email lookup
-      let iId: string
+      // Resolve institution: validate ?iid= membership, else first membership
+      let iId: string | null = null
+
       if (iidParam) {
-        iId = iidParam
-      } else {
-        const { data: inst } = await supabase
-          .from('enterprise_institutions')
-          .select('id')
-          .eq('contact_email', user.email)
-          .eq('status', 'active')
-          .single()
-        iId = inst?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
+        const { data: membership } = await supabase
+          .from('enterprise_members')
+          .select('institution_id')
+          .eq('institution_id', iidParam)
+          .eq('user_id', user.id)
+          .maybeSingle()
+        iId = membership?.institution_id ?? null
       }
+
+      if (!iId) {
+        const { data: firstMember } = await supabase
+          .from('enterprise_members')
+          .select('institution_id')
+          .eq('user_id', user.id)
+          .order('invited_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        iId = firstMember?.institution_id ?? null
+      }
+
+      const resolvedIId = iId ?? 'a1b2c3d4-0000-0000-0000-000000000001'
       // Get member role
       const { data: member } = await supabase
         .from('enterprise_members')
         .select('role')
-        .eq('institution_id', iId)
+        .eq('institution_id', resolvedIId)
         .eq('user_id', user.id)
         .maybeSingle()
       setUserRole(member?.role ?? null)
@@ -99,12 +111,12 @@ function EnterpriseCasesInner() {
       const { data: vc } = await supabase
         .from('vertical_config')
         .select('id, institution_id, vertical_type, case_schema, objective_templates, signal_sources, ui_theme, pricing_model, macro_event_categories')
-        .eq('institution_id', iId)
+        .eq('institution_id', resolvedIId)
         .maybeSingle()
       setVerticalConfig(vc ?? null)
 
       // Get cases with agents and drift tiers
-      const casesData = await getAgentCases(supabase as Parameters<typeof getAgentCases>[0], iId)
+      const casesData = await getAgentCases(supabase as Parameters<typeof getAgentCases>[0], resolvedIId)
       setCases(casesData as AgentCase[])
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load cases')
