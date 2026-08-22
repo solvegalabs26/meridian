@@ -57,7 +57,6 @@ export default function EnterpriseCasesPage() {
   const [cases, setCases] = useState<AgentCase[]>([])
   const [verticalConfig, setVerticalConfig] = useState<VerticalConfig | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
-  const [institutionId, setInstitutionId] = useState<string | null>(null)
   const [view, setView] = useState<View>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -79,8 +78,6 @@ export default function EnterpriseCasesPage() {
         .single()
 
       const iId = inst?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
-      setInstitutionId(iId)
-
       // Get member role
       const { data: member } = await supabase
         .from('enterprise_members')

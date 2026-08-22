@@ -30,20 +30,6 @@ function fmtDateTime(iso: string) {
   });
 }
 
-const TIER_ACCENT: Record<string, string> = {
-  CRITICAL: 'text-red-600',
-  ALERT:    'text-amber-500',
-  CAUTION:  'text-yellow-500',
-  STABLE:   'text-green-500',
-};
-
-const TIER_BADGE: Record<string, string> = {
-  CRITICAL: 'bg-red-600 text-white',
-  ALERT:    'bg-amber-500 text-white',
-  CAUTION:  'bg-yellow-400 text-gray-900',
-  STABLE:   'bg-green-500 text-white',
-};
-
 export function VerticalReportHeader({
   institution, tiers, config, lastSweepAt, listingCount = 0, buyerCount = 0,
 }: Props) {
