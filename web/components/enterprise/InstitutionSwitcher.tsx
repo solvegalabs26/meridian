@@ -24,21 +24,25 @@ export function InstitutionSwitcher() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const { data: members } = await supabase
+      const { data: members, error: membersErr } = await supabase
         .from('enterprise_members')
-        .select('institution_id, enterprise_institutions(id, name)')
+        .select('institution_id')
         .eq('user_id', user.id)
 
-      if (!members) return
+      if (membersErr) { console.error('[InstitutionSwitcher] members query:', membersErr.message); return }
+      if (!members || members.length === 0) { setLoaded(true); return }
 
-      const opts: InstitutionOption[] = []
-      for (const m of members) {
-        const instArr = m.enterprise_institutions as Array<{ id: string; name: string }> | null
-        const inst = instArr?.[0] ?? null
-        if (inst) opts.push({ id: inst.id, name: inst.name })
-      }
+      const ids = members.map(m => m.institution_id as string)
 
-      setInstitutions(opts)
+      const { data: insts, error: instsErr } = await supabase
+        .from('enterprise_institutions')
+        .select('id, name')
+        .in('id', ids)
+        .eq('status', 'active')
+
+      if (instsErr) { console.error('[InstitutionSwitcher] institutions query:', instsErr.message); return }
+
+      setInstitutions((insts ?? []) as InstitutionOption[])
       setLoaded(true)
     }
     load()
