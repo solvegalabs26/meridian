@@ -10,7 +10,6 @@ import { PortfolioMetricsPanel } from '@/components/enterprise/PortfolioMetricsP
 import { AskMeridianFusion } from '@/components/enterprise/AskMeridianFusion'
 import { RecentlyViewedAccounts } from '@/components/enterprise/RecentlyViewedAccounts'
 import { getObjectivesWithResults, getMacroEventLinkMap, getPortfolioMetrics } from '@/lib/enterprise/objectives-queries'
-import { getAgentCases } from '@/lib/supabase/queries/enterprise'
 import { updateObjectiveState, runEnterpriseSweep, updateSignalPreferences } from './actions'
 import type { ObjectiveWithResult, ObjectiveState, MacroEventLink, PortfolioMetricsData } from '@/lib/enterprise/objectives-queries'
 import { InstitutionSwitcher } from '@/components/enterprise/InstitutionSwitcher'
@@ -331,14 +330,37 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
         .limit(13)
       setSweepHistory([...(hist ?? [])].reverse())
 
-      // Live tier counts — use getAgentCases which correctly reads latest
-      // drift_tier from enterprise_case_history (proven path used by cases page)
-      const allCases = await getAgentCases(supabase, institutionId)
+      // Live tier counts: fetch cases directly (no agent join — agent_id is null
+      // on demo cases and the broker_agents join would filter them out), then
+      // read the latest drift_tier per case from enterprise_case_history.
+      const { data: casesRaw } = await supabase
+        .from('enterprise_cases')
+        .select('id, region')
+        .eq('institution_id', institutionId)
+        .eq('in_scope', true)
+
+      const casesList = casesRaw ?? []
+      const caseIds = casesList.map((c: any) => c.id as string)
+
+      const histMap = new Map<string, { drift_tier: string; drift_score: number }>()
+      if (caseIds.length > 0) {
+        const { data: histRaw } = await supabase
+          .from('enterprise_case_history')
+          .select('case_id, drift_tier, drift_score')
+          .in('case_id', caseIds)
+          .not('drift_tier', 'is', null)
+          .order('snapshot_at', { ascending: false })
+        for (const row of histRaw ?? []) {
+          if (!histMap.has(row.case_id)) histMap.set(row.case_id, row as any)
+        }
+      }
+
       const counts: Record<DriftDirection, number> = { CRITICAL: 0, ALERT: 0, CAUTION: 0, STABLE: 0 }
-      const enriched = allCases.map((c: any) => {
-        const tier = ((c.drift_tier as string) ?? 'STABLE') as DriftDirection
+      const enriched = casesList.map((c: any) => {
+        const h = histMap.get(c.id)
+        const tier = ((h?.drift_tier as string) ?? 'STABLE') as DriftDirection
         counts[tier]++
-        return { id: c.id as string, region: (c.region as string) ?? 'Unknown', drift_tier: tier, drift_score: (c.drift_score as number) ?? 0 }
+        return { id: c.id as string, region: (c.region as string) ?? 'Unknown', drift_tier: tier, drift_score: (h?.drift_score as number) ?? 0 }
       })
       setLiveCounts(counts)
       setPortalCases(enriched)
