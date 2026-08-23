@@ -504,7 +504,8 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
   const objTitleMap = new Map(objectives.map(o => [o.obj_id, o.title]))
 
   // Meridian Fusion Insight — AI-generated narrative stored by sweep engine (B1)
-  const fusionInsight = (isRE ? rePortfolioMetrics?.portfolioSummary : portfolioMetrics?.portfolioSummary) ?? null
+  // For RE: suppress auto-finance summary until an RE-aware sweep has run
+  const fusionInsight = isRE ? null : (portfolioMetrics?.portfolioSummary ?? null)
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -750,7 +751,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
               <div>
                 <div className="font-semibold text-sm" style={{ color: '#1B2A4A' }}>Live Fusion Data</div>
                 <div className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
-                  {keySignals.length} active signal stream{keySignals.length !== 1 ? 's' : ''} · FRED · EIA · BLS · GDELT
+                  {isRE ? 'RE market signals coming soon' : `${keySignals.length} active signal stream${keySignals.length !== 1 ? 's' : ''} · FRED · EIA · BLS · GDELT`}
                 </div>
               </div>
               <button
@@ -762,11 +763,19 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
               </button>
             </div>
             <div style={{ padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {keySignals.map(s => <FusionCard key={s.signal_id} signal={s} />)}
-              {keySignals.length === 0 && (
+              {isRE ? (
                 <div style={{ gridColumn: '1/-1', padding: '24px 0', textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
-                  Signals ingest weekly — check back Monday
+                  Mortgage rates, housing inventory &amp; migration signals will appear here after the first RE sweep
                 </div>
+              ) : (
+                <>
+                  {keySignals.map(s => <FusionCard key={s.signal_id} signal={s} />)}
+                  {keySignals.length === 0 && (
+                    <div style={{ gridColumn: '1/-1', padding: '24px 0', textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
+                      Signals ingest weekly — check back Monday
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
