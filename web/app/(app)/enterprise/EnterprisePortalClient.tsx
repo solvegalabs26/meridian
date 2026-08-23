@@ -15,6 +15,7 @@ import { getObjectivesWithResults, getMacroEventLinkMap, getPortfolioMetrics, ge
 import { updateObjectiveState, runEnterpriseSweep, updateSignalPreferences } from './actions'
 import type { ObjectiveWithResult, ObjectiveState, MacroEventLink, PortfolioMetricsData, REPortfolioMetricsData } from '@/lib/enterprise/objectives-queries'
 import { InstitutionSwitcher } from '@/components/enterprise/InstitutionSwitcher'
+import { ManageObjectivesPanel } from '@/components/enterprise/ManageObjectivesPanel'
 
 interface Props {
   institutionId: string
@@ -323,6 +324,9 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
   const [portfolioTab, setPortfolioTab] = useState<'Overview' | 'Regions' | 'Cohorts'>('Overview')
   const [showCustomize, setShowCustomize] = useState(false)
   const [changingObjectiveId, setChangingObjectiveId] = useState<string | null>(null)
+  // FF-050
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [showManagePanel, setShowManagePanel] = useState(false)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -440,6 +444,18 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
         setSignalPrefs(prev => ({ ...prev, ...savedPrefs }))
       }
 
+      // FF-050: admin check — drives "Manage Objectives" button visibility
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      if (currentUser) {
+        const { data: member } = await supabase
+          .from('enterprise_members')
+          .select('role')
+          .eq('institution_id', institutionId)
+          .eq('user_id', currentUser.id)
+          .single()
+        setIsAdmin((member as { role?: string } | null)?.role === 'admin')
+      }
+
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -538,6 +554,15 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
         />
       )}
 
+      {/* FF-050: Manage Objectives slide-over */}
+      <ManageObjectivesPanel
+        open={showManagePanel}
+        onClose={() => setShowManagePanel(false)}
+        institutionId={institutionId}
+        verticalType={verticalType}
+        onObjectivesChanged={loadAll}
+      />
+
       {/* HEADER — institution branding */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -558,6 +583,15 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
         </div>
         <div className="flex items-center gap-3">
           <Suspense fallback={null}><InstitutionSwitcher institutions={institutions} /></Suspense>
+          {/* FF-050: Manage Objectives — admin only */}
+          {isAdmin && (
+            <button
+              onClick={() => setShowManagePanel(true)}
+              className="text-sm font-medium text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg px-3 py-1.5 transition"
+            >
+              Manage Objectives
+            </button>
+          )}
           <button onClick={() => { router.refresh(); loadAll() }}
             className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition">
             Refresh
