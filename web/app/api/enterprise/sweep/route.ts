@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { runPortfolioSweep } from '@/lib/enterprise/sweep-fork1'
 import { runObjectiveSweep } from '@/lib/enterprise/sweep-fork2'
+import { runREPortfolioSweep } from '@/lib/enterprise/sweep-fork1-re'
+import { runREObjectiveSweep } from '@/lib/enterprise/sweep-fork2-re'
 import type { ObjectiveSweepResult } from '@/lib/enterprise/sweep-fork2'
 
 export const dynamic = 'force-dynamic'
@@ -31,10 +33,10 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient()
 
-  // Verify institution exists
+  // Verify institution exists and get industry (used to determine vertical fork)
   const { data: institution, error: instErr } = await supabase
     .from('enterprise_institutions')
-    .select('id')
+    .select('id, industry')
     .eq('id', institutionId)
     .single()
 
@@ -42,20 +44,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Institution not found: ${institutionId}` }, { status: 404 })
   }
 
-  // ── Fork 1: Portfolio sweep ──
-  let fork1Result
+  const isRE = (institution as { industry?: string | null }).industry === 'real_estate'
+
+  // ── Fork 1: Portfolio sweep (vertical-aware) ──
+  let fork1Result: { metricsId: string }
   try {
-    fork1Result = await runPortfolioSweep(institutionId)
+    fork1Result = isRE
+      ? await runREPortfolioSweep(institutionId)
+      : await runPortfolioSweep(institutionId)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error('[FF-035-B] Fork 1 failed:', msg)
+    console.error(`[FF-035-B] Fork 1 failed (${isRE ? 'RE' : 'AF'}):`, msg)
     await supabase.from('enterprise_sweeps').insert({
       institution_id: institutionId,
       trigger_type: 'manual',
       status: 'failed',
       fork: 'portfolio',
       sweep_type: 'portfolio',
-      engine_version: 'ff-035b-v1',
+      engine_version: isRE ? 're-sweep-v1' : 'ff-035b-v1',
       started_at: new Date(startMs).toISOString(),
       completed_at: new Date().toISOString(),
       error_message: msg,
@@ -83,12 +89,15 @@ export async function POST(request: NextRequest) {
   // Run all objective sweeps concurrently with Promise.allSettled
   const settled = await Promise.allSettled(
     objectives.map(obj =>
-      runObjectiveSweep(institutionId, obj.id as string, fork1Result.metricsId)
+      isRE
+        ? runREObjectiveSweep(institutionId, obj.id as string, fork1Result.metricsId)
+        : runObjectiveSweep(institutionId, obj.id as string, fork1Result.metricsId)
     )
   )
 
   const fork2Results: ObjectiveSweepResult[] = []
   const failedObjectiveIds: string[] = []
+  const engineVersion = isRE ? 're-sweep-v1' : 'ff-035b-v1'
 
   for (let i = 0; i < settled.length; i++) {
     const result = settled[i]
@@ -100,8 +109,6 @@ export async function POST(request: NextRequest) {
       console.error(`[FF-035-B] Fork 2 failed for ${obj.obj_id} (${obj.id}):`, msg)
       failedObjectiveIds.push(obj.id as string)
 
-      // Record the rejection so the sweep health dashboard can surface it —
-      // runObjectiveSweep failures otherwise leave no row in enterprise_sweeps.
       await supabase.from('enterprise_sweeps').insert({
         institution_id: institutionId,
         objective_id: obj.id,
@@ -109,7 +116,7 @@ export async function POST(request: NextRequest) {
         status: 'failed',
         fork: 'objective',
         sweep_type: obj.objective_state === 'monitoring_lite' ? 'lite' : 'full',
-        engine_version: 'ff-035b-v1',
+        engine_version: engineVersion,
         started_at: new Date(startMs).toISOString(),
         completed_at: new Date().toISOString(),
         error_message: msg,
@@ -119,6 +126,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     institution_id: institutionId,
+    vertical: isRE ? 'real_estate' : 'auto_finance',
     fork1: fork1Result,
     fork2: fork2Results,
     total_duration_ms: Date.now() - startMs,

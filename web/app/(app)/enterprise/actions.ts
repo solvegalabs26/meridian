@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { runPortfolioSweep } from '@/lib/enterprise/sweep-fork1'
 import { runObjectiveSweep } from '@/lib/enterprise/sweep-fork2'
+import { runREPortfolioSweep } from '@/lib/enterprise/sweep-fork1-re'
+import { runREObjectiveSweep } from '@/lib/enterprise/sweep-fork2-re'
 import type { ObjectiveState } from '@/lib/enterprise/objectives-queries'
 
 export async function updateObjectiveState(
@@ -35,15 +37,19 @@ export async function runEnterpriseSweep(
 
   const { data: institution } = await supabase
     .from('enterprise_institutions')
-    .select('id')
+    .select('id, industry')
     .eq('id', institutionId)
     .single()
 
   if (!institution) return { ok: false, error: 'Institution not found' }
 
+  const isRE = (institution as { industry?: string | null }).industry === 'real_estate'
+
   let fork1Result
   try {
-    fork1Result = await runPortfolioSweep(institutionId)
+    fork1Result = isRE
+      ? await runREPortfolioSweep(institutionId)
+      : await runPortfolioSweep(institutionId)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     return { ok: false, error: `Portfolio sweep failed: ${msg}` }
@@ -59,7 +65,9 @@ export async function runEnterpriseSweep(
 
   const settled = await Promise.allSettled(
     (objectives ?? []).map(obj =>
-      runObjectiveSweep(institutionId, obj.id as string, fork1Result.metricsId)
+      isRE
+        ? runREObjectiveSweep(institutionId, obj.id as string, fork1Result.metricsId)
+        : runObjectiveSweep(institutionId, obj.id as string, fork1Result.metricsId)
     )
   )
 
