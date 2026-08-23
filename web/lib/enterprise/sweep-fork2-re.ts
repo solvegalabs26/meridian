@@ -234,8 +234,9 @@ R-7: finding_type: known_unknown = confirmed what was suspected; unknown_unknown
 export async function runREObjectiveSweep(
   institutionId: string,
   objectiveId: string,
-  _portfolioMetricsId: string   // reserved for future RE cohort context; not used in v1
+  portfolioMetricsId: string   // reserved for future RE cohort context; not used in v1
 ): Promise<ObjectiveSweepResult> {
+  void portfolioMetricsId   // not consumed in v1; retained for interface parity with AF fork
   const startMs = Date.now()
   const supabase = createServiceClient()
   const today = new Date()

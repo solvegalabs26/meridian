@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useState, useCallback, Suspense } from 'react'
+import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ObjectivesPanel } from '@/components/enterprise/ObjectivesPanel'
@@ -444,7 +445,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
     } finally {
       setLoading(false)
     }
-  }, [institutionId, supabase])
+  }, [institutionId, supabase, isRE])
 
   useEffect(() => { loadAll() }, [loadAll])
 
@@ -541,7 +542,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           {logoUrl ? (
-            <img src={logoUrl} alt={institutionName} className="h-10 w-auto object-contain flex-shrink-0" />
+            <Image src={logoUrl} alt={institutionName} width={80} height={40} className="h-10 w-auto object-contain flex-shrink-0" unoptimized />
           ) : (
             <div className="w-10 h-10 rounded-full bg-yellow-600 flex items-center justify-center flex-shrink-0 text-white font-black text-lg">
               {institutionName.charAt(0).toUpperCase()}
