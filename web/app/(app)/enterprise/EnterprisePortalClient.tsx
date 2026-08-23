@@ -343,22 +343,17 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
       const caseIds = casesList.map((c: any) => c.id as string)
 
       const histMap = new Map<string, { drift_tier: string; drift_score: number }>()
-      let histRaw: Array<{ case_id: string; drift_tier: string; drift_score: number }> | null = null
-      let histRawError: unknown = null
       if (caseIds.length > 0) {
-        const { data: _histRaw, error: _histRawError } = await supabase
+        const { data: histRaw } = await supabase
           .from('enterprise_case_history')
           .select('case_id, drift_tier, drift_score')
           .in('case_id', caseIds)
           .not('drift_tier', 'is', null)
           .order('snapshot_at', { ascending: false })
-        histRaw = _histRaw
-        histRawError = _histRawError
         for (const row of histRaw ?? []) {
           if (!histMap.has(row.case_id)) histMap.set(row.case_id, row as any)
         }
       }
-      console.log('[TIER DEBUG]', { histRawCount: histRaw?.length, histRawError, firstRow: histRaw?.[0] })
 
       const counts: Record<DriftDirection, number> = { CRITICAL: 0, ALERT: 0, CAUTION: 0, STABLE: 0 }
       const enriched = casesList.map((c: any) => {
