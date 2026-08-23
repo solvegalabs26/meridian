@@ -358,19 +358,26 @@ export async function getREPortfolioMetrics(
 
   for (const c of cases) {
     const ld = (c.loan_data ?? {}) as Record<string, unknown>
-    const caseType = ld.case_type as string | undefined
+    // Infer case type: explicit field takes priority; fall back to field-presence heuristic
+    // (BrokerOne seed data omits case_type but has distinct fields per type)
+    const caseType = (ld.case_type as string | undefined)
+      ?? (ld.days_on_market !== undefined || ld.list_price !== undefined ? 'listing'
+        : ld.rate_lock_expires !== undefined ? 'buyer'
+        : undefined)
 
     if (caseType === 'listing') {
       activeListings++
-      const dom = ld.days_on_market as number | undefined
-      if (typeof dom === 'number') {
+      const domRaw = ld.days_on_market
+      const dom = typeof domRaw === 'number' ? domRaw : typeof domRaw === 'string' ? Number(domRaw) : undefined
+      if (dom !== undefined && !isNaN(dom)) {
         domSum += dom
         domCount++
         if (dom >= 45) domOver45++
         if (dom >= 60) domOver60++
       }
-      const price = ld.list_price as number | undefined
-      if (typeof price === 'number') { priceSum += price; priceCount++ }
+      const priceRaw = ld.list_price
+      const price = typeof priceRaw === 'number' ? priceRaw : typeof priceRaw === 'string' ? Number(priceRaw) : undefined
+      if (price !== undefined && !isNaN(price)) { priceSum += price; priceCount++ }
       const band = ld.price_band as string | undefined
       if (band) bandCounts.set(band, (bandCounts.get(band) ?? 0) + 1)
     } else if (caseType === 'buyer') {
