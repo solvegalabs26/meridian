@@ -33,10 +33,10 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient()
 
-  // Verify institution exists and get vertical_type
+  // Verify institution exists and get industry (used to determine vertical fork)
   const { data: institution, error: instErr } = await supabase
     .from('enterprise_institutions')
-    .select('id, vertical_type')
+    .select('id, industry')
     .eq('id', institutionId)
     .single()
 
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Institution not found: ${institutionId}` }, { status: 404 })
   }
 
-  const isRE = (institution as { vertical_type?: string | null }).vertical_type === 'real_estate'
+  const isRE = (institution as { industry?: string | null }).industry === 'real_estate'
 
   // ── Fork 1: Portfolio sweep (vertical-aware) ──
   let fork1Result: { metricsId: string }
