@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import EnterprisePortalClient from './EnterprisePortalClient'
+import { getVerticalConfig } from '@/lib/vertical/getVerticalConfig'
 
 export const metadata = { title: 'Enterprise Portal — Meridian Arc' }
 
@@ -62,7 +63,8 @@ export default async function EnterprisePage({
     logoUrl = (current?.logo_url as string | null) ?? null
   }
 
-  
+  const verticalConfig = await getVerticalConfig(resolvedInstitutionId)
+  const verticalType = verticalConfig?.vertical_type ?? 'auto_finance'
 
   return (
     <Suspense>
@@ -71,6 +73,7 @@ export default async function EnterprisePage({
         institutionName={institutionName}
         logoUrl={logoUrl}
         institutions={institutions}
+        verticalType={verticalType}
       />
     </Suspense>
   )
