@@ -52,7 +52,7 @@ export async function runREPortfolioSweep(institutionId: string): Promise<REPort
   let domOver60 = 0
   let rateLockExpired = 0
   let rateLockUnder14 = 0
-  let rateLockUnder30 = 0
+
   let priceSum = 0
   let priceCount = 0
   const bandCounts = new Map<string, number>()
@@ -93,7 +93,7 @@ export async function runREPortfolioSweep(institutionId: string): Promise<REPort
         const daysUntil = Math.round((expiry.getTime() - today.getTime()) / 86400000)
         if (daysUntil < 0) { rateLockExpired++; rateLockRiskIds.push(c.id) }
         else if (daysUntil < 14) { rateLockUnder14++; rateLockRiskIds.push(c.id) }
-        else if (daysUntil < 30) rateLockUnder30++
+        // daysUntil 14–29: within 30-day window — tracked via rateLockUnder30 in getREPortfolioMetrics; not needed here
       }
     }
   }

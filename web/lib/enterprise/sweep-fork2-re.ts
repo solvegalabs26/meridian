@@ -234,7 +234,7 @@ R-7: finding_type: known_unknown = confirmed what was suspected; unknown_unknown
 export async function runREObjectiveSweep(
   institutionId: string,
   objectiveId: string,
-  portfolioMetricsId: string
+  _portfolioMetricsId: string   // reserved for future RE cohort context; not used in v1
 ): Promise<ObjectiveSweepResult> {
   const startMs = Date.now()
   const supabase = createServiceClient()
