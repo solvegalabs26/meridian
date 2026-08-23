@@ -1,7 +1,8 @@
 'use client'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ObjectivesPanel } from '@/components/enterprise/ObjectivesPanel'
 import { ObjectiveCard } from '@/components/enterprise/ObjectiveCard'
@@ -11,11 +12,13 @@ import { RecentlyViewedAccounts } from '@/components/enterprise/RecentlyViewedAc
 import { getObjectivesWithResults, getMacroEventLinkMap, getPortfolioMetrics } from '@/lib/enterprise/objectives-queries'
 import { updateObjectiveState, runEnterpriseSweep, updateSignalPreferences } from './actions'
 import type { ObjectiveWithResult, ObjectiveState, MacroEventLink, PortfolioMetricsData } from '@/lib/enterprise/objectives-queries'
+import { InstitutionSwitcher } from '@/components/enterprise/InstitutionSwitcher'
 
 interface Props {
   institutionId: string
   institutionName: string
   logoUrl?: string | null
+  institutions: Array<{ id: string; name: string }>
 }
 
 type DriftDirection = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'STABLE'
@@ -278,8 +281,11 @@ function CustomizeModal({
   )
 }
 
-export default function EnterprisePortalClient({ institutionId, institutionName, logoUrl }: Props) {
+export default function EnterprisePortalClient({ institutionId, institutionName, logoUrl, institutions }: Props) {
   const supabase = createClient()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const iid = searchParams.get('iid')
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [sweepHistory, setSweepHistory] = useState<Sweep[]>([])
   const [liveCounts, setLiveCounts] = useState<Record<DriftDirection, number>>({ CRITICAL: 0, ALERT: 0, CAUTION: 0, STABLE: 0 })
@@ -324,12 +330,15 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
         .limit(13)
       setSweepHistory([...(hist ?? [])].reverse())
 
-      // Live tier counts from enterprise_case_history (primary source — sweep counts are stale)
+      // Live tier counts: fetch cases directly (no agent join — agent_id is null
+      // on demo cases and the broker_agents join would filter them out), then
+      // read the latest drift_tier per case from enterprise_case_history.
       const { data: casesRaw } = await supabase
         .from('enterprise_cases')
         .select('id, region')
         .eq('institution_id', institutionId)
         .eq('in_scope', true)
+
       const casesList = casesRaw ?? []
       const caseIds = casesList.map((c: any) => c.id as string)
 
@@ -349,9 +358,9 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
       const counts: Record<DriftDirection, number> = { CRITICAL: 0, ALERT: 0, CAUTION: 0, STABLE: 0 }
       const enriched = casesList.map((c: any) => {
         const h = histMap.get(c.id)
-        const tier = (h?.drift_tier ?? 'STABLE') as DriftDirection
+        const tier = ((h?.drift_tier as string) ?? 'STABLE') as DriftDirection
         counts[tier]++
-        return { id: c.id as string, region: (c.region as string) ?? 'Unknown', drift_tier: tier, drift_score: (h?.drift_score ?? 0) as number }
+        return { id: c.id as string, region: (c.region as string) ?? 'Unknown', drift_tier: tier, drift_score: (h?.drift_score as number) ?? 0 }
       })
       setLiveCounts(counts)
       setPortalCases(enriched)
@@ -522,7 +531,8 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={loadAll}
+          <Suspense fallback={null}><InstitutionSwitcher institutions={institutions} /></Suspense>
+          <button onClick={() => { router.refresh(); loadAll() }}
             className="text-sm text-gray-400 hover:text-white border border-gray-700 rounded-lg px-3 py-1.5 transition">
             Refresh
           </button>
@@ -750,7 +760,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
             Per-account risk flags · Fusion signal breakdown · Recommended actions
           </div>
         </div>
-        <a href="/enterprise/report"
+        <a href={`/enterprise/report${iid ? `?iid=${iid}` : ''}`}
           className="text-sm font-semibold text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
           View Full Report →
         </a>

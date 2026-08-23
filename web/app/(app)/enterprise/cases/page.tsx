@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { getAgentCases } from '@/lib/supabase/queries/enterprise'
 import { VerticalCaseCard } from '@/components/enterprise/vertical/VerticalCaseCard'
 import type { VerticalConfig, EnterpriseCase, DriftTier } from '@/lib/vertical/verticalTypes'
 
-// Server-render the outer shell; client handles data.
+// Client component — reads ?iid= from search params to scope institution.
 // To avoid making this a full server component (which would need to re-fetch
 // verticalConfig on every navigation), we fetch verticalConfig client-side.
 
@@ -52,8 +53,11 @@ function TierPillRow({ cases }: { cases: Array<{ drift_tier: DriftTier }> }) {
   )
 }
 
-export default function EnterpriseCasesPage() {
+function EnterpriseCasesInner() {
   const supabase = createClient()
+  const searchParams = useSearchParams()
+  const iidParam = searchParams.get('iid')
+
   const [cases, setCases] = useState<AgentCase[]>([])
   const [verticalConfig, setVerticalConfig] = useState<VerticalConfig | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -69,20 +73,36 @@ export default function EnterpriseCasesPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { window.location.href = '/login'; return }
 
-      // Get institution
-      const { data: inst } = await supabase
-        .from('enterprise_institutions')
-        .select('id, name')
-        .eq('contact_email', user.email)
-        .eq('status', 'active')
-        .single()
+      // Resolve institution: validate ?iid= membership, else first membership
+      let iId: string | null = null
 
-      const iId = inst?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
+      if (iidParam) {
+        const { data: membership } = await supabase
+          .from('enterprise_members')
+          .select('institution_id')
+          .eq('institution_id', iidParam)
+          .eq('user_id', user.id)
+          .maybeSingle()
+        iId = membership?.institution_id ?? null
+      }
+
+      if (!iId) {
+        const { data: firstMember } = await supabase
+          .from('enterprise_members')
+          .select('institution_id')
+          .eq('user_id', user.id)
+          .order('invited_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        iId = firstMember?.institution_id ?? null
+      }
+
+      const resolvedIId = iId ?? 'a1b2c3d4-0000-0000-0000-000000000001'
       // Get member role
       const { data: member } = await supabase
         .from('enterprise_members')
         .select('role')
-        .eq('institution_id', iId)
+        .eq('institution_id', resolvedIId)
         .eq('user_id', user.id)
         .maybeSingle()
       setUserRole(member?.role ?? null)
@@ -91,19 +111,19 @@ export default function EnterpriseCasesPage() {
       const { data: vc } = await supabase
         .from('vertical_config')
         .select('id, institution_id, vertical_type, case_schema, objective_templates, signal_sources, ui_theme, pricing_model, macro_event_categories')
-        .eq('institution_id', iId)
+        .eq('institution_id', resolvedIId)
         .maybeSingle()
       setVerticalConfig(vc ?? null)
 
       // Get cases with agents and drift tiers
-      const casesData = await getAgentCases(supabase as Parameters<typeof getAgentCases>[0], iId)
+      const casesData = await getAgentCases(supabase as Parameters<typeof getAgentCases>[0], resolvedIId)
       setCases(casesData as AgentCase[])
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load cases')
     } finally {
       setLoading(false)
     }
-  }, [supabase])
+  }, [supabase, iidParam])
 
   useEffect(() => { loadAll() }, [loadAll])
 
@@ -219,5 +239,17 @@ export default function EnterpriseCasesPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function EnterpriseCasesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <EnterpriseCasesInner />
+    </Suspense>
   )
 }

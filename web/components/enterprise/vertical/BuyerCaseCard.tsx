@@ -58,7 +58,7 @@ export function BuyerCaseCard({ caseData, loanData, driftTier }: Props) {
 
         {/* Pre-approval amount */}
         <div className="text-lg font-bold text-gray-900 mb-2">
-          ${loanData.pre_approval_amount.toLocaleString()}
+          {loanData.pre_approval_amount != null ? `$${loanData.pre_approval_amount.toLocaleString()}` : '—'}
           <span className="text-xs text-gray-400 font-normal ml-1">pre-approved</span>
         </div>
 

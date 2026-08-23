@@ -29,19 +29,43 @@ const TIER_COLORS: Record<string, string> = {
   STABLE: '#10b981',
 }
 
-export default async function CaseDetailPage({ params }: { params: { id: string } }) {
+export default async function CaseDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string }
+  searchParams?: { iid?: string }
+}) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Get institution
-  const { data: institution } = await supabase
-    .from('enterprise_institutions')
-    .select('id, name')
-    .eq('contact_email', user.email)
-    .eq('status', 'active')
-    .single()
-  const institutionId = institution?.id ?? 'a1b2c3d4-0000-0000-0000-000000000001'
+  const paramIid = searchParams?.iid as string | undefined
+
+  let institutionId: string | null = null
+
+  if (paramIid) {
+    const { data: membership } = await supabase
+      .from('enterprise_members')
+      .select('institution_id')
+      .eq('institution_id', paramIid)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    institutionId = membership?.institution_id ?? null
+  }
+
+  if (!institutionId) {
+    const { data: firstMember } = await supabase
+      .from('enterprise_members')
+      .select('institution_id')
+      .eq('user_id', user.id)
+      .order('invited_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    institutionId = firstMember?.institution_id ?? null
+  }
+
+  const resolvedInstitutionId = institutionId ?? 'a1b2c3d4-0000-0000-0000-000000000001'
 
   // Fetch case with agent
   let caseData: Awaited<ReturnType<typeof getCaseWithAgent>>
@@ -52,9 +76,9 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   }
 
   // Confirm case belongs to this institution
-  if ((caseData as Record<string, unknown>).institution_id !== institutionId) notFound()
+  if ((caseData as Record<string, unknown>).institution_id !== resolvedInstitutionId) notFound()
 
-  const verticalConfig = await getVerticalConfig(institutionId)
+  const verticalConfig = await getVerticalConfig(resolvedInstitutionId)
 
   // Latest drift tier from enterprise_case_history
   const { data: histRow } = await supabase
@@ -73,7 +97,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
   const { data: objResults } = await supabase
     .from('enterprise_objective_results')
     .select('affecting_it, implies, signals, what_to_do, computed_at, sweep_type, confidence_score')
-    .eq('institution_id', institutionId)
+    .eq('institution_id', resolvedInstitutionId)
     .order('computed_at', { ascending: false })
     .limit(3)
 
