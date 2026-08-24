@@ -64,7 +64,7 @@ const SECTIONS: Section[] = [
         ],
       },
       {
-        q: 'What is Archived Goals?',
+        q: 'What are Archived Goals?',
         body: [
           'Archived Goals shows every goal you\'ve closed or abandoned. For each one you can see the outcome (HIT, PARTIAL, or MISS), the confidence score at the time you closed it, when it closed, and — if you expand it — your outcome note and the engine\'s last read on the goal.',
           'This isn\'t just a graveyard. It\'s a calibration record. The engine learns from closed goals over time.',
