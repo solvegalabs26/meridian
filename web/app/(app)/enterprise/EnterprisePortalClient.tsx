@@ -395,6 +395,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
         .from('market_signals')
         .select('signal_id, source, direction_score, direction, magnitude, event_text, effective_date')
         .gte('effective_date', since.toISOString().split('T')[0])
+        .overlaps('sector_tags', [verticalType, 'all'])
         .order('direction_score', { ascending: true })
         .limit(200)
 
@@ -786,7 +787,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
               <div>
                 <div className="font-semibold text-sm" style={{ color: '#1B2A4A' }}>Live Fusion Data</div>
                 <div className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
-                  {isRE ? 'RE market signals coming soon' : `${keySignals.length} active signal stream${keySignals.length !== 1 ? 's' : ''} · FRED · EIA · BLS · GDELT`}
+                  {`${keySignals.length} active signal stream${keySignals.length !== 1 ? 's' : ''} · ${isRE ? 'Freddie Mac · NAR · FRED · MBA' : 'FRED · EIA · BLS · GDELT'}`}
                 </div>
               </div>
               <button
@@ -798,20 +799,14 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
               </button>
             </div>
             <div style={{ padding: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {isRE ? (
-                <div style={{ gridColumn: '1/-1', padding: '24px 0', textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
-                  Mortgage rates, housing inventory &amp; migration signals will appear here after the first RE sweep
-                </div>
-              ) : (
-                <>
-                  {keySignals.map(s => <FusionCard key={s.signal_id} signal={s} />)}
-                  {keySignals.length === 0 && (
-                    <div style={{ gridColumn: '1/-1', padding: '24px 0', textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
-                      Signals ingest weekly — check back Monday
-                    </div>
-                  )}
-                </>
-              )}
+              <>
+                {keySignals.map(s => <FusionCard key={s.signal_id} signal={s} />)}
+                {keySignals.length === 0 && (
+                  <div style={{ gridColumn: '1/-1', padding: '24px 0', textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
+                    {isRE ? 'Mortgage rates, housing inventory & DOM signals will appear after the first RE sweep' : 'Signals ingest weekly — check back Monday'}
+                  </div>
+                )}
+              </>
             </div>
           </div>
 
