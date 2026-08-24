@@ -952,7 +952,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                   </button>
                   {ec.feedback?.user_action && (
                     <span style={{ marginLeft: 4, fontSize: 10, color: C.muted, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
-                      "{ec.feedback.user_action}"
+                      &ldquo;{ec.feedback.user_action}&rdquo;
                     </span>
                   )}
                 </div>
