@@ -30,7 +30,7 @@ type Section = {
 const SECTIONS: Section[] = [
   {
     id: 'objectives',
-    label: 'Objectives',
+    label: 'Objectives / Goals',
     items: [
       {
         q: 'How do I see and review my original goal description?',
@@ -54,6 +54,21 @@ const SECTIONS: Section[] = [
         q: 'How do I archive an objective without deleting it?',
         body: ['Open the objective, tap the ⚙ gear icon, and select Archive objective. Archived objectives stop receiving scheduled sweeps but retain all history, predictions, and confidence data. You can unarchive any time from the same menu.'],
         callout: { type: 'info', text: 'Use archive when a goal is on hold due to timing or external blockers — not when the goal itself has changed. If the outcome has shifted, update the description instead.' },
+      },
+      {
+        q: 'Should I Close or Abandon a Goal?',
+        body: [
+          'Close a goal when you\'ve reached a deliberate decision — whether you achieved it, partially achieved it, or consciously decided to stop for reasons that came through the process. If you gathered signals, weighed the options, and landed somewhere intentional, that\'s a Close.',
+          'Abandon a goal when it simply fizzled — you lost interest, life moved on, or it never really got traction. No real decision, just a fade.',
+          'Not sure? If you can explain why, Close it. If you can\'t, Abandon it.',
+        ],
+      },
+      {
+        q: 'What is Archived Goals?',
+        body: [
+          'Archived Goals shows every goal you\'ve closed or abandoned. For each one you can see the outcome (HIT, PARTIAL, or MISS), the confidence score at the time you closed it, when it closed, and — if you expand it — your outcome note and the engine\'s last read on the goal.',
+          'This isn\'t just a graveyard. It\'s a calibration record. The engine learns from closed goals over time.',
+        ],
       },
     ],
   },

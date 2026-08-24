@@ -195,6 +195,10 @@ export default function AbandonModal({
         </div>
         <p style={{ fontSize: '13px', color: 'var(--ov-text-mid)', marginTop: '-10px' }}>{objectiveTitle}</p>
 
+        <p style={{ fontSize: '12px', color: 'var(--ov-text-dim)', lineHeight: '1.5', marginTop: '-8px' }}>
+          Abandon is for goals that fizzled — lost interest, no real movement, or never got traction. If you reached a conscious decision about this goal — even if you&apos;re not completing it — use Close Goal instead.
+        </p>
+
         {/* ── Screen 1: Caution Gate ── */}
         {screen === 'caution' && (
           <>

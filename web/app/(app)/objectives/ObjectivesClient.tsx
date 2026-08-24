@@ -4,12 +4,26 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import ObjectiveCard from '@/components/objectives/ObjectiveCard'
+import { ArchivedGoalRow } from '@/components/objectives/ArchivedGoalRow'
 import { Objective } from '@/lib/utils/types'
 
 type Tab = 'active' | 'archived' | 'all'
 
+interface OutcomeData {
+  outcome_type: string | null
+  outcome_note: string | null
+  actual_completed_at: string | null
+  swept_at_close: number | null
+  prediction_id: string | null
+  recorded_at: string
+}
+
+type ObjectiveWithOutcome = Objective & {
+  objective_outcomes?: OutcomeData[] | null
+}
+
 interface Props {
-  objectives: Objective[]
+  objectives: ObjectiveWithOutcome[]
   error: string | null
   alertObjectiveIds?: Set<string>
 }
@@ -18,18 +32,27 @@ export default function ObjectivesClient({ objectives, error, alertObjectiveIds 
   const [tab, setTab] = useState<Tab>('active')
 
   const active   = objectives.filter(o => o.status === 'active')
-  const archived = objectives.filter(o => o.status === 'closed' || o.status === 'paused')
-  const achieved = objectives.filter(o => o.status === 'achieved')
+  const archived = objectives.filter(o =>
+    o.status === 'closed' || o.status === 'paused' || o.status === 'achieved' ||
+    o.status === 'abandoned' || o.status === 'archived'
+  )
+
+  // Sort archived: most recently closed first
+  const archivedSorted = [...archived].sort((a, b) => {
+    const dateA = a.objective_outcomes?.[0]?.actual_completed_at ?? a.updated_at
+    const dateB = b.objective_outcomes?.[0]?.actual_completed_at ?? b.updated_at
+    return new Date(dateB).getTime() - new Date(dateA).getTime()
+  })
 
   const displayed = tab === 'active'
     ? active
     : tab === 'archived'
-    ? [...archived, ...achieved]
+    ? archivedSorted
     : objectives
 
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: 'active',   label: 'Active',   count: active.length },
-    { id: 'archived', label: 'Archived', count: archived.length + achieved.length },
+    { id: 'archived', label: 'Archived', count: archived.length },
     { id: 'all',      label: 'All',      count: objectives.length },
   ]
 
@@ -76,7 +99,32 @@ export default function ObjectivesClient({ objectives, error, alertObjectiveIds 
         </div>
       )}
 
-      {displayed.length === 0 ? (
+      {tab === 'archived' ? (
+        archivedSorted.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-[var(--border)] p-12 text-center">
+            <h2 className="text-[16px] font-medium text-[var(--text)] mb-2">No archived goals yet</h2>
+            <p className="text-[13px] text-[var(--text2)]">
+              When you close or abandon a goal, it will appear here.
+            </p>
+          </div>
+        ) : (
+          <div>
+            {/* Column headers */}
+            <div className="grid gap-3 px-4 pb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--text3)]" style={{ gridTemplateColumns: '1fr 100px 120px 100px 40px' }}>
+              <span>Goal</span>
+              <span>Outcome</span>
+              <span>Confidence at close</span>
+              <span>Closed</span>
+              <span />
+            </div>
+            <div className="flex flex-col gap-2">
+              {archivedSorted.map(obj => (
+                <ArchivedGoalRow key={obj.id} goal={obj} />
+              ))}
+            </div>
+          </div>
+        )
+      ) : displayed.length === 0 ? (
         <div className="bg-white rounded-2xl border border-[var(--border)] p-12 text-center">
           <div className="w-14 h-14 rounded-full bg-[var(--gray-lt)] flex items-center justify-center mx-auto mb-4">
             <Plus size={24} className="text-[var(--text3)]" />
@@ -95,12 +143,8 @@ export default function ObjectivesClient({ objectives, error, alertObjectiveIds 
             </>
           ) : (
             <>
-              <h2 className="text-[16px] font-medium text-[var(--text)] mb-2">
-                {tab === 'archived' ? 'No archived goals' : 'No goals yet'}
-              </h2>
-              <p className="text-[13px] text-[var(--text2)]">
-                {tab === 'archived' ? 'Archived goals will appear here.' : 'Add your first goal to get started.'}
-              </p>
+              <h2 className="text-[16px] font-medium text-[var(--text)] mb-2">No goals yet</h2>
+              <p className="text-[13px] text-[var(--text2)]">Add your first goal to get started.</p>
             </>
           )}
         </div>
