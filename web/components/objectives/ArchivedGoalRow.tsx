@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 interface OutcomeData {
   outcome_type: string | null
@@ -19,6 +20,9 @@ interface ArchivedGoal {
   status: string
   closure_type: string | null
   updated_at: string
+  target_date: string | null
+  outcome: string | null
+  notes: string | null
   objective_outcomes?: OutcomeData[] | null
 }
 
@@ -82,6 +86,7 @@ function PredBadge({ score }: { score: number | null }) {
 
 export function ArchivedGoalRow({ goal }: { goal: ArchivedGoal }) {
   const supabase = createClient()
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState<ExpandedData>({ episode: null, prediction: null, loaded: false })
 
@@ -94,6 +99,15 @@ export function ArchivedGoalRow({ goal }: { goal: ArchivedGoal }) {
     : goal.status === 'paused' || goal.status === 'archived'
     ? 'Archived'
     : 'Closed'
+
+  function handleClone() {
+    const parts: string[] = [`pre_title=${encodeURIComponent(goal.title)}`]
+    if (goal.outcome) parts.push(`pre_outcome=${encodeURIComponent(goal.outcome)}`)
+    if (goal.notes)   parts.push(`pre_notes=${encodeURIComponent(goal.notes)}`)
+    if (goal.target_date) parts.push(`pre_target_date=${encodeURIComponent(goal.target_date)}`)
+    parts.push('cloned=1')
+    router.push(`/objectives/new?${parts.join('&')}`)
+  }
 
   async function handleToggle() {
     if (!open && !expanded.loaded) {
@@ -205,6 +219,16 @@ export function ArchivedGoalRow({ goal }: { goal: ArchivedGoal }) {
               {!outcome?.outcome_note && !expanded.episode?.narrative && !expanded.prediction && (
                 <p className="text-[12px] text-[var(--text3)]">No additional details recorded.</p>
               )}
+
+              {/* Clone action */}
+              <div className="pt-1 border-t border-[var(--border)]">
+                <button
+                  onClick={handleClone}
+                  className="text-[12px] text-[var(--blue)] hover:underline font-medium"
+                >
+                  Clone this goal
+                </button>
+              </div>
             </>
           )}
         </div>

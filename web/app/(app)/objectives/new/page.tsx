@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Link2 } from 'lucide-react'
+import { ArrowLeft, Link2, Copy, X } from 'lucide-react'
 import { getCategoriesForAccount } from '@/lib/utils/categories'
 
 type ApiError = { error: string; max?: number; target_date?: string }
@@ -82,6 +82,7 @@ export default function NewObjectivePage() {
   const [error, setError] = useState<string | null>(null)
   const [accountType, setAccountType] = useState<string | null>(null)
   const [onboardingContext, setOnboardingContext] = useState<string | null>(null)
+  const [cloneBannerDismissed, setCloneBannerDismissed] = useState(false)
 
   // Ancestor chain params (set when launched from CloseModal "Yes — start the next goal")
   const parentObjectiveId = searchParams.get('parent_objective_id')
@@ -89,6 +90,12 @@ export default function NewObjectivePage() {
   const preTitle          = searchParams.get('pre_title') ?? ''
   const preCategory       = searchParams.get('pre_category') ?? ''
   const preContext        = searchParams.get('pre_context')
+
+  // Clone params (set when launched from ArchivedGoalRow "Clone this goal")
+  const cloned          = searchParams.get('cloned')
+  const preOutcome      = searchParams.get('pre_outcome') ?? ''
+  const preNotes        = searchParams.get('pre_notes') ?? ''
+  const preTargetDate   = searchParams.get('pre_target_date') ?? ''
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -107,8 +114,11 @@ export default function NewObjectivePage() {
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      category: preCategory || categories[0],
-      title:    preTitle || '',
+      category:    preCategory || categories[0],
+      title:       preTitle || '',
+      outcome:     preOutcome || '',
+      notes:       preNotes || '',
+      target_date: preTargetDate || '',
     },
   })
 
@@ -250,6 +260,22 @@ export default function NewObjectivePage() {
             <p style={{ fontWeight: 600, color: 'var(--ov-amber)', fontSize: '12px', marginBottom: '2px' }}>Continuing from a closed goal</p>
             <p style={{ color: 'var(--ov-text-mid)', fontSize: '12px' }}>{decodeURIComponent(preTitle)}</p>
           </div>
+        </div>
+      )}
+
+      {/* Clone banner */}
+      {cloned === '1' && !cloneBannerDismissed && (
+        <div className="mb-4 px-4 py-3 rounded-xl flex items-start justify-between gap-2.5"
+          style={{ backgroundColor: 'rgba(59,130,246,.08)', border: '1px solid rgba(59,130,246,.25)' }}>
+          <div className="flex items-start gap-2.5">
+            <Copy size={14} style={{ color: 'var(--blue)', flexShrink: 0, marginTop: '2px' }} />
+            <p style={{ fontSize: '12px', color: 'var(--text2)' }}>
+              Cloned from an archived goal — review and update before saving.
+            </p>
+          </div>
+          <button onClick={() => setCloneBannerDismissed(true)} style={{ color: 'var(--text3)', flexShrink: 0, padding: '0 2px' }}>
+            <X size={14} />
+          </button>
         </div>
       )}
 
