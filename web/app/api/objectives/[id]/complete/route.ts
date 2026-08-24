@@ -65,11 +65,18 @@ export async function POST(
   }
 
   // 3. Update objectives: status + closure_type
-  await supabase
+  const { error: statusErr } = await supabase
     .from('objectives')
     .update({ status: 'closed', closure_type: 'closed', updated_at: new Date().toISOString() })
     .eq('id', params.id)
     .eq('user_id', user.id)
+
+  if (statusErr) {
+    return NextResponse.json(
+      { error: 'Outcome recorded but status update failed', outcome_id: outcomeRow.id },
+      { status: 500 }
+    )
+  }
 
   // 4. Engine 4 prediction scoring + closure synthesis (non-blocking)
   try {
