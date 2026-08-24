@@ -10,7 +10,7 @@ export default async function ObjectivesPage() {
   const [{ data: objectives, error }, { data: unseenAlerts }] = await Promise.all([
     supabase
       .from('objectives')
-      .select('*')
+      .select('*, objective_outcomes(outcome_type, outcome_note, actual_completed_at, swept_at_close, prediction_id, recorded_at)')
       .eq('user_id', user.id)
       .order('sort_order', { ascending: true }),
     supabase

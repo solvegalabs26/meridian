@@ -462,7 +462,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
     } finally {
       setLoading(false)
     }
-  }, [institutionId, supabase, isRE])
+  }, [institutionId, supabase, isRE, verticalType])
 
   useEffect(() => { loadAll() }, [loadAll])
 
