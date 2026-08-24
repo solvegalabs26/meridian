@@ -395,6 +395,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
         .from('market_signals')
         .select('signal_id, source, direction_score, direction, magnitude, event_text, effective_date')
         .gte('effective_date', since.toISOString().split('T')[0])
+        .overlaps('sector_tags', [verticalType, 'all'])
         .order('direction_score', { ascending: true })
         .limit(200)
 
