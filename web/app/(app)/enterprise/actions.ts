@@ -107,3 +107,36 @@ export async function updateSignalPreferences(
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
+
+// ── FF-051: Per-case user feedback / confidence adjustment ─────────────────
+export async function updateCaseFeedback(
+  institutionId: string,
+  caseId: string,
+  feedback: {
+    user_confidence?: number | null
+    user_trend_override?: 'improving' | 'declining' | 'stable' | null
+    user_action?: string | null
+    user_status?: 'working_it' | 'escalated' | 'resolved' | 'monitoring' | null
+  }
+): Promise<{ ok: boolean; error?: string }> {
+  const authClient = createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('enterprise_case_feedback')
+    .upsert(
+      {
+        institution_id: institutionId,
+        case_id: caseId,
+        user_id: user.id,
+        ...feedback,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'institution_id,case_id,user_id' }
+    )
+
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
