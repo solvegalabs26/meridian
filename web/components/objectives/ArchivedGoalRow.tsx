@@ -19,7 +19,7 @@ interface ArchivedGoal {
   status: string
   closure_type: string | null
   updated_at: string
-  objective_outcomes: OutcomeData[] | null
+  objective_outcomes: OutcomeData[] | null | undefined
 }
 
 interface EpisodeDetail {
