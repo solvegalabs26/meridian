@@ -70,6 +70,13 @@ const SECTIONS: Section[] = [
           'This isn\'t just a graveyard. It\'s a calibration record. The engine learns from closed goals over time.',
         ],
       },
+      {
+        q: 'Can I redo a goal?',
+        body: [
+          'Yes. Open the Archived tab, expand any closed or abandoned goal, and tap Clone this goal. A new goal form opens pre-filled with the original title, outcome description, notes, and target date.',
+          'Review and update the details before saving — especially the target date, which will likely need adjusting. Cloning does not carry over your confidence history, predictions, or any tracking data from the original goal. It starts clean.',
+        ],
+      },
     ],
   },
   {
