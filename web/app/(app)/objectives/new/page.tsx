@@ -288,7 +288,7 @@ export default function NewObjectivePage() {
             Closed and abandoned goals don&apos;t count against your limit. Close an active goal to make room, or upgrade your plan for more.
           </p>
           <Link
-            href="/onboarding/plan?upgrade=true"
+            href="/settings#billing"
             className="inline-block px-4 py-2 rounded-lg bg-amber-600 text-white text-[12px] font-medium hover:bg-amber-700 transition-colors"
           >
             Upgrade plan →
