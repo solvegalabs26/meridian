@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, HelpCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveTier } from '@/lib/tiers'
 import MeridianBeacon from '@/components/brand/MeridianBeacon'
@@ -65,6 +65,18 @@ export default async function AskPage({ searchParams }: { searchParams: { q?: st
           <Link href="/settings#billing" className="text-[10px]" style={{ color: 'var(--gold)' }}>
             Add credits →
           </Link>
+          <div className="relative group flex items-center justify-end gap-1 mt-1">
+            <Link href="/ask/history" className="text-[10px]" style={{ color: 'var(--gold)' }}>
+              History
+            </Link>
+            <HelpCircle size={10} style={{ color: 'var(--gold)', flexShrink: 0 }} />
+            <div
+              className="absolute bottom-full right-0 mb-1.5 w-52 px-3 py-2 rounded-lg text-[11px] leading-relaxed pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-10"
+              style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}
+            >
+              View past Ask Meridian conversations for reference.
+            </div>
+          </div>
         </div>
       </div>
 
