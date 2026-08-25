@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import ActionsList from './ActionsList'
 import InferencePanel from '@/components/objectives/InferencePanel'
@@ -54,6 +54,7 @@ interface ObjectiveTabsProps {
   episodes: Episode[]
   objectiveDomain: string
   signalAccuracy: SignalAccuracyRow[]
+  askWidget?: ReactNode
 }
 
 const DOT_COLORS: Record<Factor['color'], string> = {
@@ -85,7 +86,7 @@ const ACTION_CLASSES = [
 
 const TABS = ["What's affecting it", 'What this Means', 'What to do', 'Signals', 'History', 'Signal Intel', 'Goal'] as const
 
-export default function ObjectiveTabs({ factors, actions, objId, objectiveId, signals, goalDescription, goalContext, tier, hasCalendar, episodes, objectiveDomain, signalAccuracy }: ObjectiveTabsProps) {
+export default function ObjectiveTabs({ factors, actions, objId, objectiveId, signals, goalDescription, goalContext, tier, hasCalendar, episodes, objectiveDomain, signalAccuracy, askWidget }: ObjectiveTabsProps) {
   const router = useRouter()
   const [active, setActive] = useState<typeof TABS[number]>(TABS[0])
   const [expandedEpisodes, setExpandedEpisodes] = useState<Set<string>>(new Set())
@@ -684,6 +685,12 @@ export default function ObjectiveTabs({ factors, actions, objId, objectiveId, si
           )
         )}
       </div>
+
+      {(active === "What's affecting it" || active === 'What this Means' || active === 'What to do') && askWidget && (
+        <div className="mt-4">
+          {askWidget}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import HeadlineCard from '@/components/dashboard/HeadlineCard'
 import GoalCard from '@/components/dashboard/GoalCard'
@@ -176,6 +177,11 @@ export default async function DashboardPage() {
       topObjectiveName={sortedObjectives[0]?.title}
       context={sweepData?.sweep_summary}
     />
+    <div className="flex justify-center pb-2">
+      <Link href="/ask/history" className="text-[10px]" style={{ color: 'var(--gold)' }}>
+        Ask Meridian History →
+      </Link>
+    </div>
     </div>
   )
 }

@@ -7,6 +7,7 @@ import SparklineBar from '@/components/objectives/SparklineBar'
 import ObjectiveDetailClient from './ObjectiveDetailClient'
 import ObjectiveTabs from './ObjectiveTabs'
 import { getConfidenceStatus } from '@/lib/utils/confidenceStatus'
+import AskMeridianLoader from '@/components/AskMeridianLoader'
 
 const EXPERIMENT_START = new Date('2026-06-23')
 
@@ -154,6 +155,7 @@ export default async function ObjectiveDetailPage({ params }: { params: { id: st
           episodes={(episodes ?? []) as import('./ObjectiveTabs').Episode[]}
           objectiveDomain={obj.category as string}
           signalAccuracy={(signalAccuracy ?? []) as import('./ObjectiveTabs').SignalAccuracyRow[]}
+          askWidget={<AskMeridianLoader />}
         />
       </div>
     </div>
