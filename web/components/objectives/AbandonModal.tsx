@@ -271,7 +271,7 @@ export default function AbandonModal({
                 backgroundColor: 'transparent', cursor: 'pointer', marginTop: '-8px',
               }}
             >
-              Actually, archive it instead
+              Pause instead
             </button>
           </>
         )}

@@ -31,9 +31,9 @@ interface Props {
 export default function ObjectivesClient({ objectives, error, alertObjectiveIds }: Props) {
   const [tab, setTab] = useState<Tab>('active')
 
-  const active   = objectives.filter(o => o.status === 'active')
+  const active   = objectives.filter(o => o.status === 'active' || o.status === 'paused')
   const archived = objectives.filter(o =>
-    o.status === 'closed' || o.status === 'paused' || o.status === 'achieved' ||
+    o.status === 'closed' || o.status === 'achieved' ||
     o.status === 'abandoned' || o.status === 'archived'
   )
 

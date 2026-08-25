@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Settings, X, Archive, Pencil, ChevronLeft, Eye, RotateCcw } from 'lucide-react'
+import { Settings, X, Pause, Pencil, ChevronLeft, Eye, RotateCcw, Play } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import WatchSourcesPanel, { type WatchSource } from '@/components/watchlist/WatchSourcesPanel'
 import CloseModal from '@/components/objectives/CloseModal'
@@ -31,23 +31,12 @@ interface Props {
 }
 
 type DrawerView = 'menu' | 'edit' | 'watch'
-type ArchiveReason = 'Personal Bandwidth Low' | 'Refocus' | 'Priority Change' | 'Other'
-
-const ARCHIVE_REASONS: ArchiveReason[] = ['Personal Bandwidth Low', 'Refocus', 'Priority Change', 'Other']
 
 export default function ObjectiveDetailClient({ obj, tier, accountType, initialSources, unseenAlertCount = 0, smsAlertsEnabled = false }: Props) {
-  const [closeModalOpen, setCloseModalOpen]   = useState(false)
+  const [closeModalOpen, setCloseModalOpen]     = useState(false)
   const [abandonModalOpen, setAbandonModalOpen] = useState(false)
-  const [archiveModalOpen, setArchiveModalOpen] = useState(false)
-
-  // Archive form state
-  const today = new Date().toISOString().split('T')[0]
-  const [archiveReason, setArchiveReason]                   = useState<ArchiveReason | ''>('')
-  const [archiveNote, setArchiveNote]                       = useState('')
-  const [archiveDate, setArchiveDate]                       = useState(today)
-  const [estimatedReactivateDate, setEstimatedReactivateDate] = useState('')
-  const [archiveSaving, setArchiveSaving]                   = useState(false)
-  const [archiveError, setArchiveError]                     = useState<string | null>(null)
+  const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false)
+  const [pauseSaving, setPauseSaving]           = useState(false)
 
   // Reopen confirmation state
   const [reopenConfirm, setReopenConfirm] = useState(false)
@@ -83,47 +72,24 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
     setReopenConfirm(false)
   }
 
-  function openArchiveModal() {
-    setArchiveReason('')
-    setArchiveNote('')
-    setArchiveDate(new Date().toISOString().split('T')[0])
-    setEstimatedReactivateDate('')
-    setArchiveError(null)
-    closeDrawer()
-    setArchiveModalOpen(true)
-  }
-
-  async function handleArchiveSubmit() {
-    if (!archiveReason || !archiveDate || !estimatedReactivateDate) return
-    if (estimatedReactivateDate <= archiveDate) {
-      setArchiveError('Estimated reactivation date must be after archive date.')
-      return
-    }
-    setArchiveSaving(true)
-    setArchiveError(null)
-
-    const res = await fetch(`/api/objectives/${obj.id}`, {
+  async function handlePause() {
+    setPauseSaving(true)
+    await fetch(`/api/objectives/${obj.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        status: 'archived',
-        archive_reason: archiveReason,
-        archive_date: archiveDate,
-        estimated_reactivate_date: estimatedReactivateDate,
-        notes: archiveNote.trim() || null,
-      }),
+      body: JSON.stringify({ status: 'paused', paused_at: new Date().toISOString() }),
     })
+    setPauseSaving(false)
+    setPauseConfirmOpen(false)
+    router.refresh()
+  }
 
-    setArchiveSaving(false)
-
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({})) as { error?: string }
-      setArchiveError(d.error ?? 'Save failed — please try again.')
-      return
-    }
-
-    setArchiveModalOpen(false)
-    router.push('/objectives')
+  async function handleResume() {
+    await fetch(`/api/objectives/${obj.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'active', paused_at: null }),
+    })
     router.refresh()
   }
 
@@ -188,6 +154,7 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
   }
 
   const isActive   = obj.status === 'active'
+  const isPaused   = obj.status === 'paused'
   const isClosed   = obj.status === 'closed' || obj.status === 'abandoned'
   const isArchived = obj.status === 'archived'
 
@@ -208,6 +175,13 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
               Close Goal
             </button>
             <button
+              onClick={() => setPauseConfirmOpen(true)}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap"
+              style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)', backgroundColor: 'transparent' }}
+            >
+              Pause
+            </button>
+            <button
               onClick={() => setAbandonModalOpen(true)}
               className="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap"
               style={{ border: '1px solid rgba(200,90,84,.5)', color: '#C85A54', backgroundColor: 'rgba(200,90,84,.06)' }}
@@ -215,6 +189,16 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
               Abandon
             </button>
           </>
+        )}
+        {isPaused && (
+          <button
+            onClick={handleResume}
+            className="px-3 py-1.5 rounded-lg text-[12px] font-medium transition-colors whitespace-nowrap flex items-center gap-1.5"
+            style={{ background: 'var(--ov-green)', color: '#0a1628' }}
+          >
+            <Play size={11} />
+            Resume Goal
+          </button>
         )}
         <button
           onClick={openDrawer}
@@ -280,15 +264,15 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                   )}
                 </button>
 
-                {/* Archive — only for active goals */}
-                {isActive && (
+                {/* Pause — only for active goals, shown in gear as secondary action */}
+                {isPaused && (
                   <button
-                    onClick={openArchiveModal}
+                    onClick={() => { closeDrawer(); handleResume() }}
                     className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] text-left transition-colors"
                     style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}
                   >
-                    <Archive size={14} style={{ color: 'var(--ov-amber)' }} />
-                    Archive goal
+                    <Play size={14} style={{ color: 'var(--ov-green)' }} />
+                    Resume goal
                   </button>
                 )}
 
@@ -505,105 +489,51 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
           }}
           onArchiveInstead={() => {
             setAbandonModalOpen(false)
-            openArchiveModal()
+            setPauseConfirmOpen(true)
           }}
         />
       )}
 
-      {/* ── Archive modal ── */}
-      {archiveModalOpen && (
+      {/* ── Pause confirm modal ── */}
+      {pauseConfirmOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setArchiveModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/60" onClick={() => setPauseConfirmOpen(false)} />
           <div
             className="relative w-full max-w-sm rounded-2xl shadow-xl flex flex-col p-6 gap-5"
-            style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)', maxHeight: '90vh', overflowY: 'auto' }}
+            style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)' }}
           >
-            <div>
-              <h2 className="text-[16px] font-semibold mb-0.5" style={{ color: 'var(--ov-text-hi)' }}>Archive Goal</h2>
-              <p className="text-[12px]" style={{ color: 'var(--ov-text-dim)' }}>
-                {obj.title}
-              </p>
-              <p className="text-[12px] mt-2" style={{ color: 'var(--ov-text-mid)' }}>
-                Archiving pauses this goal. It stays in your history and can be reactivated any time.
-              </p>
-            </div>
-
-            {/* Archived For */}
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>
-                Archived For <span style={{ color: 'var(--ov-red)' }}>*</span>
-              </label>
-              <select
-                value={archiveReason}
-                onChange={e => setArchiveReason(e.target.value as ArchiveReason)}
-                className="w-full px-3 py-2 rounded-lg text-[13px] focus:outline-none"
-                style={{ backgroundColor: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: archiveReason ? 'var(--ov-text-hi)' : 'var(--ov-text-dim)' }}
-              >
-                <option value="" disabled>Select a reason…</option>
-                {ARCHIVE_REASONS.map(r => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>
-                Notes <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span>
-              </label>
-              <textarea
-                rows={3}
-                value={archiveNote}
-                onChange={e => setArchiveNote(e.target.value.slice(0, 500))}
-                placeholder="Anything to note about this pause?"
-                className="w-full px-3 py-2 rounded-lg text-[13px] resize-none focus:outline-none"
-                style={{ backgroundColor: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)' }}
-              />
-            </div>
-
-            {/* Archive Date */}
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>
-                Archive Date <span style={{ color: 'var(--ov-red)' }}>*</span>
-              </label>
-              <input
-                type="date"
-                value={archiveDate}
-                onChange={e => setArchiveDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-[13px] focus:outline-none"
-                style={{ backgroundColor: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', colorScheme: 'dark' }}
-              />
-            </div>
-
-            {/* Estimated Reactivate Date */}
-            <div>
-              <label className="block text-[11px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: 'var(--ov-text-dim)' }}>
-                Estimated Reactivate Date <span style={{ color: 'var(--ov-red)' }}>*</span>
-              </label>
-              <input
-                type="date"
-                value={estimatedReactivateDate}
-                min={archiveDate ? (() => { const d = new Date(archiveDate); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0] })() : today}
-                onChange={e => setEstimatedReactivateDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-[13px] focus:outline-none"
-                style={{ backgroundColor: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', colorScheme: 'dark' }}
-              />
-            </div>
-
-            {archiveError && (
-              <div className="px-3 py-2 rounded-lg text-[11px]" style={{ backgroundColor: 'rgba(200,90,84,.12)', color: '#C85A54' }}>
-                {archiveError}
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-[16px] font-semibold mb-1" style={{ color: 'var(--ov-text-hi)' }}>
+                  <Pause size={15} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle', color: 'var(--ov-text-dim)' }} />
+                  Pause this goal?
+                </h2>
+                <p className="text-[12px]" style={{ color: 'var(--ov-text-dim)' }}>{obj.title}</p>
               </div>
-            )}
-
-            <button
-              onClick={handleArchiveSubmit}
-              disabled={archiveSaving || !archiveReason || !archiveDate || !estimatedReactivateDate}
-              className="w-full py-2.5 rounded-xl text-[14px] font-medium transition-colors disabled:opacity-40"
-              style={{ background: 'var(--gold)', color: '#0a1628' }}
-            >
-              {archiveSaving ? 'Archiving...' : 'Archive Goal'}
-            </button>
+              <button onClick={() => setPauseConfirmOpen(false)} style={{ color: 'var(--ov-text-dim)', padding: '2px' }}>
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-[13px] leading-relaxed" style={{ color: 'var(--ov-text-mid)' }}>
+              Meridian won&apos;t check in on this goal while it&apos;s paused, and it won&apos;t count against your active goal limit. You can resume at any time.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPauseConfirmOpen(false)}
+                className="flex-1 py-2.5 rounded-xl text-[13px] transition-colors"
+                style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-dim)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePause}
+                disabled={pauseSaving}
+                className="flex-1 py-2.5 rounded-xl text-[13px] font-medium transition-colors disabled:opacity-40"
+                style={{ backgroundColor: 'var(--ov-border-md)', color: 'var(--ov-text-hi)' }}
+              >
+                {pauseSaving ? 'Pausing...' : 'Pause Goal'}
+              </button>
+            </div>
           </div>
         </div>
       )}
