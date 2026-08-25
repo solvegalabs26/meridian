@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Settings, X, Pause, Pencil, ChevronLeft, Eye, RotateCcw, Play } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import WatchSourcesPanel, { type WatchSource } from '@/components/watchlist/WatchSourcesPanel'
 import CloseModal from '@/components/objectives/CloseModal'
@@ -275,6 +276,17 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                     Resume goal
                   </button>
                 )}
+
+                {/* Archive — view all completed goals */}
+                <Link
+                  href="/objectives/archive"
+                  onClick={closeDrawer}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] transition-colors"
+                  style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)' }}
+                >
+                  <RotateCcw size={14} style={{ color: 'var(--ov-text-dim)' }} />
+                  View archive
+                </Link>
 
                 {/* Reopen / Reactivate — for closed, abandoned, or archived goals */}
                 {(isClosed || isArchived) && (
