@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation'
 import WatchSourcesPanel, { type WatchSource } from '@/components/watchlist/WatchSourcesPanel'
 import CloseModal from '@/components/objectives/CloseModal'
 import AbandonModal from '@/components/objectives/AbandonModal'
-import AskMeridianBar from '@/components/ask/AskMeridianBar'
 
 interface ObjProps {
   id: string
@@ -494,12 +493,6 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
           }}
         />
       )}
-
-      {/* ── Ask Meridian bar ── */}
-      <AskMeridianBar
-        placeholder={`Ask Meridian about "${obj.title}"…`}
-        topObjectiveName={obj.title}
-      />
 
       {/* ── Pause confirm modal ── */}
       {pauseConfirmOpen && (
