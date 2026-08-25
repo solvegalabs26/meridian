@@ -51,9 +51,12 @@ const SECTIONS: Section[] = [
         callout: { type: 'caution', text: 'Your confidence score, prediction history, and signal analysis are all tied to your original objective description and target date. Editing either one may shift how the engine interprets past and future sweeps. Your history is preserved — but the context the engine uses going forward will reflect your updated details.' },
       },
       {
-        q: 'How do I archive an objective without deleting it?',
-        body: ['Open the objective, tap the ⚙ gear icon, and select Archive objective. Archived objectives stop receiving scheduled sweeps but retain all history, predictions, and confidence data. You can unarchive any time from the same menu.'],
-        callout: { type: 'info', text: 'Use archive when a goal is on hold due to timing or external blockers — not when the goal itself has changed. If the outcome has shifted, update the description instead.' },
+        q: 'What does Pause Goal do?',
+        body: [
+          'Pause suspends your goal without closing it. Meridian won\'t send check-ins or run sweeps on it while it\'s paused, and it won\'t count against your active goal limit — freeing a slot if you want to start something new. You can resume at any time and pick up where you left off.',
+          'Use Pause when life gets busy and you plan to come back. Use Close when you\'ve reached a deliberate decision. Use Abandon when a goal has simply fizzled with no real conclusion.',
+        ],
+        callout: { type: 'info', text: 'Paused goals appear in your active goal list with a Paused badge. They keep all their history, confidence data, and predictions — nothing is lost.' },
       },
       {
         q: 'Should I Close or Abandon a Goal?',
