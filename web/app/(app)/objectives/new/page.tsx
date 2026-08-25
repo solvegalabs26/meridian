@@ -282,9 +282,11 @@ export default function NewObjectivePage() {
       {error?.startsWith('limit:') && (
         <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-[13px]">
           <p className="font-medium text-amber-900 mb-1">
-            You&apos;ve reached your {error.split(':')[1]}-goal limit.
+            You&apos;ve reached your limit of {error.split(':')[1]} active goals.
           </p>
-          <p className="text-amber-700 mb-3">Upgrade your plan to track more goals.</p>
+          <p className="text-amber-700 mb-3">
+            Closed and abandoned goals don&apos;t count against your limit. Close an active goal to make room, or upgrade your plan for more.
+          </p>
           <Link
             href="/onboarding/plan?upgrade=true"
             className="inline-block px-4 py-2 rounded-lg bg-amber-600 text-white text-[12px] font-medium hover:bg-amber-700 transition-colors"
