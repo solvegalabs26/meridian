@@ -30,6 +30,7 @@ interface ObjectiveStateInput {
   recentChange?: { changed_field: string; changed_at: string } | null
   outcomeRow?: { outcome_type: string; outcome_note: string | null; actual_completed_at: string | null } | null
   coherencePackage?: CoherencePackage | null
+  scoredPredictionNotes?: { accuracy_score: number | null; notes: string }[] | null
 }
 
 function truncateNotes(notes: string | null | undefined, objectiveId: string): string | null {
@@ -42,9 +43,18 @@ function truncateNotes(notes: string | null | undefined, objectiveId: string): s
   return notes.slice(0, truncAt).trimEnd() + ' [notes truncated]'
 }
 
+function extractScoringNote(notes: string): string | null {
+  const marker = '[Scoring note'
+  const start = notes.indexOf(marker)
+  if (start === -1) return null
+  const end = notes.indexOf('[Scoring note', start + 1)
+  const raw = end !== -1 ? notes.slice(start, end) : notes.slice(start)
+  return raw.trim().slice(0, 400) || null
+}
+
 export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
   return {
-    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext, askContext, episodeHistory, signalAbsenceCount, recentChange, outcomeRow, coherencePackage }) => {
+    objectives: inputs.map(({ objective, confidenceHistory, recentSignals, openActions, comps, completedActionsContext, askContext, episodeHistory, signalAbsenceCount, recentChange, outcomeRow, coherencePackage, scoredPredictionNotes }) => {
       const obj = objective as Objective & {
         objective_type?: string | null
         deadline_type?: 'hard' | 'soft'
@@ -171,6 +181,24 @@ export function buildObjectiveState(inputs: ObjectiveStateInput[]) {
             p_sale_by_horizon_estimate: comps.p_sale_by_horizon_estimate,
           },
         })
+      }
+
+      // Inject user-authored scoring notes (FF-054) for MISS/PARTIAL predictions.
+      // Only present on non-user_action sweeps when the user wrote a note at scoring time.
+      // Directive: surface signal sources that would have caught this outcome earlier.
+      if (scoredPredictionNotes && scoredPredictionNotes.length > 0) {
+        const directives = scoredPredictionNotes
+          .map(p => extractScoringNote(p.notes))
+          .filter((n): n is string => n !== null)
+        if (directives.length > 0) {
+          Object.assign(base, {
+            prior_prediction_miss_directives: directives.map(note => ({
+              instruction: 'PRIOR PREDICTION MISS — SIGNAL SOURCING DIRECTIVE',
+              note,
+              guidance: 'Use this context to identify and prioritize signal sources that would have surfaced this outcome earlier. Surface any signals related to the conditions described above.',
+            })),
+          })
+        }
       }
 
       return base

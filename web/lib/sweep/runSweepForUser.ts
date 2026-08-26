@@ -328,6 +328,34 @@ export async function runSweepForUser(
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — outcome rows fetched (${latestOutcomeByObjId.size} objectives with recorded outcomes)`)
 
+    // 4g. Fetch user-authored scoring notes for MISS/PARTIAL predictions (FF-054).
+    // Only injected on non-user_action sweeps. Filters to accuracy_score <= 3 rows
+    // that contain a [Scoring note marker, then groups by objective_id.
+    const scoredPredNotesByObjId = new Map<string, { accuracy_score: number | null; notes: string }[]>()
+    if (triggerType !== 'user_action') {
+      const { data: scoredPredRaw } = await supabase
+        .from('predictions')
+        .select('objective_id, accuracy_score, notes')
+        .eq('user_id', userId)
+        .in('objective_id', objectives.map(o => o.id))
+        .lte('accuracy_score', 3)
+        .not('accuracy_score', 'is', null)
+        .not('notes', 'is', null)
+
+      for (const row of scoredPredRaw ?? []) {
+        const noteStr = row.notes as string
+        if (!noteStr.includes('[Scoring note')) continue
+        const objId = row.objective_id as string
+        if (!scoredPredNotesByObjId.has(objId)) scoredPredNotesByObjId.set(objId, [])
+        scoredPredNotesByObjId.get(objId)!.push({
+          accuracy_score: row.accuracy_score as number | null,
+          notes: noteStr,
+        })
+      }
+    }
+
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — scoring notes fetched (${scoredPredNotesByObjId.size} objectives with miss directives)`)
+
     // 5. Fetch NewsAPI signals for each objective — in parallel to avoid
     // sequential latency that scales linearly with objective count.
     const newsSignalsMap: Record<string, Awaited<ReturnType<typeof fetchNewsSignals>>> = {}
@@ -411,7 +439,7 @@ export async function runSweepForUser(
       const episodeHistory = episodeHistoryByObjId.get(obj.id) ?? []
       const signalAbsenceCount = episodeHistory.filter(ep => ep.signal_count === 0).length
 
-      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined, askContext: askContext || undefined, episodeHistory, signalAbsenceCount, recentChange: latestChangeByObjId.get(obj.id) ?? null, outcomeRow: latestOutcomeByObjId.get(obj.id) ?? null, coherencePackage: coherenceMap[obj.id] ?? null }
+      return { objective: obj, confidenceHistory: history, recentSignals, comps: compsMap[obj.id] ?? null, completedActionsContext: completedActionsContext || undefined, askContext: askContext || undefined, episodeHistory, signalAbsenceCount, recentChange: latestChangeByObjId.get(obj.id) ?? null, outcomeRow: latestOutcomeByObjId.get(obj.id) ?? null, coherencePackage: coherenceMap[obj.id] ?? null, scoredPredictionNotes: scoredPredNotesByObjId.get(obj.id) ?? null }
     })
 
     // Inject upcoming calendar events for Explorer+ users who have a synced connection.
