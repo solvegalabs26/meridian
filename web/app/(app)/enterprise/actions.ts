@@ -108,6 +108,87 @@ export async function updateSignalPreferences(
   return { ok: true }
 }
 
+// ── FF-042 + FF-043: Progressive RE sweep + portfolio signal pass ──────────
+import { planProgressiveSweepRE, executeProgressiveSweepRE } from '@/lib/enterprise/progressive-sweep-re'
+import type { ProgressiveSweepREPlan, ProgressiveSweepREResult } from '@/lib/enterprise/progressive-sweep-re'
+import { runPortfolioSignalPass } from '@/lib/enterprise/portfolio-signal-pass'
+import type { PortfolioSignalPassResult } from '@/lib/enterprise/portfolio-signal-pass'
+
+// FF-042 — plan only, no Anthropic calls
+export async function getProgressiveSweepPlan(
+  institutionId: string
+): Promise<{ ok: boolean; plan?: ProgressiveSweepREPlan; error?: string }> {
+  const authClient = createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const supabase = createServiceClient()
+  const { data: institution } = await supabase
+    .from('enterprise_institutions')
+    .select('id, industry')
+    .eq('id', institutionId)
+    .single()
+
+  if (!institution) return { ok: false, error: 'Institution not found' }
+  if ((institution as { industry?: string | null }).industry !== 'real_estate') {
+    return { ok: false, error: 'getProgressiveSweepPlan is only available for real_estate institutions' }
+  }
+
+  try {
+    const plan = await planProgressiveSweepRE(institutionId)
+    return { ok: true, plan }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: msg }
+  }
+}
+
+// FF-042 — execute (calls Anthropic only for triggered objectives)
+export async function runProgressiveEnterpriseSweep(
+  institutionId: string
+): Promise<{ ok: boolean; result?: ProgressiveSweepREResult; error?: string }> {
+  const authClient = createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const supabase = createServiceClient()
+  const { data: institution } = await supabase
+    .from('enterprise_institutions')
+    .select('id, industry')
+    .eq('id', institutionId)
+    .single()
+
+  if (!institution) return { ok: false, error: 'Institution not found' }
+  if ((institution as { industry?: string | null }).industry !== 'real_estate') {
+    return { ok: false, error: 'runProgressiveEnterpriseSweep is only available for real_estate institutions' }
+  }
+
+  try {
+    const result = await executeProgressiveSweepRE(institutionId)
+    return { ok: true, result }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: msg }
+  }
+}
+
+// FF-043 — signal pass (any institution)
+export async function runEnterpriseSignalPass(
+  institutionId: string
+): Promise<{ ok: boolean; result?: PortfolioSignalPassResult; error?: string }> {
+  const authClient = createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  try {
+    const result = await runPortfolioSignalPass(institutionId)
+    return { ok: true, result }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { ok: false, error: msg }
+  }
+}
+
 // ── FF-051: Per-case user feedback / confidence adjustment ─────────────────
 export async function updateCaseFeedback(
   institutionId: string,
