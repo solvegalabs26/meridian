@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Plus, TrendingUp, X, AlertTriangle, MessageSquare } from 'lucide-react'
+import { ObjectivePopover, ObjectiveSummaryInline } from '@/components/predictions/ObjectivePopover'
 
 interface PredictionScore {
   accuracy_score: number
@@ -20,6 +21,7 @@ interface Prediction {
   accuracy_score: number | null
   scored_at: string | null
   notes: string | null
+  objective_id: string | null
   objectives?: { obj_id: string; title: string } | null
   prediction_scores?: PredictionScore[] | null
 }
@@ -235,6 +237,7 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
                   <option value="">— None —</option>
                   {objectives.map(o => <option key={o.id} value={o.id}>{o.obj_id}</option>)}
                 </select>
+                {objectiveId && <ObjectiveSummaryInline objectiveId={objectiveId} />}
               </div>
             </div>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)"
@@ -288,7 +291,14 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
                     <td className="px-4 py-3 font-mono text-[11px] text-[var(--text3)]">{p.pred_id ?? '—'}</td>
                     <td className="px-4 py-3 text-[var(--text2)] max-w-xs">
                       <p className="line-clamp-2">{p.statement}</p>
-                      {p.objectives && <p className="text-[11px] text-[var(--text3)] mt-0.5">{p.objectives.obj_id}</p>}
+                      {p.objectives && p.objective_id && (
+                        <div className="mt-0.5">
+                          <ObjectivePopover objectiveId={p.objective_id} objId={p.objectives.obj_id} />
+                        </div>
+                      )}
+                      {p.objectives && !p.objective_id && (
+                        <p className="text-[11px] text-[var(--text3)] mt-0.5">{p.objectives.obj_id}</p>
+                      )}
                       {p.accuracy_score && (
                         <div className="flex items-center gap-1.5 mt-1">
                           <div className="flex gap-0.5">
