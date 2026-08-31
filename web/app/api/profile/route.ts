@@ -17,6 +17,7 @@ export async function PATCH(request: NextRequest) {
     cohort_data_consent?: boolean
     phone_number?: string | null
     sms_alerts_enabled?: boolean
+    voice_mode?: boolean
   }
 
   const { data, error } = await supabase

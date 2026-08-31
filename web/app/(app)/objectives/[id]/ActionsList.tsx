@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { CheckCircle, X, CalendarPlus, CalendarDays, Download } from 'lucide-react'
 import { tierAtLeast } from '@/lib/tiers'
 import { googleCalendarLink } from '@/lib/calendar/googleCalendarLink'
+import { VoiceInputField } from '@/components/voice/VoiceInputField'
 
 interface ActionsListProps {
   actions: string[]
@@ -412,13 +413,12 @@ export default function ActionsList({ actions, objId, objectiveId, tier, hasCale
 
                   <div className="mb-3">
                     <label className="block text-[10px] font-semibold uppercase tracking-wide mb-1" style={{ color: 'var(--ov-text-mid)' }}>What did you do? What was the outcome?</label>
-                    <textarea
+                    <VoiceInputField
                       rows={2}
                       value={notes}
-                      onChange={e => setNotes(e.target.value)}
+                      onChange={setNotes}
                       placeholder="Describe what you did and the result..."
                       className="w-full px-3 py-2 rounded-lg text-[12px] resize-none focus:outline-none"
-                      style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)', color: '#fff' }}
                     />
                   </div>
 
