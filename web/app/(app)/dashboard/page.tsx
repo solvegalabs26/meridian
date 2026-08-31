@@ -42,6 +42,7 @@ export default async function DashboardPage() {
   })
   const voiceBrief = (latestVoiceSweep?.voice_brief ?? null) as VoiceBrief | null
   const showDrivingMode = canUseFull(voiceTier) && (voiceProfile?.voice_mode ?? false) && voiceBrief !== null && voiceBrief.taskers.length > 0
+  const showConciergeEntry = canUseFull(voiceTier)
 
   const hasSweep = !!lastSweep
   const lastSweepFailed = !!latestSweepMeta && (
@@ -175,6 +176,16 @@ export default async function DashboardPage() {
 
       {showDrivingMode && voiceBrief && (
         <DrivingModeEntry voiceBrief={voiceBrief} />
+      )}
+
+      {showConciergeEntry && (
+        <Link
+          href="/concierge"
+          className="flex items-center justify-center w-full rounded-2xl py-3 text-[14px] font-semibold transition-opacity hover:opacity-80"
+          style={{ backgroundColor: 'rgba(46,124,184,0.15)', color: '#7ab3e0', border: '1px solid rgba(46,124,184,0.25)' }}
+        >
+          Ask Meridian →
+        </Link>
       )}
 
       <CrossDepBanner crossDeps={crossDeps} />
