@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Plus, TrendingUp, X, AlertTriangle } from 'lucide-react'
+import { Plus, TrendingUp, X, AlertTriangle, MessageSquare } from 'lucide-react'
 import { TrackRecordSummaryBar } from '@/components/predictions/TrackRecordSummaryBar'
 import { ConfidenceAccuracyChart } from '@/components/predictions/ConfidenceAccuracyChart'
 import { PredictionHistoryList } from '@/components/predictions/PredictionHistoryList'
 import type { TrackRecordSummary, ScoredPrediction } from '@/lib/predictions/trackRecord'
+import { ObjectivePopover, ObjectiveSummaryInline } from '@/components/predictions/ObjectivePopover'
 
 interface PredictionScore {
   accuracy_score: number
@@ -24,6 +25,7 @@ interface Prediction {
   accuracy_score: number | null
   scored_at: string | null
   notes: string | null
+  objective_id: string | null
   objectives?: { obj_id: string; title: string } | null
   prediction_scores?: PredictionScore[] | null
 }
@@ -117,6 +119,7 @@ export default function PredictionsClient({ initialPredictions, objectives, trac
   // Scoring state (full modal — for "Score now" on due predictions)
   const [scoreOutcome, setScoreOutcome] = useState('')
   const [scoreRating, setScoreRating] = useState(3)
+  const [scoringNote, setScoringNote] = useState('')
 
   // Accuracy-only scoring state (for tapping — on scored predictions missing accuracy)
   const [accuracyRating, setAccuracyRating] = useState(3)
@@ -144,13 +147,13 @@ export default function PredictionsClient({ initialPredictions, objectives, trac
     const res = await fetch('/api/predictions', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, outcome: scoreOutcome, accuracy_score: scoreRating }),
+      body: JSON.stringify({ id, outcome: scoreOutcome, accuracy_score: scoreRating, scoring_note: scoringNote || undefined }),
     })
     if (res.ok) {
       const data = await res.json() as { prediction: Prediction }
       setPredictions(prev => prev.map(p => p.id === id ? data.prediction : p))
       setScoringId(null)
-      setScoreOutcome(''); setScoreRating(3)
+      setScoreOutcome(''); setScoreRating(3); setScoringNote('')
     }
   }
 
@@ -158,13 +161,14 @@ export default function PredictionsClient({ initialPredictions, objectives, trac
     const res = await fetch('/api/predictions', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, accuracy_score: accuracyRating }),
+      body: JSON.stringify({ id, accuracy_score: accuracyRating, scoring_note: scoringNote || undefined }),
     })
     if (res.ok) {
       const data = await res.json() as { prediction: Prediction }
       setPredictions(prev => prev.map(p => p.id === id ? data.prediction : p))
       setAccuracyId(null)
       setAccuracyRating(3)
+      setScoringNote('')
     }
   }
 
@@ -276,6 +280,7 @@ export default function PredictionsClient({ initialPredictions, objectives, trac
                   <option value="">— None —</option>
                   {objectives.map(o => <option key={o.id} value={o.id}>{o.obj_id}</option>)}
                 </select>
+                {objectiveId && <ObjectiveSummaryInline objectiveId={objectiveId} />}
               </div>
             </div>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)"
@@ -329,12 +334,26 @@ export default function PredictionsClient({ initialPredictions, objectives, trac
                     <td className="px-4 py-3 font-mono text-[11px] text-[var(--text3)]">{p.pred_id ?? '—'}</td>
                     <td className="px-4 py-3 text-[var(--text2)] max-w-xs">
                       <p className="line-clamp-2">{p.statement}</p>
-                      {p.objectives && <p className="text-[11px] text-[var(--text3)] mt-0.5">{p.objectives.obj_id}</p>}
+                      {p.objectives && p.objective_id && (
+                        <div className="mt-0.5">
+                          <ObjectivePopover objectiveId={p.objective_id} objId={p.objectives.obj_id} />
+                        </div>
+                      )}
+                      {p.objectives && !p.objective_id && (
+                        <p className="text-[11px] text-[var(--text3)] mt-0.5">{p.objectives.obj_id}</p>
+                      )}
                       {p.accuracy_score && (
-                        <div className="flex gap-0.5 mt-1">
-                          {[1,2,3,4,5].map(s => (
-                            <span key={s} className={`text-[11px] ${s <= p.accuracy_score! ? 'text-[var(--gold)]' : 'text-[var(--border)]'}`}>★</span>
-                          ))}
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <div className="flex gap-0.5">
+                            {[1,2,3,4,5].map(s => (
+                              <span key={s} className={`text-[11px] ${s <= p.accuracy_score! ? 'text-[var(--gold)]' : 'text-[var(--border)]'}`}>★</span>
+                            ))}
+                          </div>
+                          {p.notes?.includes('[Scoring note') && (
+                            <span title="Has scoring note" style={{ flexShrink: 0, lineHeight: 1 }}>
+                              <MessageSquare size={11} style={{ color: 'var(--text3)' }} />
+                            </span>
+                          )}
                         </div>
                       )}
                     </td>
@@ -359,7 +378,7 @@ export default function PredictionsClient({ initialPredictions, objectives, trac
                         const score = getEngine4Score(p)
                         if (score === null) return (
                           <button
-                            onClick={() => { setAccuracyId(p.id); setAccuracyRating(3) }}
+                            onClick={() => { setAccuracyId(p.id); setAccuracyRating(3); setScoringNote('') }}
                             className="text-[11px] font-semibold underline"
                             style={{ color: 'var(--gold)', cursor: 'pointer' }}
                           >
@@ -386,7 +405,7 @@ export default function PredictionsClient({ initialPredictions, objectives, trac
       {/* Full scoring modal — triggered by "Score now" on due predictions */}
       {scoringId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setScoringId(null)} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setScoringId(null); setScoringNote('') }} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
             <h2 className="text-[15px] font-semibold text-[var(--text)] mb-4">Score this prediction</h2>
             <div className="space-y-4">
@@ -406,8 +425,14 @@ export default function PredictionsClient({ initialPredictions, objectives, trac
                 </div>
                 <p className="text-[11px] text-[var(--text3)] mt-1">1 = Completely wrong · 5 = Exactly right</p>
               </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-1">What happened? (optional)</label>
+                <textarea rows={2} value={scoringNote} onChange={e => setScoringNote(e.target.value)}
+                  placeholder="Describe what changed, what the engine missed, or what drove this outcome..."
+                  className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] focus:outline-none focus:border-[var(--blue)] resize-none" />
+              </div>
               <div className="flex gap-2 pt-1">
-                <button onClick={() => setScoringId(null)} className="flex-1 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text2)]">Cancel</button>
+                <button onClick={() => { setScoringId(null); setScoringNote('') }} className="flex-1 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text2)]">Cancel</button>
                 <button onClick={() => handleScore(scoringId)} disabled={!scoreOutcome.trim()}
                   className="flex-1 py-2.5 rounded-lg bg-navy text-white text-[13px] font-medium disabled:opacity-50">
                   Submit score
@@ -421,7 +446,7 @@ export default function PredictionsClient({ initialPredictions, objectives, trac
       {/* Accuracy-only modal — triggered by tapping — in accuracy column */}
       {accuracyId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setAccuracyId(null)} />
+          <div className="absolute inset-0 bg-black/40" onClick={() => { setAccuracyId(null); setScoringNote('') }} />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -432,7 +457,7 @@ export default function PredictionsClient({ initialPredictions, objectives, trac
                   linkLabel="Read the full guide"
                 />
               </div>
-              <button onClick={() => setAccuracyId(null)} style={{ color: 'var(--text3)' }}>
+              <button onClick={() => { setAccuracyId(null); setScoringNote('') }} style={{ color: 'var(--text3)' }}>
                 <X size={16} />
               </button>
             </div>
@@ -463,8 +488,15 @@ export default function PredictionsClient({ initialPredictions, objectives, trac
               <p className="text-[11px] text-[var(--text3)] mt-1">1 = Completely wrong · 5 = Exactly right</p>
             </div>
 
+            <div className="mb-4">
+              <label className="block text-[11px] font-semibold text-[var(--text2)] uppercase tracking-wide mb-1">What happened? (optional)</label>
+              <textarea rows={2} value={scoringNote} onChange={e => setScoringNote(e.target.value)}
+                placeholder="Describe what changed, what the engine missed, or what drove this outcome..."
+                className="w-full px-3 py-2.5 rounded-lg border border-[var(--border)] text-[13px] focus:outline-none focus:border-[var(--blue)] resize-none" />
+            </div>
+
             <div className="flex gap-2">
-              <button onClick={() => setAccuracyId(null)} className="flex-1 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text2)]">Cancel</button>
+              <button onClick={() => { setAccuracyId(null); setScoringNote('') }} className="flex-1 py-2.5 rounded-lg border border-[var(--border)] text-[13px] text-[var(--text2)]">Cancel</button>
               <button onClick={() => handleAccuracy(accuracyId)}
                 className="flex-1 py-2.5 rounded-lg bg-navy text-white text-[13px] font-medium">
                 Save score
