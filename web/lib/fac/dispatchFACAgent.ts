@@ -107,7 +107,11 @@ Return only signals with material relevance (confidence_implication > 5 or < -5)
 
     let reports: FACReport[] = [];
     try {
-      const cleaned = text.replace(/```json|```/g, '').trim();
+      const cleaned = text
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
       reports = JSON.parse(cleaned);
       if (!Array.isArray(reports)) reports = [];
     } catch {
