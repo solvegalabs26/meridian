@@ -23,6 +23,8 @@ interface Profile {
   created_at: string | null
   phone_number: string | null
   sms_alerts_enabled: boolean | null
+  voice_mode: boolean | null
+  voice_addon: boolean | null
 }
 
 interface Props {
@@ -64,6 +66,11 @@ export default function SettingsClient({ email, profile }: Props) {
   const [smsSaving, setSmsSaving] = useState(false)
   const [smsSaved, setSmsSaved] = useState(false)
   const [smsError, setSmsError] = useState<string | null>(null)
+
+  // Voice state
+  const [voiceMode, setVoiceMode] = useState<boolean>(profile?.voice_mode ?? false)
+  const [voiceSaving, setVoiceSaving] = useState(false)
+  const [voiceSaved, setVoiceSaved] = useState(false)
 
   // Push state
   const [pushStatus, setPushStatus] = useState<'idle' | 'requesting' | 'granted' | 'error'>('idle')
@@ -125,6 +132,22 @@ export default function SettingsClient({ email, profile }: Props) {
       setSmsError(d.error ?? 'Save failed')
     }
     setSmsSaving(false)
+  }
+
+  async function handleVoiceModeToggle() {
+    setVoiceSaving(true)
+    const next = !voiceMode
+    const res = await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voice_mode: next }),
+    })
+    if (res.ok) {
+      setVoiceMode(next)
+      setVoiceSaved(true)
+      setTimeout(() => setVoiceSaved(false), 2000)
+    }
+    setVoiceSaving(false)
   }
 
   async function handlePushEnable() {
@@ -352,6 +375,34 @@ export default function SettingsClient({ email, profile }: Props) {
                 {pushStatus === 'granted' && (
                   <span className="text-[13px] text-[var(--green)] font-medium">✓ Active</span>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Voice */}
+        <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
+          <h2 className="text-[13px] font-semibold text-[var(--text)] uppercase tracking-wider mb-4">Voice</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[13px] text-[var(--text2)]">Always use voice input</p>
+              <p className="text-[11px] text-[var(--text3)] mt-0.5">
+                Mic icon appears on all text fields. Tap to speak instead of type.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {voiceSaved && <span className="text-[12px] text-[var(--green)]">✓ Saved</span>}
+              <div
+                onClick={() => !voiceSaving && handleVoiceModeToggle()}
+                className={`relative w-10 h-6 rounded-full transition-colors ${
+                  voiceMode ? 'bg-navy' : 'bg-gray-300'
+                } ${voiceSaving ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}
+              >
+                <span
+                  className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                    voiceMode ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
               </div>
             </div>
           </div>
