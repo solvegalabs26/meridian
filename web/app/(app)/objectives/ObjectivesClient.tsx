@@ -6,6 +6,10 @@ import { Plus } from 'lucide-react'
 import ObjectiveCard from '@/components/objectives/ObjectiveCard'
 import { ArchivedGoalRow } from '@/components/objectives/ArchivedGoalRow'
 import { Objective } from '@/lib/utils/types'
+import { canUseBrief, type VoiceTier } from '@/lib/voice/voiceTier'
+import type { VoiceBrief } from '@/lib/voice/voiceBriefTypes'
+import { VoiceBriefPlayer } from '@/components/voice/VoiceBriefPlayer'
+import { ActionRunner } from '@/components/voice/ActionRunner'
 
 type Tab = 'active' | 'archived' | 'all'
 
@@ -26,10 +30,14 @@ interface Props {
   objectives: ObjectiveWithOutcome[]
   error: string | null
   alertObjectiveIds?: Set<string>
+  voiceTier?: VoiceTier
+  voiceBrief?: VoiceBrief | null
 }
 
-export default function ObjectivesClient({ objectives, error, alertObjectiveIds }: Props) {
+export default function ObjectivesClient({ objectives, error, alertObjectiveIds, voiceTier, voiceBrief }: Props) {
   const [tab, setTab] = useState<Tab>('active')
+  const [voicePhase, setVoicePhase] = useState<'idle' | 'brief' | 'runner' | 'done'>('idle')
+  const showVoiceEntry = canUseBrief(voiceTier ?? 'input') && voiceBrief && voiceBrief.taskers.length > 0
 
   const active   = objectives.filter(o => o.status === 'active' || o.status === 'paused')
   const archived = objectives.filter(o =>
@@ -68,6 +76,40 @@ export default function ObjectivesClient({ objectives, error, alertObjectiveIds 
           Add goal
         </Link>
       </div>
+
+      {/* Voice session widget */}
+      {showVoiceEntry && voiceBrief && voicePhase === 'idle' && (
+        <div className="mb-5 rounded-2xl border border-[var(--border)] p-4 flex items-center justify-between" style={{ backgroundColor: 'rgba(46,124,184,0.04)' }}>
+          <div>
+            <p className="text-[13px] font-medium" style={{ color: 'var(--text)' }}>Voice Brief ready</p>
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--text3)' }}>
+              {voiceBrief.taskers.length} tasker{voiceBrief.taskers.length !== 1 ? 's' : ''} from your last sweep
+            </p>
+          </div>
+          <button
+            onClick={() => setVoicePhase('brief')}
+            className="px-4 py-2 rounded-lg text-[13px] font-medium"
+            style={{ backgroundColor: 'var(--blue)', color: '#fff' }}
+          >
+            Play Brief
+          </button>
+        </div>
+      )}
+      {showVoiceEntry && voiceBrief && voicePhase === 'brief' && (
+        <div className="mb-5 rounded-2xl border border-[var(--border)] p-4">
+          <VoiceBriefPlayer brief={voiceBrief} onTaskersReady={() => setVoicePhase('runner')} />
+        </div>
+      )}
+      {showVoiceEntry && voiceBrief && voicePhase === 'runner' && (
+        <div className="mb-5 rounded-2xl border border-[var(--border)] p-4">
+          <ActionRunner brief={voiceBrief} onComplete={() => setVoicePhase('done')} />
+        </div>
+      )}
+      {voicePhase === 'done' && (
+        <div className="mb-5 rounded-2xl border border-[var(--border)] p-4">
+          <p className="text-[13px] font-medium" style={{ color: 'var(--green)' }}>✓ Voice session complete</p>
+        </div>
+      )}
 
       {/* Tab links */}
       <div className="flex items-center gap-6 mb-6">
