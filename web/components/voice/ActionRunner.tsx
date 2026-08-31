@@ -12,9 +12,10 @@ interface ActionRunnerProps {
   brief: VoiceBrief
   onComplete: () => void
   drivingMode?: boolean
+  onConciergeRequest?: (question: string) => void
 }
 
-export function ActionRunner({ brief, onComplete, drivingMode }: ActionRunnerProps) {
+export function ActionRunner({ brief, onComplete, drivingMode, onConciergeRequest }: ActionRunnerProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [status, setStatus] = useState<ActionRunnerStatus>('idle')
   const [intent, setIntent] = useState<VoiceIntent | null>(null)
@@ -87,6 +88,21 @@ export function ActionRunner({ brief, onComplete, drivingMode }: ActionRunnerPro
       return
     }
 
+    // "Ask Meridian [question]" — pause runner, open Concierge
+    const lower = transcript.toLowerCase()
+    if (lower.startsWith('ask meridian') && onConciergeRequest) {
+      const question = transcript.slice('ask meridian'.length).trim()
+      if (question) {
+        stopListening()
+        speak('One moment.')
+        onConciergeRequest(question)
+        // Reset to re-announce current tasker after Concierge closes
+        announcedRef.current = false
+        setStatus('idle')
+        return
+      }
+    }
+
     setStatus('parsing')
     fetch('/api/voice/parse', {
       method: 'POST',
@@ -117,7 +133,7 @@ export function ActionRunner({ brief, onComplete, drivingMode }: ActionRunnerPro
         resetTranscript()
       })
       .catch(() => { void deferTasker(tasker!); advance() })
-  }, [status, transcript, tasker, drivingMode, stopListening, speak, deferTasker, advance, resetTranscript, onComplete])
+  }, [status, transcript, tasker, drivingMode, stopListening, speak, deferTasker, advance, resetTranscript, onComplete, onConciergeRequest])
 
   async function executeTasker(t: VoiceBriefTasker, i: VoiceIntent) {
     setStatus('writing')

@@ -10,6 +10,7 @@ import ConfidenceGraph, { type ObjectiveSeries } from '@/components/dashboard/Co
 import AskMeridianBar from '@/components/ask/AskMeridianBar'
 import AskMeridianLoader from '@/components/AskMeridianLoader'
 import { getConfidenceStatus } from '@/lib/utils/confidenceStatus'
+import { userVoiceTier, canUseFull } from '@/lib/voice/voiceTier'
 
 const STATUS_RANK = { risk: 0, watch: 1, on_track: 2 }
 
@@ -21,7 +22,7 @@ export default async function DashboardPage() {
   const calWindowEnd = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000)
 
   const [{ data: profile }, { data: objectives }, { data: lastSweep }, { data: unreadSignals }, { data: upcomingEvents }, { data: episodeData }, { data: latestSweepMeta }] = await Promise.all([
-    supabase.from('profiles').select('full_name, sweep_count, tier, account_type').eq('id', user!.id).single(),
+    supabase.from('profiles').select('full_name, sweep_count, tier, account_type, voice_addon').eq('id', user!.id).single(),
     supabase.from('objectives').select('id, obj_id, title, confidence, confidence_prev, target_date, updated_at, status').eq('user_id', user!.id).eq('status', 'active').order('sort_order'),
     supabase.from('sweeps').select('*').eq('user_id', user!.id).eq('status', 'complete').not('raw_response', 'is', null).order('completed_at', { ascending: false }).limit(1).single(),
     supabase.from('signals').select('objective_ids').eq('user_id', user!.id).eq('is_read', false),
@@ -29,6 +30,14 @@ export default async function DashboardPage() {
     supabase.from('objective_episodes').select('objective_id, episode_number, confidence_end, created_at, narrative').eq('user_id', user!.id).order('episode_number', { ascending: true }),
     supabase.from('sweeps').select('status, raw_response').eq('user_id', user!.id).neq('trigger_type', 'user_action').order('completed_at', { ascending: false }).limit(1).single(),
   ])
+
+  const voiceProfile = profile as { tier?: string | null; account_type?: string | null; voice_addon?: boolean | null } | null
+  const voiceTier = userVoiceTier({
+    pricing_tier: voiceProfile?.tier ?? null,
+    account_type: voiceProfile?.account_type ?? null,
+    voice_addon: voiceProfile?.voice_addon ?? false,
+  })
+  const showConciergeEntry = canUseFull(voiceTier)
 
   const hasSweep = !!lastSweep
   const lastSweepFailed = !!latestSweepMeta && (
@@ -159,6 +168,16 @@ export default async function DashboardPage() {
       </div>
 
       <AskMeridianLoader />
+
+      {showConciergeEntry && (
+        <Link
+          href="/concierge"
+          className="flex items-center justify-center w-full rounded-2xl py-3 text-[14px] font-semibold transition-opacity hover:opacity-80"
+          style={{ backgroundColor: 'rgba(46,124,184,0.15)', color: '#7ab3e0', border: '1px solid rgba(46,124,184,0.25)' }}
+        >
+          Ask Meridian →
+        </Link>
+      )}
 
       <CrossDepBanner crossDeps={crossDeps} />
 
