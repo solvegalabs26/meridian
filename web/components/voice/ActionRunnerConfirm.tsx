@@ -57,6 +57,7 @@ export function ActionRunnerConfirm({ intent, tasker, onConfirm, onRedo, onDefer
   return (
     <div className="rounded-xl p-4 space-y-3" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--gray-lt)' }}>
       <div className="space-y-1">
+        <p className="text-[12px] font-medium" style={{ color: 'var(--text)' }}>{tasker.objective_title}</p>
         {intent.action_type && (
           <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: 'var(--text3)' }}>
             {ACTION_LABELS[intent.action_type] ?? intent.action_type}
