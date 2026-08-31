@@ -13,6 +13,7 @@ import { tierAtLeast } from '@/lib/tiers'
 import { autoLogPredictions, ObjectiveWithConfidenceDelta } from '@/lib/sweep/autoLogPredictions'
 import { getSignalClassWeights } from '@/lib/engine4/getSignalClassWeights'
 import { buildCoherencePackage, formatCoherencePackageForPrompt, type CoherencePackage } from '@/lib/sweep/buildCoherencePackage'
+import { dispatchFACAgent, type FACReport } from '@/lib/fac/dispatchFACAgent'
 
 export interface SweepObjectiveResult {
   id: string
@@ -39,6 +40,7 @@ export interface RunSweepResult {
   tokensUsed: number
   costUsd: number
   error: string | null
+  facReports: FACReport[]
 }
 
 // Core sweep orchestration, extracted from app/api/sweep/route.ts so it can
@@ -72,7 +74,8 @@ function buildCompletedContext(
 async function generateInferenceBlock(
   objective: { id: string; obj_id: string; title: string; notes?: string | null; target_date?: string | null; context?: Record<string, unknown> | null },
   sweepResult: ObjectiveResult,
-  recentChange: { changed_field: string; changed_at: string } | null
+  recentChange: { changed_field: string; changed_at: string } | null,
+  facReports?: FACReport[]
 ): Promise<InferenceBlock | null> {
   try {
     const msg = await getAnthropicClient().messages.create({
@@ -83,7 +86,7 @@ async function generateInferenceBlock(
       ] satisfies TextBlockParam[],
       messages: [{
         role: 'user',
-        content: buildInferenceInput(objective, sweepResult, recentChange),
+        content: buildInferenceInput(objective, sweepResult, recentChange, facReports),
       }],
     })
 
@@ -144,6 +147,7 @@ export async function runSweepForUser(
     tokensUsed: 0,
     costUsd: 0,
     error: null,
+    facReports: [],
   }
 
   // Look up the user's email once — needed for the existing per-objective
@@ -154,7 +158,7 @@ export async function runSweepForUser(
   // 2. Load user profile (including calendar URL)
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, tone_pref, depth_pref, tier, account_type, sweep_count')
+    .select('full_name, tone_pref, depth_pref, tier, account_type, sweep_count, org_source')
     .eq('id', userId)
     .single()
 
@@ -618,6 +622,58 @@ export async function runSweepForUser(
       await supabase.from('sweeps').update({ signal_class_weights: mergedWeights }).eq('id', sweep.id)
     }
 
+    // FF-056: FAC Engine — Beyond Real-Time Intelligence
+    // Dispatch after sweep synthesis, before inference block assembly.
+    // Non-fatal: sweep continues even if FAC dispatch fails for any objective.
+    const facReportsByObjId = new Map<string, FACReport[]>()
+    const orgSource = (profile as { org_source?: string | null } | null)?.org_source ?? 'arc'
+
+    // Fetch open predictions for all objectives in one query (actual column names: confidence_pct, horizon_date)
+    const { data: openPredsRaw } = await supabase
+      .from('predictions')
+      .select('objective_id, statement, confidence_pct, horizon_date')
+      .eq('user_id', userId)
+      .in('objective_id', objectives.map(o => o.id))
+      .is('accuracy_score', null)
+      .not('horizon_date', 'is', null)
+
+    const openPredsByObjId = new Map<string, Array<{ statement: string; confidence: number; horizon: string }>>()
+    for (const row of openPredsRaw ?? []) {
+      const objId = row.objective_id as string
+      if (!openPredsByObjId.has(objId)) openPredsByObjId.set(objId, [])
+      openPredsByObjId.get(objId)!.push({
+        statement: row.statement as string,
+        confidence: row.confidence_pct as number,
+        horizon: row.horizon_date as string,
+      })
+    }
+
+    await Promise.allSettled(
+      objectives
+        .filter(obj => parsedResultMap.has(obj.id))
+        .map(async obj => {
+          try {
+            const reports = await dispatchFACAgent({
+              objective_id: obj.id,
+              org_source: orgSource,
+              title: obj.title,
+              description: (obj as { goal_description?: string | null }).goal_description ?? undefined,
+              current_confidence: parsedResultMap.get(obj.id)?.confidence ?? (obj.confidence ?? 50),
+              success_condition: (obj as { success_condition?: string | null }).success_condition ?? undefined,
+              vertical: 'arc',
+              open_predictions: openPredsByObjId.get(obj.id) ?? [],
+              sweep_run_id: sweep.id,
+            })
+            if (reports.length > 0) facReportsByObjId.set(obj.id, reports)
+          } catch (err) {
+            console.error(`[FAC] Dispatch failed for objective ${obj.id} (${(obj as { obj_id?: string }).obj_id ?? ''}) — sweep continues without FAC:`, err)
+          }
+        })
+    )
+
+    const allFacReports = Array.from(facReportsByObjId.values()).flat()
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — FAC Engine complete: ${allFacReports.length} forward signals (${facReportsByObjId.size} objectives)`)
+
     // FF-016 Phase 2 — Per-objective Haiku inference pass.
     // Runs after main Sonnet sweep so each call receives the sweep result as context.
     // Same BATCH_SIZE=3 + Promise.allSettled pattern as the main sweep.
@@ -646,7 +702,8 @@ export async function runSweepForUser(
               context: (objective as { context?: Record<string, unknown> | null }).context ?? null,
             },
             sweepResult,
-            recentChange
+            recentChange,
+            facReportsByObjId.get(objId)
           )
           return { objId, inferenceBlock }
         })
@@ -1071,6 +1128,7 @@ export async function runSweepForUser(
       tokensUsed,
       costUsd,
       error: sweepErrorMsg,
+      facReports: allFacReports,
     }
 
   } catch (err) {

@@ -72,6 +72,13 @@ interface SweepReportObjective {
   actions: string[]
 }
 
+interface SweepFACReport {
+  signal_category: string
+  signal_summary: string
+  forward_signal_type: 'risk' | 'opportunity' | 'condition_change'
+  confidence_implication: number
+}
+
 // Per-account bulk-sweep report email. Unlike sendConfidenceAlert (a
 // best-effort side notification that swallows its own errors), this one
 // throws on failure so the caller (executeBulkSweepJob) can record a real
@@ -82,11 +89,13 @@ export async function sendSweepReportEmail({
   summary,
   topPriorityAction,
   objectives,
+  facReports,
 }: {
   toEmail: string
   summary: string | null
   topPriorityAction: string | null
   objectives: SweepReportObjective[]
+  facReports?: SweepFACReport[]
 }) {
   if (!RESEND_API_KEY) {
     throw new Error('RESEND_API_KEY not set — cannot send sweep report email')
@@ -134,6 +143,20 @@ export async function sendSweepReportEmail({
       ${actionsHtml ? `
         <p style="font-size: 11px; color: #8098B4; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 8px;">Recommended actions</p>
         <ul style="font-size: 13px; color: #4A5568; padding-left: 18px; margin: 0 0 24px;">${actionsHtml}</ul>
+      ` : ''}
+      ${facReports && facReports.length > 0 ? `
+        <div style="border-top: 1px solid #E2E8F0; margin: 24px 0; padding-top: 20px;">
+          <p style="font-size: 11px; color: #8098B4; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 12px;">⚡ What&apos;s ahead — FAC Engine</p>
+          ${facReports.map(r => {
+            const icon = r.forward_signal_type === 'risk' ? '⚠️' :
+                         r.forward_signal_type === 'opportunity' ? '🟢' : '📡';
+            const impl = r.confidence_implication > 0 ? `+${r.confidence_implication}%` : `${r.confidence_implication}%`;
+            return `<div style="margin-bottom: 12px;">
+              <p style="font-size: 11px; font-weight: 600; color: #1A1A2E; margin: 0 0 3px; text-transform: uppercase; letter-spacing: 0.04em;">${icon} ${r.signal_category.replace(/_/g, ' ')}</p>
+              <p style="font-size: 12px; color: #4A5568; margin: 0;">${r.signal_summary} <span style="color: #8098B4;">(Confidence: ${impl})</span></p>
+            </div>`;
+          }).join('')}
+        </div>
       ` : ''}
       <p style="font-size: 13px; color: #4A5568; margin: 0 0 20px;">
         Log in and fill out Sections A through D of your Alpha Journal based on this week's sweep.

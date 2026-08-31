@@ -51,10 +51,18 @@ interface InferenceObjectiveInput {
   notes?: string | null
 }
 
+interface FACSignal {
+  signal_category: string
+  signal_summary: string
+  forward_signal_type: string
+  confidence_implication: number | null
+}
+
 export function buildInferenceInput(
   objective: InferenceObjectiveInput,
   sweepResult: ObjectiveResult,
-  recentChange?: { changed_field: string; changed_at: string } | null
+  recentChange?: { changed_field: string; changed_at: string } | null,
+  facSignals?: FACSignal[]
 ): string {
   const notesTrunc = objective.notes
     ? objective.notes.length > 500
@@ -100,6 +108,17 @@ export function buildInferenceInput(
   }
   if (sweepResult.changed_since_last_sweep) {
     parts.push(`Changed since last sweep: ${sweepResult.changed_since_last_sweep}`)
+  }
+
+  // FF-056: inject FAC forward signals if present
+  if (facSignals && facSignals.length > 0) {
+    parts.push(
+      '',
+      '[FORWARD SIGNALS — FAC ENGINE]',
+      ...facSignals.map(r =>
+        `Signal: ${r.signal_summary}\nType: ${r.forward_signal_type.toUpperCase()} | Confidence implication: ${r.confidence_implication !== null ? (r.confidence_implication > 0 ? '+' : '') + String(r.confidence_implication) + '%' : 'unknown'}`
+      )
+    )
   }
 
   parts.push('', 'Generate the inference_block JSON for this objective only.')
