@@ -2,6 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Plus, TrendingUp, X, AlertTriangle, MessageSquare } from 'lucide-react'
+import { TrackRecordSummaryBar } from '@/components/predictions/TrackRecordSummaryBar'
+import { ConfidenceAccuracyChart } from '@/components/predictions/ConfidenceAccuracyChart'
+import { PredictionHistoryList } from '@/components/predictions/PredictionHistoryList'
+import type { TrackRecordSummary, ScoredPrediction } from '@/lib/predictions/trackRecord'
 import { ObjectivePopover, ObjectiveSummaryInline } from '@/components/predictions/ObjectivePopover'
 
 interface PredictionScore {
@@ -29,6 +33,7 @@ interface Prediction {
 interface Props {
   initialPredictions: Prediction[]
   objectives: { id: string; obj_id: string; title: string }[]
+  trackRecord: { summary: TrackRecordSummary; predictions: ScoredPrediction[] }
 }
 
 function getStatus(p: Prediction): 'open' | 'due' | 'scored' {
@@ -95,12 +100,13 @@ function InfoPopover({ content, linkHref, linkLabel }: { content: string; linkHr
   )
 }
 
-export default function PredictionsClient({ initialPredictions, objectives }: Props) {
+export default function PredictionsClient({ initialPredictions, objectives, trackRecord }: Props) {
   const [predictions, setPredictions] = useState(initialPredictions)
   const [showForm, setShowForm] = useState(false)
   const [scoringId, setScoringId] = useState<string | null>(null)
   const [accuracyId, setAccuracyId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'due' | 'scored'>('all')
+  const [activeTab, setActiveTab] = useState<'predictions' | 'track-record'>('predictions')
 
   // Form state
   const [statement, setStatement] = useState('')
@@ -170,6 +176,43 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
 
   return (
     <div className="max-w-4xl">
+      {/* Tab selector */}
+      <div className="flex gap-2 mb-5">
+        <button
+          onClick={() => setActiveTab('predictions')}
+          className={`text-[13px] px-4 py-2 rounded-lg font-medium transition-colors ${
+            activeTab === 'predictions'
+              ? 'bg-navy text-white'
+              : 'bg-white border border-[var(--border)] text-[var(--text2)] hover:border-[var(--blue-mid)]'
+          }`}
+        >
+          Prediction Log
+        </button>
+        <button
+          onClick={() => setActiveTab('track-record')}
+          className={`text-[13px] px-4 py-2 rounded-lg font-medium transition-colors ${
+            activeTab === 'track-record'
+              ? 'bg-navy text-white'
+              : 'bg-white border border-[var(--border)] text-[var(--text2)] hover:border-[var(--blue-mid)]'
+          }`}
+        >
+          Track Record
+        </button>
+      </div>
+
+      {/* Track Record panel */}
+      {activeTab === 'track-record' && (
+        <div>
+          <TrackRecordSummaryBar summary={trackRecord.summary} />
+          <div className="bg-white border border-[var(--border)] rounded-2xl p-5 mb-4">
+            <ConfidenceAccuracyChart predictions={trackRecord.predictions} />
+          </div>
+          <PredictionHistoryList predictions={trackRecord.predictions} />
+        </div>
+      )}
+
+      {/* Prediction Log panel */}
+      {activeTab === 'predictions' && <>
       <div className="flex items-start justify-between gap-3 mb-5">
         <div>
           <div className="flex items-center gap-2">
@@ -356,6 +399,8 @@ export default function PredictionsClient({ initialPredictions, objectives }: Pr
           </table>
         </div>
       )}
+
+      </>}
 
       {/* Full scoring modal — triggered by "Score now" on due predictions */}
       {scoringId && (
