@@ -663,6 +663,8 @@ export async function runSweepForUser(
               vertical: 'arc',
               open_predictions: openPredsByObjId.get(obj.id) ?? [],
               sweep_run_id: sweep.id,
+              last_fac_dispatch_at: (obj as { last_fac_dispatch_at?: string | null }).last_fac_dispatch_at ?? null,
+              last_user_action_at: (obj as { last_user_action_at?: string | null }).last_user_action_at ?? null,
             })
             if (reports.length > 0) facReportsByObjId.set(obj.id, reports)
           } catch (err) {

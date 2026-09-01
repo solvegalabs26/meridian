@@ -100,5 +100,14 @@ export async function PATCH(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // FF-061: scoring a prediction counts as user activity — reset the FAC activity gate
+  if (data?.objective_id) {
+    await supabase.from('objectives')
+      .update({ last_user_action_at: new Date().toISOString() })
+      .eq('id', data.objective_id)
+      .eq('user_id', user.id)
+  }
+
   return NextResponse.json({ prediction: data })
 }

@@ -27,6 +27,12 @@ export interface FACDispatchInput {
     horizon: string;
   }>;
   sweep_run_id?: string;
+  last_fac_dispatch_at?: string | null;
+  last_user_action_at?: string | null;
+}
+
+function daysBetween(isoDate: string, now: number = Date.now()): number {
+  return Math.floor((now - new Date(isoDate).getTime()) / (1000 * 60 * 60 * 24))
 }
 
 export async function dispatchFACAgent(input: FACDispatchInput): Promise<FACReport[]> {
@@ -43,6 +49,35 @@ export async function dispatchFACAgent(input: FACDispatchInput): Promise<FACRepo
 
   if (horizonDays > 90) {
     return [];
+  }
+
+  const now = Date.now()
+
+  // FF-061 Rule A — Activity gate: no user action in 5+ days → skip dispatch
+  const daysSinceAction = input.last_user_action_at
+    ? daysBetween(input.last_user_action_at, now)
+    : 999
+  if (daysSinceAction > 5) return []
+
+  // FF-061 Rule B — Cadence gate: FAC ran within 3 days → return cached rows
+  const daysSinceLastFAC = input.last_fac_dispatch_at
+    ? daysBetween(input.last_fac_dispatch_at, now)
+    : 999
+  if (daysSinceLastFAC < 3 && input.objective_id) {
+    const { data: cached } = await supabase
+      .from('fac_reports')
+      .select('signal_category, signal_summary, forward_signal_type, confidence_implication, source_url')
+      .eq('objective_id', input.objective_id)
+      .gte('created_at', new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(10)
+    return (cached ?? []).map(r => ({
+      signal_category: r.signal_category as string,
+      signal_summary: r.signal_summary as string,
+      forward_signal_type: r.forward_signal_type as FACReport['forward_signal_type'],
+      confidence_implication: r.confidence_implication as number,
+      source_url: (r.source_url as string | null) ?? undefined,
+    }))
   }
 
   const ctx: ObjectiveContext = {
@@ -135,6 +170,13 @@ Return only signals with material relevance (confidence_implication > 5 or < -5)
 
       const { error } = await supabase.from('fac_reports').insert(rows);
       if (error) console.error('[FAC] Insert error:', error);
+    }
+
+    // FF-061: stamp dispatch time so the cadence gate works on the next sweep
+    if (input.objective_id) {
+      await supabase.from('objectives')
+        .update({ last_fac_dispatch_at: new Date().toISOString() })
+        .eq('id', input.objective_id)
     }
 
     return reports;
