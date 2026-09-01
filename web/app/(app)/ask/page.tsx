@@ -43,24 +43,27 @@ export default async function AskPage({ searchParams }: { searchParams: { q?: st
         </Link>
         <MeridianBeacon size={22} variant="gold" animate={false} />
         <p style={{ fontFamily: "'EB Garamond', Georgia, serif", fontStyle: 'italic', fontSize: 16, color: '#fff' }}>
-          Ask Meridian Arc
+          Ask Meridian
         </p>
         <Link href="/settings?tab=billing" className="ml-auto text-[11px] font-medium" style={{ color: 'var(--ov-text-dim)' }}>
-          Ask Arc Credits: {remaining} / {baseLimit}
+          Credits: {remaining} / {baseLimit}
         </Link>
       </div>
 
       {/* Description + credit balance */}
       <div className="max-w-2xl mx-auto mb-4 flex items-start justify-between gap-4">
         <p className="text-[12px] leading-relaxed" style={{ color: 'var(--ov-text-mid)' }}>
-          Ask a specific, time-sensitive question about any of your objectives and get a grounded answer using real-time web data. Unlike scheduled sweeps, Ask responds to what you need to know right now.
+          Ask anything about your goals or the world. Meridian routes goal questions to its reasoning engine and world questions to live web intelligence — automatically.
         </p>
         <div className="flex-shrink-0 text-right">
           <p className="text-[11px] font-semibold" style={{ color: 'var(--ov-text-dim)' }}>
-            Ask Arc Credits
+            Ask Credits
           </p>
           <p className="text-[12px] font-medium" style={{ color: remaining > 0 ? 'var(--ov-text-hi)' : 'var(--ov-amber)' }}>
             {remaining}/{baseLimit} monthly · {askCredits} credit{askCredits !== 1 ? 's' : ''}
+          </p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--ov-text-dim)' }}>
+            Goal questions use 2 credits · World questions use 1 credit
           </p>
           <Link href="/settings#billing" className="text-[10px]" style={{ color: 'var(--gold)' }}>
             Add credits →
