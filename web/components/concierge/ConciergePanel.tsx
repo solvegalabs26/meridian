@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
-import { VoiceInputField } from '@/components/voice/VoiceInputField'
 import { VoiceUpgradePrompt } from '@/components/voice/VoiceUpgradePrompt'
 import { ConciergeMessage } from './ConciergeMessage'
 import type { ConciergeResponse } from '@/lib/concierge/conciergePrompt'
@@ -143,12 +142,13 @@ export function ConciergePanel({ initialQuery }: ConciergePanelProps = {}) {
       <div className="pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="flex gap-2 items-end">
           <div className="flex-1">
-            <VoiceInputField
+            <textarea
               value={input}
-              onChange={setInput}
+              onChange={e => setInput(e.target.value)}
               placeholder="Ask anything about your goals…"
               rows={1}
               disabled={loading}
+              style={{ width: '100%', resize: 'none' }}
             />
           </div>
           <button
