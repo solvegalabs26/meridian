@@ -18,6 +18,11 @@ export async function PATCH(request: NextRequest) {
     phone_number?: string | null
     sms_alerts_enabled?: boolean
     voice_mode?: boolean
+    voice_type?: string | null
+    voice_rate?: number | null
+    voice_volume?: number | null
+    voice_onboarded?: boolean | null
+    last_brief_heard_at?: string | null
   }
 
   const { data, error } = await supabase

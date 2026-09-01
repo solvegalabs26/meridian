@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import type { VoiceBriefTasker } from '@/lib/voice/voiceBriefTypes'
 import type { VoiceIntent } from '@/lib/voice/actionRunnerTypes'
+import { speak, stopSpeaking } from '@/lib/voice/ttsEngine'
 
 interface ActionRunnerConfirmProps {
   intent: VoiceIntent
@@ -25,13 +26,10 @@ const ACTION_LABELS: Record<string, string> = {
 export function ActionRunnerConfirm({ intent, tasker, onConfirm, onRedo, onDefer }: ActionRunnerConfirmProps) {
   useEffect(() => {
     if (!intent.clarifying_question) {
-      const utterance = new SpeechSynthesisUtterance(
-        `${intent.action_type ? ACTION_LABELS[intent.action_type] ?? intent.action_type : 'Action'}: ${intent.note}${intent.date ? `. Date: ${intent.date}` : ''}. Confirm?`
-      )
-      window.speechSynthesis.cancel()
-      window.speechSynthesis.speak(utterance)
+      const text = `${intent.action_type ? ACTION_LABELS[intent.action_type] ?? intent.action_type : 'Action'}: ${intent.note}${intent.date ? `. Date: ${intent.date}` : ''}. Confirm?`
+      void speak(text)
     }
-    return () => { window.speechSynthesis.cancel() }
+    return () => { stopSpeaking() }
   }, [intent])
 
   if (intent.clarifying_question) {

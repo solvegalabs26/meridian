@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import type { VoiceBrief } from '@/lib/voice/voiceBriefTypes'
+import { speak as speakTTS } from '@/lib/voice/ttsEngine'
 import { VoiceBriefSection } from './VoiceBriefSection'
 
 type Section = 'knowledge' | 'risks_opportunities' | 'action_options' | 'scores'
@@ -53,18 +54,14 @@ export function VoiceBriefPlayer({ brief, onTaskersReady }: VoiceBriefPlayerProp
   const [currentSection, setCurrentSection] = useState<Section>('knowledge')
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
 
   const speak = useCallback((text: string, onEnd?: () => void) => {
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.rate = 1.0
-    utterance.onend = () => { setIsPlaying(false); onEnd?.() }
-    utterance.onerror = () => { setIsPlaying(false); onEnd?.() }
-    utteranceRef.current = utterance
-    window.speechSynthesis.speak(utterance)
     setIsPlaying(true)
     setIsPaused(false)
+    void speakTTS(text, () => {
+      setIsPlaying(false)
+      onEnd?.()
+    })
   }, [])
 
   const advanceSection = useCallback(() => {

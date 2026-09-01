@@ -6,13 +6,22 @@ import { useRouter } from 'next/navigation'
 import type { VoiceBrief } from '@/lib/voice/voiceBriefTypes'
 import { classifyVoiceCommand, type VoiceRoute } from '@/lib/voice/commandRouter'
 import { playActivateTone, playSuccessTone, playSkipTone, playErrorTone } from '@/lib/voice/soundSystem'
+import { speak as speakTTS, stopSpeaking } from '@/lib/voice/ttsEngine'
+import { isOnline } from '@/lib/voice/networkCheck'
 import { useVoice } from '@/lib/voice/useVoice'
+import { useAppStore } from '@/store/useAppStore'
+import { createClient } from '@/lib/supabase/client'
 import { VoiceBriefPlayer } from './VoiceBriefPlayer'
 import { ActionRunner } from './ActionRunner'
 import { DrivingMode } from './DrivingMode'
 import { ConciergePanel } from '@/components/concierge/ConciergePanel'
 
 type VMState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'routing' | 'in_feature'
+
+const ONBOARDING_SCRIPT =
+  'Welcome to Voice Meridian. I am your voice interface to your goals. ' +
+  'You can say: read my week, log an action, or ask Meridian anything. ' +
+  'Say help anytime to hear all commands. Let us get started.'
 
 const RECOVERY_PHRASES = [
   'I did not catch that. Try: read my week, log an action, or ask Meridian a question.',
@@ -38,14 +47,11 @@ const HELP_COMMANDS = [
 interface VoiceMeridianProps {
   onClose: () => void
   initialBrief?: VoiceBrief | null
+  onBriefHeard?: () => void
 }
 
 function speak(text: string, onEnd?: () => void): void {
-  window.speechSynthesis.cancel()
-  const u = new SpeechSynthesisUtterance(text)
-  u.rate = 1.0
-  if (onEnd) u.onend = onEnd
-  window.speechSynthesis.speak(u)
+  void speakTTS(text, onEnd)
 }
 
 function randomPhrase(): string {
@@ -58,7 +64,7 @@ function getDefaultChips(state: VMState, route: VoiceRoute | null): string[] {
   return ['Read my week', 'Log an action', 'Ask Meridian']
 }
 
-export function VoiceMeridian({ onClose, initialBrief }: VoiceMeridianProps) {
+export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeridianProps) {
   const router = useRouter()
   const [vmState, setVMState] = useState<VMState>('idle')
   const [transcript, setTranscript] = useState('')
@@ -66,8 +72,10 @@ export function VoiceMeridian({ onClose, initialBrief }: VoiceMeridianProps) {
   const [activeFeature, setActiveFeature] = useState<'brief' | 'action_runner' | 'driving' | 'concierge' | 'help' | null>(null)
   const [conciergeQuery, setConciergeQuery] = useState<string | undefined>()
   const [showHelp, setShowHelp] = useState(false)
+  const [pendingTaskCount, setPendingTaskCount] = useState(0)
   const retryRef = useRef(false)
   const { isSupported, transcript: liveTranscript, isListening, startListening, stopListening, resetTranscript } = useVoice()
+  const { voiceOnboarded, setVoiceOnboarded, setPendingVoiceTaskCount } = useAppStore()
 
   const startListen = useCallback(() => {
     resetTranscript()
@@ -76,13 +84,52 @@ export function VoiceMeridian({ onClose, initialBrief }: VoiceMeridianProps) {
     startListening()
   }, [resetTranscript, startListening])
 
-  // On open: play activate tone and start listening
+  // On open: play activate tone then run open flow
   useEffect(() => {
     playActivateTone()
-    if (isSupported) startListen()
-    else setVMState('idle')
+    if (!isOnline()) {
+      setVMState('idle')
+      return
+    }
+    void doOpenFlow()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  async function doOpenFlow() {
+    // Step 7: onboarding moment
+    if (!voiceOnboarded) {
+      setVMState('speaking')
+      await speakTTS(ONBOARDING_SCRIPT)
+      await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voice_onboarded: true }),
+      })
+      setVoiceOnboarded(true)
+    }
+
+    // Step 5: continue-where-left-off
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { count } = await supabase
+          .from('voice_tasks')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+        if (count && count > 0) {
+          setPendingTaskCount(count)
+          setPendingVoiceTaskCount(count)
+        }
+      }
+    } catch {
+      // non-fatal
+    }
+
+    if (isSupported) startListen()
+    else setVMState('idle')
+  }
 
   // Track live transcript
   useEffect(() => {
@@ -205,7 +252,6 @@ export function VoiceMeridian({ onClose, initialBrief }: VoiceMeridianProps) {
         else setVMState('idle')
       })
     } else {
-      // Second unknown — give up and idle
       retryRef.current = false
       playErrorTone()
       setVMState('idle')
@@ -213,6 +259,10 @@ export function VoiceMeridian({ onClose, initialBrief }: VoiceMeridianProps) {
   }
 
   function handleFeatureComplete() {
+    // Step 4: mark brief heard when brief feature completes
+    if (activeFeature === 'brief') {
+      onBriefHeard?.()
+    }
     playSuccessTone()
     setActiveFeature(null)
     setCurrentRoute(null)
@@ -226,7 +276,7 @@ export function VoiceMeridian({ onClose, initialBrief }: VoiceMeridianProps) {
 
   function handleInterrupt() {
     if (vmState === 'speaking') {
-      window.speechSynthesis.cancel()
+      stopSpeaking()
       playActivateTone()
       if (isSupported) startListen()
     }
@@ -234,7 +284,7 @@ export function VoiceMeridian({ onClose, initialBrief }: VoiceMeridianProps) {
 
   function handleChipTap(cmd: string) {
     stopListening()
-    window.speechSynthesis.cancel()
+    stopSpeaking()
     void handleTranscript(cmd)
   }
 
@@ -250,6 +300,7 @@ export function VoiceMeridian({ onClose, initialBrief }: VoiceMeridianProps) {
         <button
           onClick={() => {
             playSkipTone()
+            stopSpeaking()
             onClose()
           }}
           className="text-white/60 hover:text-white transition-colors"
@@ -272,6 +323,15 @@ export function VoiceMeridian({ onClose, initialBrief }: VoiceMeridianProps) {
           ◉ MERIDIAN
         </span>
       </div>
+
+      {/* Pending tasks notice */}
+      {pendingTaskCount > 0 && vmState !== 'in_feature' && (
+        <div className="mx-6 mt-3 px-4 py-2.5 rounded-xl text-center" style={{ backgroundColor: 'rgba(200,168,75,0.1)', border: '1px solid rgba(200,168,75,0.3)' }}>
+          <p className="text-[12px]" style={{ color: 'var(--gold, #C8A84B)' }}>
+            {pendingTaskCount} pending task{pendingTaskCount !== 1 ? 's' : ''} from last session
+          </p>
+        </div>
+      )}
 
       {/* Visual state display */}
       <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6">

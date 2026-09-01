@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { speak as speakTTS, stopSpeaking } from '@/lib/voice/ttsEngine'
 import { useVoice } from '@/lib/voice/useVoice'
 import type { VoiceBrief, VoiceBriefTasker } from '@/lib/voice/voiceBriefTypes'
 import type { ActionRunnerStatus, VoiceIntent } from '@/lib/voice/actionRunnerTypes'
@@ -27,11 +28,7 @@ export function ActionRunner({ brief, onComplete, drivingMode, onConciergeReques
   const tasker: VoiceBriefTasker | undefined = brief.taskers[currentIndex]
 
   const speak = useCallback((text: string, onEnd?: () => void) => {
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.onend = () => onEnd?.()
-    utterance.onerror = () => onEnd?.()
-    window.speechSynthesis.speak(utterance)
+    void speakTTS(text, onEnd)
   }, [])
 
   const deferTasker = useCallback(async (t: VoiceBriefTasker) => {
@@ -240,7 +237,7 @@ export function ActionRunner({ brief, onComplete, drivingMode, onConciergeReques
             </button>
           )}
           <button
-            onClick={() => { window.speechSynthesis.cancel(); stopListening(); void deferTasker(tasker); advance() }}
+            onClick={() => { stopSpeaking(); stopListening(); void deferTasker(tasker); advance() }}
             className="flex-1 py-2 rounded-lg text-[13px]"
             style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
           >
