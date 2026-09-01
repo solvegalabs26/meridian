@@ -52,7 +52,11 @@ export async function PATCH(
   if ('deadline_type' in body)             update.deadline_type = body.deadline_type
   if ('reservation_price' in body)         update.reservation_price = body.reservation_price ?? null
   if ('context' in body)                   update.context = body.context ?? {}
-  if ('notes' in body)                     update.notes = body.notes ?? null
+  if ('notes' in body) {
+    update.notes = body.notes ?? null
+    // FF-061: notes edit counts as user activity — reset the FAC activity gate
+    update.last_user_action_at = new Date().toISOString()
+  }
   if ('outcome' in body)                   update.outcome = body.outcome
   if ('success_condition' in body)         update.success_condition = body.success_condition ?? null
   if ('status' in body)                    update.status = body.status
