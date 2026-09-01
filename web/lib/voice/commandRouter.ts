@@ -1,5 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk'
-
 export type VoiceRoute =
   | 'brief'
   | 'action_runner'
@@ -49,21 +47,15 @@ export async function classifyVoiceCommand(
     }
   }
 
-  // Haiku fallback for ambiguous input
+  // Haiku fallback via server API route (keeps @anthropic-ai/sdk off the client bundle)
   try {
-    const client = new Anthropic()
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 100,
-      messages: [{
-        role: 'user',
-        content: `Classify this voice command into one of these routes: brief, action_runner, score, concierge, driving_mode, scores, new_goal, help, stop, unknown. Command: "${transcript}" Return ONLY JSON: { "route": "..." }`,
-      }],
+    const res = await fetch('/api/voice/classify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript }),
     })
-    const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-    const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
-    const parsed = JSON.parse(cleaned) as { route: VoiceRoute }
-    return { route: parsed.route ?? 'unknown' }
+    const data = await res.json() as { route: VoiceRoute }
+    return { route: data.route ?? 'unknown' }
   } catch {
     return { route: 'unknown' }
   }
