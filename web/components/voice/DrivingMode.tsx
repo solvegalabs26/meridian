@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
+import { speak, stopSpeaking } from '@/lib/voice/ttsEngine'
 import { ActionRunner } from './ActionRunner'
 import type { VoiceBrief } from '@/lib/voice/voiceBriefTypes'
 
@@ -16,24 +17,15 @@ export function DrivingMode({ brief, onExit }: DrivingModeProps) {
 
   useEffect(() => {
     setDrivingMode(true)
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(
-      `Driving mode active. ${brief.taskers.length} item${brief.taskers.length !== 1 ? 's' : ''} waiting.`
-    )
-    window.speechSynthesis.speak(utterance)
-
+    void speak(`Driving mode active. ${brief.taskers.length} item${brief.taskers.length !== 1 ? 's' : ''} waiting.`)
     return () => {
       setDrivingMode(false)
-      window.speechSynthesis.cancel()
+      stopSpeaking()
     }
   }, [brief.taskers.length, setDrivingMode])
 
   function handleComplete() {
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance('All done. Drive safe.')
-    utterance.onend = onExit
-    utterance.onerror = onExit
-    window.speechSynthesis.speak(utterance)
+    void speak('All done. Drive safe.', onExit)
   }
 
   return (
@@ -44,7 +36,7 @@ export function DrivingMode({ brief, onExit }: DrivingModeProps) {
       {/* Exit button — always visible, 44px tap target */}
       <button
         onClick={() => {
-          window.speechSynthesis.cancel()
+          stopSpeaking()
           onExit()
         }}
         aria-label="Exit driving mode"

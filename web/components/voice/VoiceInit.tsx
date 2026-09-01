@@ -12,9 +12,14 @@ interface VoiceInitProps {
   tier?: string | null
   accountType?: string | null
   voiceAddon?: boolean
+  voiceType?: string | null
+  voiceRate?: number
+  voiceVolume?: number
+  voiceOnboarded?: boolean
+  lastBriefHeardAt?: string | null
 }
 
-export function VoiceInit({ voiceTier, voiceMode, tier, accountType, voiceAddon }: VoiceInitProps) {
+export function VoiceInit({ voiceTier, voiceMode, tier, accountType, voiceAddon, voiceType, voiceRate, voiceVolume, voiceOnboarded, lastBriefHeardAt }: VoiceInitProps) {
   const initVoiceState = useAppStore(s => s.initVoiceState)
 
   useEffect(() => {
@@ -23,8 +28,13 @@ export function VoiceInit({ voiceTier, voiceMode, tier, accountType, voiceAddon 
       tier,
       account_type: accountType,
       voice_addon: voiceAddon ?? false,
+      voice_type: voiceType ?? null,
+      voice_rate: voiceRate ?? 1.0,
+      voice_volume: voiceVolume ?? 1.0,
+      voice_onboarded: voiceOnboarded ?? false,
+      last_brief_heard_at: lastBriefHeardAt ?? null,
     })
-  }, [voiceMode, tier, accountType, voiceAddon, initVoiceState])
+  }, [voiceMode, tier, accountType, voiceAddon, voiceType, voiceRate, voiceVolume, voiceOnboarded, lastBriefHeardAt, initVoiceState])
 
   return (
     <>
