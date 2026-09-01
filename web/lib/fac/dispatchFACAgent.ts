@@ -39,9 +39,9 @@ export async function dispatchFACAgent(input: FACDispatchInput): Promise<FACRepo
     .sort((a, b) => a - b)[0];
   const horizonDays = nearestHorizon
     ? Math.ceil((nearestHorizon - Date.now()) / (1000 * 60 * 60 * 24))
-    : 90;
+    : Infinity;
 
-  if (horizonDays > 90 && input.open_predictions.length === 0) {
+  if (horizonDays > 90) {
     return [];
   }
 
