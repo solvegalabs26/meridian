@@ -1,59 +1,67 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Mic, MicOff } from 'lucide-react'
+import { Mic } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
-import { useVoice } from '@/lib/voice/useVoice'
+import { createClient } from '@/lib/supabase/client'
+import type { VoiceBrief } from '@/lib/voice/voiceBriefTypes'
+import { VoiceMeridian } from './VoiceMeridian'
 
 export function FloatingVoiceButton() {
-  const { voiceMode, wakeWordActive, setWakeWordActive } = useAppStore()
-  const { isSupported, isListening, startListening, stopListening } = useVoice()
-  const [activated, setActivated] = useState(false)
+  const { voiceMode, voiceMeridianOpen, setVoiceMeridianOpen, latestVoiceBrief, setLatestVoiceBrief } = useAppStore()
+  const [isSupported, setIsSupported] = useState(false)
 
-  // Auto-activate when wake word fires
   useEffect(() => {
-    if (wakeWordActive && isSupported && !isListening) {
-      setActivated(true)
-      startListening()
-    }
-  }, [wakeWordActive, isSupported, isListening, startListening])
+    setIsSupported(typeof window !== 'undefined' && 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
+  }, [])
 
-  // Reset wakeWordActive when listening ends
+  // Fetch latest voice brief on mount
   useEffect(() => {
-    if (!isListening && activated) {
-      setActivated(false)
-      setWakeWordActive(false)
+    if (!voiceMode) return
+    async function fetchBrief() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('sweeps')
+        .select('voice_brief')
+        .eq('user_id', user.id)
+        .eq('status', 'complete')
+        .not('voice_brief', 'is', null)
+        .order('completed_at', { ascending: false })
+        .limit(1)
+        .single()
+      if (data?.voice_brief) {
+        setLatestVoiceBrief(data.voice_brief as unknown as VoiceBrief)
+      }
     }
-  }, [isListening, activated, setWakeWordActive])
+    void fetchBrief()
+  }, [voiceMode, setLatestVoiceBrief])
 
-  if (!voiceMode || !isSupported) return null
-
-  function handleTap() {
-    if (isListening) {
-      stopListening()
-      setActivated(false)
-    } else {
-      setActivated(true)
-      startListening()
-    }
-  }
+  if (!voiceMode) return null
 
   return (
-    <button
-      onClick={handleTap}
-      aria-label={isListening ? 'Stop listening' : 'Start voice input'}
-      className="fixed bottom-6 right-6 z-50 flex items-center justify-center rounded-full shadow-lg transition-all"
-      style={{
-        width: 56,
-        height: 56,
-        backgroundColor: isListening ? 'var(--blue)' : 'var(--navy)',
-        color: '#fff',
-      }}
-    >
-      {isListening
-        ? <Mic size={24} className="animate-pulse" />
-        : <MicOff size={24} />
-      }
-    </button>
+    <>
+      <button
+        onClick={() => setVoiceMeridianOpen(true)}
+        aria-label="Open Voice Meridian"
+        className="fixed bottom-6 right-6 z-50 flex items-center justify-center rounded-full shadow-lg transition-all"
+        style={{
+          width: 56,
+          height: 56,
+          backgroundColor: voiceMeridianOpen ? 'var(--blue)' : 'var(--navy)',
+          color: '#fff',
+        }}
+      >
+        <Mic size={24} />
+      </button>
+
+      {voiceMeridianOpen && (
+        <VoiceMeridian
+          onClose={() => setVoiceMeridianOpen(false)}
+          initialBrief={latestVoiceBrief}
+        />
+      )}
+    </>
   )
 }

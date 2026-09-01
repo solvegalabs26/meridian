@@ -21,10 +21,14 @@ const STARTER_PROMPTS = [
   'Which goal needs my attention most urgently?',
 ]
 
-export function ConciergePanel() {
+interface ConciergePanelProps {
+  initialQuery?: string
+}
+
+export function ConciergePanel({ initialQuery }: ConciergePanelProps = {}) {
   const { voiceTier, voiceMode } = useAppStore()
   const [messages, setMessages] = useState<ConversationItem[]>([])
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState(initialQuery ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -32,6 +36,15 @@ export function ConciergePanel() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  // Auto-submit when VoiceMeridian pre-populates a question
+  useEffect(() => {
+    if (initialQuery?.trim()) {
+      void handleSend(initialQuery.trim())
+    }
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (!canUseFull(voiceTier)) {
     return <VoiceUpgradePrompt featureName="Concierge" requiredTier="full" />
