@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { Mic } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
 import { createClient } from '@/lib/supabase/client'
@@ -9,11 +9,6 @@ import { VoiceMeridian } from './VoiceMeridian'
 
 export function FloatingVoiceButton() {
   const { voiceMode, voiceMeridianOpen, setVoiceMeridianOpen, latestVoiceBrief, setLatestVoiceBrief } = useAppStore()
-  const [isSupported, setIsSupported] = useState(false)
-
-  useEffect(() => {
-    setIsSupported(typeof window !== 'undefined' && 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
-  }, [])
 
   // Fetch latest voice brief on mount
   useEffect(() => {
