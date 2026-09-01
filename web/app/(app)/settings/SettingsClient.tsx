@@ -501,6 +501,9 @@ export default function SettingsClient({ email, profile }: Props) {
                     {previewPlaying ? 'Stop' : 'Preview'}
                   </button>
                 </div>
+                <p className="text-[11px] mt-1" style={{ color: 'var(--text3)' }}>
+                  Natural AI voices with gender and accent options coming soon.
+                </p>
               </div>
 
               {/* Rate */}

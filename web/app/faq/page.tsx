@@ -275,6 +275,113 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'voice',
+    label: 'Voice Meridian',
+    items: [
+      {
+        q: 'What is Voice Meridian?',
+        body: [
+          'Voice Meridian is the voice interface built into Meridian Arc. Tap the floating microphone button (bottom-right of any screen) to open it. Speak naturally — Meridian listens, understands your intent, and routes you to the right experience.',
+          'You can hear your weekly intelligence brief aloud, log actions, score predictions, ask questions about your goals, and navigate the app entirely by voice — no typing required.',
+        ],
+      },
+      {
+        q: 'How do I activate Voice Meridian?',
+        body: [
+          'Tap the floating microphone button on the bottom-right of any screen. An activation tone plays and Meridian begins listening.',
+          'Enable "Always use voice input" in Settings → Voice to keep voice as your primary input mode across all screens.',
+        ],
+        callout: { type: 'gold', text: 'First time? The first time you open Voice Meridian, you will hear a brief welcome message explaining what you can say and how the experience works. After that, Meridian goes straight to listening.' },
+      },
+      {
+        q: 'What can I say?',
+        body: ['Speak naturally — you do not need to memorize exact phrases. Meridian understands your intent. Key commands:'],
+        list: [
+          '"Read my week" / "Summary" → reads your weekly intelligence brief aloud',
+          '"Log an action" / "I did something" → Action Runner walks you through logging',
+          '"Score a prediction" / "Hit" / "Miss" → score open predictions by voice',
+          '"Ask Meridian [question]" → Concierge answers questions about your goals (Command plan)',
+          '"Driving mode" → activates eyes-free safe driving experience',
+          '"How are my goals" / "Read my scores" → reads goal confidence scores and weekly deltas',
+          '"New goal" → opens the new goal form with voice input',
+          '"Help" → Meridian reads the command list aloud',
+          '"Stop" / "Exit" → closes Voice Meridian',
+        ],
+      },
+      {
+        q: 'How does the Action Runner work?',
+        body: [
+          'Say "log an action" and Meridian walks through each item needing your input, one at a time. Meridian speaks a prompt, you respond by voice, Meridian confirms what it heard, then you say "yes" or "confirm" to log it.',
+          'The five things you can log by voice:',
+        ],
+        list: [
+          'Something you did on a goal ("I submitted the application on Thursday")',
+          'A decision you made ("I decided to move forward with the offer")',
+          'A contact made ("I called the recruiter")',
+          'A prediction score — hit or miss',
+          'A goal status change — achieve, pause, or close a goal',
+        ],
+        callout: { type: 'info', text: 'If Meridian cannot confidently parse what you said, it asks one clarifying question. While driving, unclear responses are held for later rather than asking you to repeat yourself.' },
+      },
+      {
+        q: 'How does Driving Mode work?',
+        body: ['Say "driving mode" or tap Start Driving Mode on your dashboard. Driving Mode is purpose-built for safe eyes-free use while driving.'],
+        list: [
+          'Screen shows only the current goal name and one large confirm button — no reading required',
+          'All information is spoken aloud — you never need to look at the screen',
+          'Responses are designed for three words or less: "yes," "no," "skip," "done," "hit," "miss"',
+          'Every action is spoken back to you before being logged — confirm by saying "yes" or tapping once',
+          'Unclear responses are held for when you are parked — no clarifying questions while driving',
+          '"Meridian stop" immediately halts everything and deactivates the microphone',
+        ],
+        callout: { type: 'info', text: 'Tasks held during your drive appear as a notice when you next open Voice Meridian. Say "continue" or tap Continue to finish them.' },
+      },
+      {
+        q: 'What are the three Voice Meridian layers?',
+        body: ['Three layers, each unlocked by subscription tier:'],
+        list: [
+          'Voice Input (all plans — free): microphone on all screens; tap to speak anywhere. The floating mic button is the front door.',
+          'Voice Brief + Action Runner (Accelerator and above, or Voice add-on at $9/mo on Explorer): Meridian reads your weekly brief aloud and walks you through logging actions and scoring predictions entirely by voice.',
+          'Driving Mode + Concierge (Command plan only): eyes-free driving experience and the Concierge Engine for asking anything about your goals.',
+        ],
+      },
+      {
+        q: 'What is the Concierge Engine?',
+        body: [
+          'The Concierge Engine is the ask-anything intelligence layer inside Voice Meridian. Available exclusively on the Command plan, it uses Claude Sonnet to reason over everything Meridian knows about your goals — confidence scores, recent actions, signals, predictions, and intelligence history.',
+          'Example questions you can ask:',
+        ],
+        list: [
+          '"What do I need to do to get my Alaska Airlines goal to 90% confidence?"',
+          '"What is blocking my captain upgrade bid right now?"',
+          '"Should I focus on my investment account goal or my career goal this week?"',
+          '"What happened with my elk hunt goal last week?"',
+        ],
+        callout: { type: 'gold', text: 'Concierge does not search the internet — it reasons over what Meridian already knows from your sweeps. Each Concierge query uses 2 Ask Meridian credits. Access it by saying "Ask Meridian" followed by your question, or by tapping Concierge in the sidebar.' },
+      },
+      {
+        q: 'Can I customize how Meridian sounds?',
+        body: [
+          'Yes. Go to Settings → Voice → Voice Personalization. Choose your preferred voice from available device voices, adjust reading speed (0.7× to 1.4×), and set the voice volume independently of your device volume. Use the Preview button to hear your selection before saving.',
+        ],
+        callout: { type: 'info', text: 'Natural AI voices with gender and accent options are coming soon. Current voices use your device\'s built-in text-to-speech engine.' },
+      },
+      {
+        q: 'What does the gold dot on the microphone button mean?',
+        body: [
+          'A gold dot badge on the floating microphone button means your latest sweep has generated a new voice brief that you have not yet heard. Tap the mic, say "read my week," and the badge will clear after your brief completes.',
+        ],
+      },
+      {
+        q: 'What happens if I close Voice Meridian mid-session?',
+        body: [
+          'Unfinished tasks are saved automatically. The next time you open Voice Meridian, Meridian will let you know how many tasks are waiting and ask whether you want to continue where you left off or start fresh.',
+          'Say "continue" or tap Continue to pick up where you stopped.',
+        ],
+      },
+    ],
+  },
+  {
     id: 'enterprise',
     label: 'Enterprise',
     items: [
@@ -602,7 +709,7 @@ export default function FAQPage() {
             Frequently Asked Questions
           </h1>
           <p className="text-[14px]" style={{ color: 'rgba(255,255,255,.5)' }}>
-            26 answers across 8 categories. Click any question to expand.
+            36 answers across 9 categories. Click any question to expand.
           </p>
         </div>
 
