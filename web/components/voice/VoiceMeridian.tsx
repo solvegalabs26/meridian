@@ -14,8 +14,6 @@ import { createClient } from '@/lib/supabase/client'
 import { VoiceBriefPlayer } from './VoiceBriefPlayer'
 import { ActionRunner } from './ActionRunner'
 import { DrivingMode } from './DrivingMode'
-import { ConciergePanel } from '@/components/concierge/ConciergePanel'
-
 type VMState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'routing' | 'in_feature'
 
 const ONBOARDING_SCRIPT =
@@ -69,8 +67,7 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
   const [vmState, setVMState] = useState<VMState>('idle')
   const [transcript, setTranscript] = useState('')
   const [currentRoute, setCurrentRoute] = useState<VoiceRoute | null>(null)
-  const [activeFeature, setActiveFeature] = useState<'brief' | 'action_runner' | 'driving' | 'concierge' | 'help' | null>(null)
-  const [conciergeQuery, setConciergeQuery] = useState<string | undefined>()
+  const [activeFeature, setActiveFeature] = useState<'brief' | 'action_runner' | 'driving' | 'help' | null>(null)
   const [showHelp, setShowHelp] = useState(false)
   const [pendingTaskCount, setPendingTaskCount] = useState(0)
   const retryRef = useRef(false)
@@ -197,11 +194,10 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
     }
 
     if (route === 'concierge') {
-      setConciergeQuery(extractedQuery)
-      setVMState('speaking')
-      speak('Asking Meridian.', () => {
-        setVMState('in_feature')
-        setActiveFeature('concierge')
+      const q = extractedQuery ? `/ask?q=${encodeURIComponent(extractedQuery)}` : '/ask'
+      speak('Opening Ask Meridian.', () => {
+        router.push(q)
+        onClose()
       })
       return
     }
@@ -423,8 +419,9 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
               brief={initialBrief}
               onComplete={handleFeatureComplete}
               onConciergeRequest={(q) => {
-                setConciergeQuery(q)
-                setActiveFeature('concierge')
+                const url = q ? `/ask?q=${encodeURIComponent(q)}` : '/ask'
+                router.push(url)
+                onClose()
               }}
             />
           </div>
@@ -433,12 +430,6 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
         {vmState === 'in_feature' && activeFeature === 'driving' && initialBrief && (
           <div className="w-full max-w-md">
             <DrivingMode brief={initialBrief} onExit={handleFeatureComplete} />
-          </div>
-        )}
-
-        {vmState === 'in_feature' && activeFeature === 'concierge' && (
-          <div className="w-full max-w-md">
-            <ConciergePanel initialQuery={conciergeQuery} />
           </div>
         )}
 

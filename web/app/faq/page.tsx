@@ -236,12 +236,12 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'ask',
-    label: 'Ask Meridian Arc',
+    label: 'Ask Meridian',
     items: [
       {
-        q: 'What does Ask Meridian Arc do?',
+        q: 'What does Ask Meridian do?',
         body: [
-          'Ask Meridian Arc is an on-demand intelligence query — it answers specific, time-sensitive questions about your objectives using real-time web data and your objective context together.',
+          'Ask Meridian is an on-demand intelligence query — it answers specific, time-sensitive questions about your objectives using real-time web data and your objective context together.',
           'Where a scheduled sweep monitors your goals broadly, Ask answers a specific question right now. Examples:',
         ],
         list: [
@@ -252,7 +252,7 @@ const SECTIONS: Section[] = [
         callout: { type: 'gold', text: 'Ask queries are included by tier: Explorer 5/month · Accelerator 10/month · Command 20/month. Additional queries are available via Ask Arc credits.' },
       },
       {
-        q: 'How do I use Ask Meridian Arc?',
+        q: 'How do I use Ask Meridian?',
         steps: [
           { text: 'Open any objective and tap the Ask tab, or tap the Ask button from the main dashboard.' },
           { text: 'Type your question in plain language. Be as specific as possible — include names, timeframes, and the decision you\'re trying to make.' },
@@ -342,14 +342,15 @@ const SECTIONS: Section[] = [
         list: [
           'Voice Input (all plans — free): microphone on all screens; tap to speak anywhere. The floating mic button is the front door.',
           'Voice Brief + Action Runner (Accelerator and above, or Voice add-on at $9/mo on Explorer): Meridian reads your weekly brief aloud and walks you through logging actions and scoring predictions entirely by voice.',
-          'Driving Mode + Concierge (Command plan only): eyes-free driving experience and the Concierge Engine for asking anything about your goals.',
+          'Driving Mode (Command plan): eyes-free driving experience. Say "driving mode" to activate.',
         ],
+        callout: { type: 'info', text: 'Asking Meridian questions about your goals is now available to all tiers through Ask Meridian — accessible from the sidebar. Goal questions cost 2 ask credits; world questions cost 1. Command plan users have higher monthly credit limits.' },
       },
       {
         q: 'What is the Concierge Engine?',
         body: [
-          'The Concierge Engine is the ask-anything intelligence layer inside Voice Meridian. Available exclusively on the Command plan, it uses Claude Sonnet to reason over everything Meridian knows about your goals — confidence scores, recent actions, signals, predictions, and intelligence history.',
-          'Example questions you can ask:',
+          'The Concierge Engine is now part of unified Ask Meridian — accessible from the sidebar under "Ask Meridian." When you ask a question about your own goals, progress, scores, or predictions, Meridian automatically routes it to the Goal Intelligence engine (Claude Sonnet + your objective data). No separate page or plan required.',
+          'Example questions:',
         ],
         list: [
           '"What do I need to do to get my Alaska Airlines goal to 90% confidence?"',
@@ -357,7 +358,7 @@ const SECTIONS: Section[] = [
           '"Should I focus on my investment account goal or my career goal this week?"',
           '"What happened with my elk hunt goal last week?"',
         ],
-        callout: { type: 'gold', text: 'Concierge does not search the internet — it reasons over what Meridian already knows from your sweeps. Each Concierge query uses 2 Ask Meridian credits. Access it by saying "Ask Meridian" followed by your question, or by tapping Concierge in the sidebar.' },
+        callout: { type: 'gold', text: 'Goal Intelligence does not search the internet — it reasons over what Meridian already knows from your sweeps. Goal questions cost 2 ask credits (vs. 1 for world questions). Command plan users have higher monthly credit limits. Say "Ask Meridian" followed by your question, or visit Ask Meridian in the sidebar.' },
       },
       {
         q: 'Can I customize how Meridian sounds?',
@@ -775,7 +776,7 @@ export default function FAQPage() {
           style={{ borderTop: '1px solid rgba(255,255,255,.07)' }}
         >
           <p className="text-[13px]" style={{ color: 'rgba(255,255,255,.5)' }}>
-            Still have a question? Use Ask Meridian Arc from any objective, or{' '}
+            Still have a question? Use Ask Meridian from any objective, or{' '}
             <button
               onClick={() => setShowModal(true)}
               className="underline transition-colors"

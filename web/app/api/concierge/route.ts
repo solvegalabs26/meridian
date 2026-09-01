@@ -1,6 +1,10 @@
 export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
+
+export async function GET(request: NextRequest) {
+  return NextResponse.redirect(new URL('/api/ask', request.url), 308)
+}
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { userVoiceTier, canUseFull } from '@/lib/voice/voiceTier'
@@ -8,6 +12,10 @@ import { buildConciergeContext } from '@/lib/concierge/buildConciergeContext'
 import { buildConciergePrompt, type ConciergeResponse } from '@/lib/concierge/conciergePrompt'
 
 export async function POST(req: NextRequest) {
+  return NextResponse.redirect(new URL('/api/ask', req.url), 308)
+}
+
+export async function POST_legacy(req: NextRequest) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
