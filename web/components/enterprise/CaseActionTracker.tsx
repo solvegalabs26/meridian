@@ -102,19 +102,19 @@ export function CaseActionTracker({ institutionId, caseRef, actions: initialActi
   }
 
   return (
-    <div style={{ borderTop: `1px solid ${C.border}`, background: '#FAFBFD' }}>
+    <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', background: '#0B1829' }}>
       {/* Toolbar */}
       <div style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
         <button
           onClick={() => { setShowForm(f => !f); setShowHistory(false) }}
-          style={{ padding: '3px 9px', borderRadius: 5, border: `1px solid ${C.gold}`, background: showForm ? C.gold : 'white', color: showForm ? 'white' : C.gold, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+          style={{ padding: '3px 9px', borderRadius: 5, border: `1px solid ${C.gold}`, background: showForm ? C.gold : 'rgba(201,162,39,0.12)', color: showForm ? 'white' : C.gold, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
         >
           + Log Action
         </button>
         {actions.length > 0 && (
           <button
             onClick={() => { setShowHistory(h => !h); setShowForm(false) }}
-            style={{ padding: '3px 9px', borderRadius: 5, border: `1px solid ${C.border}`, background: showHistory ? C.bg : 'white', color: C.muted, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ padding: '3px 9px', borderRadius: 5, border: '1px solid rgba(255,255,255,0.15)', background: showHistory ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Actions ({actions.length})
           </button>
@@ -169,7 +169,7 @@ export function CaseActionTracker({ institutionId, caseRef, actions: initialActi
             </button>
             <button
               onClick={() => setShowForm(false)}
-              style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${C.border}`, background: 'white', color: C.muted, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               Cancel
             </button>
@@ -183,9 +183,9 @@ export function CaseActionTracker({ institutionId, caseRef, actions: initialActi
           {actions.map(action => {
             const obj = objectives.find(o => o.id === action.objective_id)
             return (
-              <div key={action.id} style={{ background: 'white', border: `1px solid ${C.border}`, borderRadius: 6, padding: '7px 10px' }}>
+              <div key={action.id} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '7px 10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 10, color: C.muted }}>{action.action_date}</span>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{action.action_date}</span>
                   <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, background: '#EEF2FF', color: '#3730A3' }}>
                     {ACTION_TYPE_LABELS[action.action_type] ?? action.action_type}
                   </span>
@@ -206,9 +206,9 @@ export function CaseActionTracker({ institutionId, caseRef, actions: initialActi
                     <option value="abandoned">Abandoned</option>
                   </select>
                 </div>
-                <div style={{ fontSize: 11, color: C.text, lineHeight: 1.5 }}>{action.action_text}</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}>{action.action_text}</div>
                 {action.outcome_note && (
-                  <div style={{ fontSize: 10, color: C.muted, marginTop: 3, fontStyle: 'italic' }}>{action.outcome_note}</div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 3, fontStyle: 'italic' }}>{action.outcome_note}</div>
                 )}
               </div>
             )
