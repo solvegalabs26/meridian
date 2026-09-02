@@ -82,13 +82,25 @@ export async function runEnterpriseSweep(
 
   if (isRE) {
     const reFork1 = fork1Result as REPortfolioSweepResult
-    const objectiveCaseRefs = settled
-      .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof runREObjectiveSweep>>> =>
+    const fulfilledRE = settled.filter(
+      (r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof runREObjectiveSweep>>> =>
         r.status === 'fulfilled'
-      )
-      .map(r => r.value.keySignals)
-    console.log('[FF-062] sweepId:', reFork1.portfolioSweepId, 'objectiveRefs sets:', objectiveCaseRefs.length)
-    const snapshotResult = await writeRECaseSnapshots(institutionId, reFork1.portfolioSweepId, objectiveCaseRefs)
+    )
+
+    // Build case_ref → objective UUID[] map from all fulfilled objective results
+    const caseObjectiveIds: Record<string, string[]> = {}
+    for (const r of fulfilledRE) {
+      const objectiveId = r.value.objectiveId
+      for (const caseRef of r.value.keySignals ?? []) {
+        if (!caseObjectiveIds[caseRef]) caseObjectiveIds[caseRef] = []
+        if (!caseObjectiveIds[caseRef].includes(objectiveId)) {
+          caseObjectiveIds[caseRef].push(objectiveId)
+        }
+      }
+    }
+
+    console.log('[FF-062] sweepId:', reFork1.portfolioSweepId, 'caseObjectiveIds keys:', Object.keys(caseObjectiveIds).length)
+    const snapshotResult = await writeRECaseSnapshots(institutionId, reFork1.portfolioSweepId, caseObjectiveIds)
     console.log('[FF-062] snapshot result:', snapshotResult)
   }
 

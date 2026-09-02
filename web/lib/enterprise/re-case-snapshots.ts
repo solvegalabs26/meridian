@@ -193,17 +193,9 @@ function computeRECaseConfidence(
 export async function writeRECaseSnapshots(
   institutionId: string,
   sweepId: string,
-  objectiveCaseRefs: string[][]
+  caseObjectiveIds: Record<string, string[]>   // case_ref → objective UUID[]
 ): Promise<{ written: number; error: string | null }> {
   const supabase = createServiceClient()
-
-  // Build caseObjectiveCount: how many objectives flagged each case_ref
-  const caseObjectiveCount: Record<string, number> = {}
-  for (const refs of objectiveCaseRefs) {
-    for (const ref of refs) {
-      caseObjectiveCount[ref] = (caseObjectiveCount[ref] ?? 0) + 1
-    }
-  }
 
   const { data: casesData } = await supabase
     .from('enterprise_cases')
@@ -220,37 +212,42 @@ export async function writeRECaseSnapshots(
 
   const sweepTimestamp = new Date().toISOString()
 
-  const snapshotInserts = cases.map(ec => {
+  // One row per case per objective that references it — objective_id is required
+  const snapshotInserts: object[] = []
+  for (const ec of cases) {
+    const objectiveIds = caseObjectiveIds[ec.case_ref] ?? []
+    if (objectiveIds.length === 0) continue   // skip cases not referenced by any objective
+
     const ld = ec.loan_data
     const caseType = inferCaseType(ld)
     const activeSignals = buildRESignals(ld, caseType)
     const { drift_score, drift_direction } = computeREDriftScore(ld, caseType)
-    const confidence_pct = computeRECaseConfidence(
-      ld,
-      activeSignals,
-      caseObjectiveCount[ec.case_ref] ?? 0
-    )
+    const confidence_pct = computeRECaseConfidence(ld, activeSignals, objectiveIds.length)
 
-    return {
-      case_id: ec.id,
-      institution_id: institutionId,
-      objective_id: null,
-      sweep_id: sweepId,
-      sweep_timestamp: sweepTimestamp,
-      active_signals: activeSignals,
-      pattern_matches: [],
-      drift_score,
-      drift_direction,
-      top_signal_1: activeSignals[0]?.label ?? null,
-      top_signal_2: activeSignals[1]?.label ?? null,
-      top_signal_3: activeSignals[2]?.label ?? null,
-      collateral_risk: null,
-      income_stress: null,
-      recommended_action: null,
-      confidence_pct,
-      engine_version: 're-sweep-v2',
+    for (const objectiveId of objectiveIds) {
+      snapshotInserts.push({
+        case_id: ec.id,
+        institution_id: institutionId,
+        objective_id: objectiveId,
+        sweep_id: sweepId,
+        sweep_timestamp: sweepTimestamp,
+        active_signals: activeSignals,
+        pattern_matches: [],
+        drift_score,
+        drift_direction,
+        top_signal_1: activeSignals[0]?.label ?? null,
+        top_signal_2: activeSignals[1]?.label ?? null,
+        top_signal_3: activeSignals[2]?.label ?? null,
+        collateral_risk: null,
+        income_stress: null,
+        recommended_action: null,
+        confidence_pct,
+        engine_version: 're-sweep-v2',
+      })
     }
-  })
+  }
+
+  if (snapshotInserts.length === 0) return { written: 0, error: null }
 
   const { error: snapshotErr } = await supabase
     .from('case_signal_snapshots')
