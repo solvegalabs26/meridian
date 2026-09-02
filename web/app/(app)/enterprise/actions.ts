@@ -189,6 +189,27 @@ export async function runEnterpriseSignalPass(
   }
 }
 
+// ── FF-061A: Case alias ────────────────────────────────────────────────────
+export async function updateCaseAlias(
+  institutionId: string,
+  caseRef: string,
+  alias: string
+): Promise<{ ok: boolean; error?: string }> {
+  const authClient = createClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) return { ok: false, error: 'Unauthorized' }
+
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('enterprise_cases')
+    .update({ case_alias: alias.trim() || null })
+    .eq('institution_id', institutionId)
+    .eq('case_ref', caseRef)
+
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
 // ── FF-051: Per-case user feedback / confidence adjustment ─────────────────
 export async function updateCaseFeedback(
   institutionId: string,
