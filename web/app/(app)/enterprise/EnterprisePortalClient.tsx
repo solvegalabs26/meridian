@@ -231,10 +231,10 @@ function parseSignalDisplay(s: Signal): { label: string; value: string; delta: s
 function FusionCard({ signal }: { signal: Signal }) {
   const { label, value, delta, isNeg } = parseSignalDisplay(signal)
   return (
-    <div style={{ background: '#EAF0FB', borderRadius: 8, padding: '12px 14px' }}>
-      <div style={{ fontSize: 11, color: '#2D6BE4', fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 13, color: '#1A1A2E', fontWeight: 600 }}>{value}</div>
-      <div style={{ fontSize: 10, marginTop: 3, color: isNeg ? '#D35400' : '#1E8449' }}>{delta}</div>
+    <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '12px 14px' }}>
+      <div style={{ fontSize: 11, color: '#8AB4D4', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 13, color: '#ffffff', fontWeight: 600 }}>{value}</div>
+      <div style={{ fontSize: 10, marginTop: 3, color: isNeg ? '#f87171' : '#34d399' }}>{delta}</div>
     </div>
   )
 }
@@ -782,11 +782,11 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
           )}
 
           {/* Live Fusion Data with Customize link */}
-          <div className="rounded-xl overflow-hidden" style={{ background: '#fff', border: '1px solid #DDE3EE' }}>
-            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid #DDE3EE' }}>
+          <div className="rounded-xl overflow-hidden" style={{ background: '#0D1B3E', border: '1px solid rgba(46,124,184,0.2)' }}>
+            <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
               <div>
-                <div className="font-semibold text-sm" style={{ color: '#1B2A4A' }}>Live Fusion Data</div>
-                <div className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
+                <div className="font-semibold text-sm" style={{ color: '#ffffff' }}>Live Fusion Data</div>
+                <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.5)' }}>
                   {`${keySignals.length} active signal stream${keySignals.length !== 1 ? 's' : ''} · ${isRE ? 'Freddie Mac · NAR · FRED · MBA' : 'FRED · EIA · BLS · GDELT'}`}
                 </div>
               </div>
@@ -802,7 +802,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
               <>
                 {keySignals.map(s => <FusionCard key={s.signal_id} signal={s} />)}
                 {keySignals.length === 0 && (
-                  <div style={{ gridColumn: '1/-1', padding: '24px 0', textAlign: 'center', color: '#6B7280', fontSize: 13 }}>
+                  <div style={{ gridColumn: '1/-1', padding: '24px 0', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
                     {isRE ? 'Mortgage rates, housing inventory & DOM signals will appear after the first RE sweep' : 'Signals ingest weekly — check back Monday'}
                   </div>
                 )}

@@ -850,7 +850,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
   }
 
   return (
-    <div style={{ background: C.bg, minHeight: '100vh', fontFamily: "'Inter', system-ui, -apple-system, sans-serif", WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale', color: C.text }}>
+    <div style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif", WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale', color: C.text }}>
       {/* FF-061B: amber highlight for case card scroll-to */}
       <style>{`
         .case-card--highlighted {
@@ -1005,7 +1005,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
             )
           })}
           {objectives.length === 0 && (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '16px 20px', color: C.muted, fontSize: 12 }}>
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '16px 20px', color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
               No active objectives configured for this institution.
             </div>
           )}
@@ -1024,7 +1024,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
         </div>
 
         {/* CASE CARDS */}
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: C.muted, marginBottom: 10, paddingBottom: 6, borderBottom: `2px solid ${C.border}` }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: 'rgba(255,255,255,0.38)', marginBottom: 10, paddingBottom: 6, borderBottom: '2px solid rgba(255,255,255,0.08)' }}>
           {isRealEstate ? 'Listing & Buyer Sweep Results' : 'Loan Sweep Results'} — Inference Engine Output
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28 }}>
@@ -1044,7 +1044,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
               <div key={ec.id} id={cardId} style={{ backgroundColor: '#0B1829', border: `1px solid ${isFlashing ? '#C9A227' : 'rgba(46,124,184,0.2)'}`, borderRadius: 10, overflow: 'visible', borderLeft: `5px solid ${color}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
                 {/* Header row — 10 columns: Case, Status, Region, FICO, DOM/LTV, Drift Score, 5-Day Trend, Direction, Confidence, Close */}
                 <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '140px 100px 110px 90px 70px 130px 80px 90px 100px 80px', alignItems: 'stretch', minWidth: 940, backgroundColor: '#0D1B3E' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 110px 110px 90px 70px 140px 75px 100px 120px 85px', alignItems: 'stretch', minWidth: 1040, backgroundColor: '#0D1B3E' }}>
                     {/* Case ID — FF-061A alias */}
                     <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
                       <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3 }}>Case</div>
@@ -1131,12 +1131,12 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                     </div>
                     {/* Direction */}
                     <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap' }}>DIRECTION<InfoTooltip text="5-day sweep trajectory. Up = improving. Down = deteriorating. Flat = holding steady." /></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased' }}>DIRECTION<InfoTooltip text="5-day sweep trajectory. Up = improving. Down = deteriorating. Flat = holding steady." /></div>
                       <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 800, color: 'white', background: color, marginTop: 4 }}>{ec.drift_tier}</span>
                     </div>
                     {/* Outcome Confidence */}
                     <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap' }}>CONFIDENCE<InfoTooltip text="Engine confidence in this case's current assessment. Reflects data completeness and signal strength." /></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased' }}>CONFIDENCE<InfoTooltip text="Engine confidence in this case's current assessment. Reflects data completeness and signal strength." /></div>
                       <div title={OUTCOME_TOOLTIP[ec.drift_tier] ?? ''} style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased', letterSpacing: '-0.01em', cursor: 'help' }}>
                         {userConf != null ? (
                           <>
