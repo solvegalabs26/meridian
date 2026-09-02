@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 export function InfoTooltip({ text }: { text: string }) {
   const [visible, setVisible] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0 })
-  const iconRef = useRef<HTMLSpanElement>(null)
+  const iconRef = useRef<SVGSVGElement>(null)
 
   function handleMouseEnter() {
     if (iconRef.current) {
@@ -19,15 +19,22 @@ export function InfoTooltip({ text }: { text: string }) {
   }
 
   return (
-    <span style={{ position: 'relative', display: 'inline-block', marginLeft: 4 }}>
-      <span
+    <span style={{ display: 'inline-flex', alignItems: 'center', marginLeft: 4 }}>
+      <svg
         ref={iconRef}
+        width="13"
+        height="13"
+        viewBox="0 0 13 13"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={() => setVisible(false)}
-        style={{ cursor: 'pointer', fontSize: 11, color: '#5090C0' }}
+        style={{ cursor: 'pointer', display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}
       >
-        ⓘ
-      </span>
+        <circle cx="6.5" cy="6.5" r="6" stroke="#5090C0" strokeWidth="1"/>
+        <rect x="6" y="5.5" width="1" height="4" rx="0.5" fill="#5090C0"/>
+        <rect x="6" y="3.5" width="1" height="1" rx="0.5" fill="#5090C0"/>
+      </svg>
       {visible && typeof document !== 'undefined' && createPortal(
         <div style={{
           position: 'absolute',
@@ -46,6 +53,7 @@ export function InfoTooltip({ text }: { text: string }) {
           boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
           pointerEvents: 'none',
           whiteSpace: 'normal',
+          fontFamily: "'Inter', sans-serif",
         }}>
           {text}
           <div style={{
