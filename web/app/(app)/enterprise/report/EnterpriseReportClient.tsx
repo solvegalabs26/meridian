@@ -11,12 +11,17 @@ import { updateCaseFeedback, updateCaseAlias } from '../actions'
 import { displayCase } from '@/lib/enterprise/displayUtils'
 import { ExpandableSection } from '@/components/enterprise/ExpandableSection'
 import type { CaseMap } from '@/components/enterprise/ExpandableSection'
+import { CaseActionTracker } from '@/components/enterprise/CaseActionTracker'
+import { InfoTooltip } from '@/components/enterprise/InfoTooltip'
+import { CloseCaseModal } from '@/components/enterprise/CloseCaseModal'
+import type { CaseAction } from './page'
 
 interface Props {
   institutionId: string
   institutionName: string
   highlight?: string | null
   verticalConfig?: VerticalConfig | null
+  caseActionsMap?: Record<string, CaseAction[]>
 }
 
 type Dir = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'STABLE'
@@ -611,7 +616,7 @@ function Popup({
   )
 }
 
-export default function EnterpriseReportClient({ institutionId, institutionName, highlight, verticalConfig }: Props) {
+export default function EnterpriseReportClient({ institutionId, institutionName, highlight, verticalConfig, caseActionsMap = {} }: Props) {
   const supabase = createClient()
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [enrichedCases, setEnrichedCases] = useState<EnrichedCase[]>([])
@@ -627,6 +632,9 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
   const [aliasCaseRef, setAliasCaseRef] = useState<string | null>(null)
   const [aliasValue, setAliasValue] = useState('')
   const [aliasSaving, setAliasSaving] = useState(false)
+  // FF-061E close case state
+  const [closingCase, setClosingCase] = useState<string | null>(null)
+  const [closedCases, setClosedCases] = useState<Set<string>>(new Set())
 
   const openPopup = (caseId: string, type: PopupType) => {
     setPopupCaseId(caseId)
@@ -872,39 +880,38 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
   }
 
   return (
-    <div style={{ background: C.bg, minHeight: '100vh', fontFamily: "'Segoe UI', system-ui, sans-serif", color: C.text }}>
+    <div style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif", WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale', color: C.text }}>
       {/* FF-061B: amber highlight for case card scroll-to */}
       <style>{`
         .case-card--highlighted {
-          outline: 2px solid #FBBF24 !important;
-          background-color: rgba(254, 243, 199, 0.5) !important;
-          transition: outline 0.3s ease, background-color 0.3s ease !important;
+          outline: 2px solid #C9A227 !important;
+          box-shadow: 0 0 0 4px rgba(201,162,39,0.15) !important;
+          transition: outline 0.3s ease, box-shadow 0.3s ease !important;
         }
         .case-objectives-strip {
           display: flex;
           flex-wrap: wrap;
           gap: 6px;
           padding: 7px 12px;
-          border-top: 1px solid #DDE3EE;
-          background: #FEFCF5;
+          border-top: 1px solid rgba(255,255,255,0.06);
         }
         .objective-pill {
           display: inline-flex;
           align-items: center;
-          padding: 3px 8px;
-          border-radius: 99px;
-          border: 1px solid #C8A84B;
-          background: white;
-          color: #C8A84B;
-          font-size: 10px;
-          font-weight: 700;
+          padding: 3px 10px;
+          border-radius: 20px;
+          border: 1px solid #2E7CB8;
+          background: transparent;
+          color: #8AB4D4;
+          font-size: 11px;
+          font-weight: 500;
           cursor: pointer;
           white-space: nowrap;
           transition: background 0.15s, color 0.15s;
           font-family: inherit;
         }
         .objective-pill:hover {
-          background: #C8A84B;
+          background: #2E7CB8;
           color: white;
         }
       `}</style>
@@ -983,31 +990,36 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
             const result = objectiveResults.get(obj.id)
             const conf = result?.confidence_score != null ? Math.round(result.confidence_score * 100) : null
             return (
-              <div key={obj.id} id={`objective-${obj.obj_id}`} style={{ background: C.card, border: `1px solid ${result?.escalated_to_focus ? C.gold : C.border}`, borderRadius: 10, overflow: 'hidden' }}>
-                {/* Definition row */}
-                <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: '80px 1fr auto', gap: 14, alignItems: 'start' }}>
-                  <div>
-                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: C.muted, fontWeight: 600, marginBottom: 3 }}>ID</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: C.blue }}>{obj.obj_id}</div>
+              <div key={obj.id} id={`objective-${obj.obj_id}`} style={{ backgroundColor: '#0D1B3E', border: `1px solid ${result?.escalated_to_focus ? '#C9A227' : 'rgba(46,124,184,0.3)'}`, borderRadius: 12, overflow: 'hidden' }}>
+                {/* Header — Meridian Blue */}
+                <div style={{ backgroundColor: '#2E7CB8', padding: '16px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: obj.statement ? 8 : 0, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#ffffff', backgroundColor: 'rgba(255,255,255,0.15)', padding: '3px 8px', borderRadius: 4, letterSpacing: '0.08em', flexShrink: 0 }}>
+                      {obj.obj_id}
+                    </span>
+                    <span style={{ fontSize: 15, fontWeight: 600, color: '#ffffff', flex: 1 }}>
+                      {obj.title}
+                    </span>
                     {conf != null && (
-                      <div style={{ fontSize: 9, color: C.muted, marginTop: 4 }}>
-                        <span style={{ fontWeight: 700, color: conf >= 70 ? C.critical : conf >= 40 ? C.alert : C.stable }}>{conf}%</span> confidence
-                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#C9A227', flexShrink: 0 }}>
+                        {conf}% confidence
+                      </span>
+                    )}
+                    {result?.escalated_to_focus && (
+                      <span style={{ padding: '3px 9px', borderRadius: 5, background: 'rgba(201,162,39,0.2)', border: '1px solid #C9A227', color: '#C9A227', fontSize: 9, fontWeight: 800, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        ↑ FOCUS
+                      </span>
                     )}
                   </div>
-                  <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 5 }}>{obj.title}</div>
-                    <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.6 }}>{obj.statement}</div>
-                  </div>
-                  {result?.escalated_to_focus && (
-                    <div style={{ padding: '3px 9px', borderRadius: 5, background: '#FFF8EC', border: `1px solid ${C.gold}`, color: C.gold, fontSize: 9, fontWeight: 800, whiteSpace: 'nowrap' }}>
-                      ↑ FOCUS
-                    </div>
+                  {obj.statement && (
+                    <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.72)', lineHeight: 1.6, margin: 0 }}>
+                      {obj.statement}
+                    </p>
                   )}
                 </div>
                 {/* Latest sweep result — sections independently expandable */}
                 {result && (result.affecting_it || result.implies || result.what_to_do) && (
-                  <div style={{ background: C.lightBlue, borderTop: `1px solid ${C.border}`, padding: '12px 18px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  <div style={{ background: '#f0f7ff', borderTop: '1px solid rgba(46,124,184,0.2)', padding: '12px 18px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                     {result.affecting_it && (
                       <ExpandableSection label="Affecting It" content={result.affecting_it} caseMap={caseMap} />
                     )}
@@ -1023,7 +1035,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
             )
           })}
           {objectives.length === 0 && (
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '16px 20px', color: C.muted, fontSize: 12 }}>
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '16px 20px', color: 'rgba(255,255,255,0.5)', fontSize: 12 }}>
               No active objectives configured for this institution.
             </div>
           )}
@@ -1042,7 +1054,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
         </div>
 
         {/* CASE CARDS */}
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: C.muted, marginBottom: 10, paddingBottom: 6, borderBottom: `2px solid ${C.border}` }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: 'rgba(255,255,255,0.38)', marginBottom: 10, paddingBottom: 6, borderBottom: '2px solid rgba(255,255,255,0.08)' }}>
           {isRealEstate ? 'Listing & Buyer Sweep Results' : 'Loan Sweep Results'} — Inference Engine Output
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28 }}>
@@ -1067,13 +1079,13 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
             const objRiskColor = objRiskLabel === 'HIGH' ? C.critical : objRiskLabel === 'MED' ? C.caution : C.stable
 
             return (
-              <div key={ec.id} id={cardId} style={{ background: C.card, border: `1px solid ${isFlashing ? '#C9A227' : C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${fwdColor}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
-                {/* Header row — 9 columns now (added 5-Day Trend) */}
+              <div key={ec.id} id={cardId} style={{ backgroundColor: '#0B1829', border: `1px solid ${isFlashing ? '#C9A227' : 'rgba(46,124,184,0.2)'}`, borderRadius: 10, overflow: 'visible', borderLeft: `5px solid ${fwdColor}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
+                {/* Header row — 10 columns: Case, Status, Region, FICO, DOM/LTV, Drift Score, 5-Day Trend, Direction, Confidence, Close */}
                 <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '100px 110px 90px 80px 75px 130px 90px 80px 90px', alignItems: 'stretch', minWidth: 860 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '150px 110px 120px 90px 65px 140px 72px 105px 125px 85px', alignItems: 'stretch', minWidth: 1062, backgroundColor: '#0D1B3E' }}>
                     {/* Case ID — FF-061A alias */}
-                    <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Case</div>
+                    <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3 }}>Case</div>
                       {aliasCaseRef === ec.case_ref ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                           <input
@@ -1082,29 +1094,29 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                             onChange={e => setAliasValue(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') commitAliasEdit(); if (e.key === 'Escape') cancelAliasEdit() }}
                             onBlur={commitAliasEdit}
-                            placeholder="Add alias (e.g. Anderson Pool Pad)"
+                            placeholder="Add alias"
                             maxLength={60}
-                            style={{ fontSize: 11, fontWeight: 600, border: `1px solid ${C.blue}`, borderRadius: 4, padding: '2px 5px', width: 80, outline: 'none', color: C.text }}
+                            style={{ fontSize: 11, fontWeight: 600, border: `1px solid ${C.blue}`, borderRadius: 4, padding: '2px 5px', width: 80, outline: 'none', color: '#111', backgroundColor: '#fff' }}
                           />
-                          {aliasSaving && <span style={{ fontSize: 9, color: C.muted }}>…</span>}
+                          {aliasSaving && <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }}>…</span>}
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={ec.case_ref}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased', letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={ec.case_ref}>
                             {displayCase(ec)}
                           </div>
                           <button
                             onClick={() => startAliasEdit(ec)}
                             title={`Edit alias (${ec.case_ref})`}
-                            style={{ background: 'none', border: 'none', padding: '0 2px', cursor: 'pointer', color: C.muted, fontSize: 10, lineHeight: 1, flexShrink: 0 }}
+                            style={{ background: 'none', border: 'none', padding: '0 2px', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: 10, lineHeight: 1, flexShrink: 0 }}
                           >✏️</button>
                         </div>
                       )}
-                      {ec.case_alias && <div style={{ fontSize: 8, color: C.muted, marginTop: 1 }}>{ec.case_ref}</div>}
+                      {ec.case_alias && <div style={{ fontSize: 8, color: 'rgba(255,255,255,0.38)', marginTop: 1 }}>{ec.case_ref}</div>}
                     </div>
                     {/* Status — FF-061D forward trajectory */}
-                    <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Status</div>
+                    <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap' }}>STATUS<InfoTooltip text="Current risk tier based on case trajectory and objective signals. STABLE = no active flags. WATCH = flagged by an objective. CAUTION = threshold approaching. ALERT = act now." /></div>
                       <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 800, color: 'white', background: fwdColor, marginBottom: 3 }}>
                         {isWatch ? '⚠ WATCH' : forwardStatus}
                       </span>
@@ -1114,80 +1126,93 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                       {userStatus && (
                         <div style={{ display: 'inline-block', marginLeft: 4, padding: '1px 5px', borderRadius: 3, fontSize: 8, fontWeight: 700, color: 'white', background: USER_STATUS_COLORS[userStatus], marginBottom: 3 }}>{USER_STATUS_LABELS[userStatus]}</div>
                       )}
-                      <div style={{ fontSize: 9, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatLoanStatus(ec.scored_status)}</div>
+                      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.65)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{formatLoanStatus(ec.scored_status)}</div>
                     </div>
                     {/* Region */}
-                    <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Region</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ec.region}</div>
+                    <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3 }}>Region</div>
+                      <div style={{ fontSize: 13, fontWeight: 400, color: 'rgba(255,255,255,0.65)', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ec.region}</div>
                     </div>
                     {/* FICO Band / Price Band */}
-                    <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>
+                    <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3 }}>
                         {isRealEstate ? 'Price Band' : 'FICO Band'}
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>
+                      <div style={{ fontSize: 13, fontWeight: 400, color: 'rgba(255,255,255,0.65)', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased' }}>
                         {isRealEstate ? ((ec.loan_data as any)?.price_band ?? '—') : ec.fico_band}
                       </div>
                     </div>
                     {/* LTV Drift / DOM */}
-                    <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>
+                    <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3 }}>
                         {isRealEstate ? 'DOM' : 'LTV Drift'}
                       </div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>
+                      <div style={{ fontSize: 13, fontWeight: 400, color: 'rgba(255,255,255,0.65)', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased' }}>
                         {isRealEstate
                           ? (typeof (ec.loan_data as any)?.days_on_market === 'number' ? `${(ec.loan_data as any).days_on_market}d` : '—')
                           : fmtLTV(ec.ltv_ratio)}
                       </div>
                     </div>
                     {/* Drift Score */}
-                    <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Drift Score</div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{ec.drift_score} / 100</div>
-                      <div style={{ marginTop: 6, height: 5, background: C.bg, borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap' }}>DRIFT SCORE<InfoTooltip text="Measures how far this case has moved from its baseline. 0/100 = no drift. Higher = accelerating change." /></div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased', letterSpacing: '-0.01em' }}>{ec.drift_score} / 100</div>
+                      <div style={{ marginTop: 6, height: 5, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}>
                         <div style={{ height: '100%', width: `${ec.drift_score}%`, background: color, borderRadius: 3 }} />
                       </div>
                     </div>
                     {/* 5-Day Trend — FF-051 */}
-                    <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 5 }}>5-Day Trend</div>
+                    <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 5 }}>5-Day Trend</div>
                       <TrendArrow
                         direction={userTrend ? (userTrend === 'improving' ? 'down' : userTrend === 'declining' ? 'up' : 'flat') : ec.trendDirection}
                         delta={ec.trendDelta}
                       />
                       {userTrend && (
-                        <div style={{ fontSize: 8, color: C.blue, marginTop: 2, fontWeight: 600 }}>Your override</div>
+                        <div style={{ fontSize: 8, color: '#8AB4D4', marginTop: 2, fontWeight: 600 }}>Your override</div>
                       )}
                     </div>
                     {/* Direction — FF-061D forward status */}
-                    <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Direction</div>
+                    <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased' }}>DIRECTION<InfoTooltip text="5-day sweep trajectory. Up = improving. Down = deteriorating. Flat = holding steady." /></div>
                       <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 800, color: 'white', background: fwdColor, marginTop: 4 }}>
                         {isWatch ? '⚠ WATCH' : forwardStatus}
                       </span>
                     </div>
-                    {/* Confidence — FF-061D: objective risk replaces snapshot conf when flags exist */}
-                    <div style={{ padding: '10px 12px' }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Confidence</div>
+                    {/* Outcome Confidence — FF-061D: objective risk replaces snapshot conf when flags exist */}
+                    <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased' }}>CONFIDENCE<InfoTooltip text="Engine confidence in this case's current assessment. Reflects data completeness and signal strength." /></div>
                       {hasObjFlags ? (
                         <div>
                           <div style={{ fontSize: 10, fontWeight: 800, color: objRiskColor }}>
                             Objective Risk: {objRiskLabel}
                           </div>
                           {userConf != null && (
-                            <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>{userConf}% override</div>
+                            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.38)', marginTop: 2 }}>{userConf}% override</div>
                           )}
                         </div>
                       ) : (
-                        <div title={OUTCOME_TOOLTIP[ec.drift_tier] ?? ''} style={{ fontSize: 13, fontWeight: 700, cursor: 'help' }}>
+                        <div title={OUTCOME_TOOLTIP[ec.drift_tier] ?? ''} style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased', letterSpacing: '-0.01em', cursor: 'help' }}>
                           {userConf != null ? (
                             <>
-                              <span style={{ color: C.blue }}>{userConf}%</span>
-                              <span style={{ fontSize: 9, color: C.muted, marginLeft: 3 }}>({confPct}%)</span>
+                              <span style={{ color: '#8AB4D4' }}>{userConf}%</span>
+                              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.38)', marginLeft: 3 }}>({confPct}%)</span>
                             </>
                           ) : `${confPct}%`}
                         </div>
+                      )}
+                    </div>
+                    {/* Close */}
+                    <div style={{ padding: '10px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      {closedCases.has(ec.case_ref) ? (
+                        <span style={{ fontSize: 10, color: '#10b981', fontWeight: 700, textAlign: 'center' }}>✓ Closed</span>
+                      ) : (
+                        <button
+                          onClick={() => setClosingCase(ec.case_ref)}
+                          style={{ backgroundColor: '#10b981', color: '#ffffff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                        >
+                          Close
+                        </button>
                       )}
                     </div>
                   </div>
@@ -1209,22 +1234,22 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                 )}
 
                 {/* FF-051 Action Bar */}
-                <div style={{ background: '#F7F9FC', borderTop: `1px solid ${C.border}`, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ background: '#0B1829', borderTop: '1px solid rgba(255,255,255,0.06)', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <button
                     onClick={() => openPopup(ec.id, 'implies')}
-                    style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${C.blue}`, background: 'white', color: C.blue, fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                    style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${C.blue}`, background: 'rgba(46,124,184,0.12)', color: '#8AB4D4', fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                   >
                     <span style={{ fontSize: 11 }}>💡</span> What this implies
                   </button>
                   <button
                     onClick={() => openPopup(ec.id, 'todo')}
-                    style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${C.stable}`, background: 'white', color: C.stable, fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                    style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${C.stable}`, background: 'rgba(22,163,74,0.12)', color: C.stable, fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                   >
                     <span style={{ fontSize: 11 }}>✅</span> What to do
                   </button>
                   <button
                     onClick={() => openPopup(ec.id, 'adjust')}
-                    style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${ec.feedback?.user_status ? C.gold : C.border}`, background: ec.feedback?.user_status ? '#FFF8EC' : 'white', color: ec.feedback?.user_status ? C.gold : C.muted, fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                    style={{ padding: '4px 10px', borderRadius: 5, border: `1px solid ${ec.feedback?.user_status ? C.gold : 'rgba(255,255,255,0.15)'}`, background: ec.feedback?.user_status ? 'rgba(201,162,39,0.12)' : 'rgba(255,255,255,0.05)', color: ec.feedback?.user_status ? C.gold : 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                   >
                     <span style={{ fontSize: 11 }}>⚙️</span> Your assessment
                     {ec.feedback?.user_status && (
@@ -1234,7 +1259,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                     )}
                   </button>
                   {ec.feedback?.user_action && (
-                    <span style={{ marginLeft: 4, fontSize: 10, color: C.muted, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
+                    <span style={{ marginLeft: 4, fontSize: 10, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 280 }}>
                       &ldquo;{ec.feedback.user_action}&rdquo;
                     </span>
                   )}
@@ -1242,25 +1267,47 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
 
                 {/* Body: prediction data if available */}
                 {ec.pred && (
-                  <div style={{ background: '#FAFBFD', padding: '10px 12px 14px', borderTop: `1px solid ${C.border}`, display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
+                  <div style={{ background: '#0B1829', padding: '10px 12px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
                     <div>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 5 }}>Top Signals (Fusion)</div>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 5 }}>Top Signals (Fusion)</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {(ec.pred.top_signals ?? []).slice(0, 3).map((sig, j) => (
-                          <div key={j} style={{ background: 'white', border: `1px solid ${C.border}`, borderRadius: 5, padding: '4px 8px', fontSize: 10, color: C.text, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.blue, flexShrink: 0 }} />
+                          <div key={j} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, padding: '4px 8px', fontSize: 10, color: 'rgba(255,255,255,0.85)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#2E7CB8', flexShrink: 0 }} />
                             {sig}
                           </div>
                         ))}
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 4 }}>Recommended Action</div>
-                      <div style={{ background: 'white', border: `1px solid ${C.border}`, borderRadius: 6, padding: '8px 12px', fontSize: 11, color: C.text, lineHeight: 1.5 }}>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 4 }}>Recommended Action</div>
+                      <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}>
                         {ec.pred.recommended_action}
                       </div>
                     </div>
                   </div>
+                )}
+
+                {/* FF-061E: Case Action Tracker */}
+                <CaseActionTracker
+                  institutionId={institutionId}
+                  caseRef={ec.case_ref}
+                  actions={caseActionsMap[ec.case_ref] ?? []}
+                  objectives={objectives}
+                />
+
+                {/* FF-061E: Close Case Modal */}
+                {closingCase === ec.case_ref && (
+                  <CloseCaseModal
+                    caseRef={ec.case_ref}
+                    caseDisplay={displayCase(ec)}
+                    institutionId={institutionId}
+                    onClose={() => setClosingCase(null)}
+                    onConfirm={() => {
+                      setClosedCases(prev => { const s = new Set(prev); s.add(ec.case_ref); return s })
+                      setClosingCase(null)
+                    }}
+                  />
                 )}
               </div>
             )

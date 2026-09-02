@@ -189,6 +189,51 @@ export async function runEnterpriseSignalPass(
   }
 }
 
+// ── FF-061E: Case action tracker ──────────────────────────────────────────
+export async function logCaseAction(
+  institutionId: string,
+  caseRef: string,
+  actionText: string,
+  actionDate: string,
+  objectiveId: string | null,
+  actionType: string
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('enterprise_case_actions')
+    .insert({
+      institution_id: institutionId,
+      case_ref: caseRef,
+      action_text: actionText,
+      action_date: actionDate,
+      objective_id: objectiveId || null,
+      action_type: actionType,
+      outcome: 'pending',
+      created_by: 'broker',
+    })
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
+export async function updateCaseActionOutcome(
+  actionId: string,
+  outcome: 'pending' | 'complete' | 'no_response' | 'abandoned',
+  outcomeNote: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('enterprise_case_actions')
+    .update({
+      outcome,
+      outcome_note: outcomeNote,
+      outcome_date: outcome !== 'pending' ? new Date().toISOString().split('T')[0] : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', actionId)
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
 // ── FF-061A: Case alias ────────────────────────────────────────────────────
 export async function updateCaseAlias(
   institutionId: string,
@@ -206,6 +251,28 @@ export async function updateCaseAlias(
     .eq('institution_id', institutionId)
     .eq('case_ref', caseRef)
 
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
+// ── FF-061E: Close case ───────────────────────────────────────────────────
+export async function closeCaseAction(
+  caseRef: string,
+  institutionId: string,
+  closeOutcome: 'sold' | 'off_market' | 'relist' | 'other',
+  closeNote: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('enterprise_cases')
+    .update({
+      closed_at: new Date().toISOString(),
+      close_outcome: closeOutcome,
+      close_note: closeNote,
+      in_scope: false,
+    })
+    .eq('case_ref', caseRef)
+    .eq('institution_id', institutionId)
   if (error) return { ok: false, error: error.message }
   return { ok: true }
 }
