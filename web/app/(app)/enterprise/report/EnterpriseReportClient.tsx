@@ -103,6 +103,15 @@ interface Signal {
   magnitude: string
 }
 
+interface EnterpriseObjective {
+  id: string
+  obj_id: string
+  title: string
+  statement: string
+  lifecycle_state: string
+  objective_state: string | null
+}
+
 // ── Design tokens ──────────────────────────────────────────────────────────
 const C = {
   navy:     '#1B2A4A',
@@ -564,6 +573,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [enrichedCases, setEnrichedCases] = useState<EnrichedCase[]>([])
   const [signals, setSignals] = useState<Signal[]>([])
+  const [objectives, setObjectives] = useState<EnterpriseObjective[]>([])
   const [loading, setLoading] = useState(true)
   const [flashId, setFlashId] = useState<string | null>(null)
   // FF-051 popup state
@@ -698,6 +708,15 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
       for (const sg of sorted) { if (all6.length >= 6) break; if (!srcSeen.has(sg.source)) { all6.push(sg); srcSeen.add(sg.source) } }
       for (const sg of sorted) { if (all6.length >= 6) break; if (!all6.includes(sg)) all6.push(sg) }
       setSignals(all6)
+
+      // Step 8: Enterprise objectives — live from DB, ordered
+      const { data: objData } = await supabase
+        .from('enterprise_objectives')
+        .select('id, obj_id, title, statement, lifecycle_state, objective_state')
+        .eq('institution_id', institutionId)
+        .eq('lifecycle_state', 'active')
+        .order('objective_order')
+      setObjectives(objData ?? [])
     } finally {
       setLoading(false)
     }
@@ -807,20 +826,28 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
 
       <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
 
-        {/* OBJECTIVE */}
+        {/* OBJECTIVES — live from enterprise_objectives */}
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: C.muted, marginBottom: 10, paddingBottom: 6, borderBottom: `2px solid ${C.border}` }}>
-          Objective Definition
+          Objective Definitions ({objectives.length})
         </div>
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px 24px', marginBottom: 20, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-          {[['Objective ID','OBJ-CG-001'],['Owner',institutionName],['Sweep Cadence','Weekly · Monday 06:00 CT']].map(([l,v]) => (
-            <div key={l}>
-              <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: C.muted, fontWeight: 600, marginBottom: 4 }}>{l}</div>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>{v}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+          {objectives.map(obj => (
+            <div key={obj.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 18px', display: 'grid', gridTemplateColumns: '80px 1fr', gap: 14, alignItems: 'start' }}>
+              <div>
+                <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: C.muted, fontWeight: 600, marginBottom: 3 }}>ID</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: C.blue }}>{obj.obj_id}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 5 }}>{obj.title}</div>
+                <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.6 }}>{obj.statement}</div>
+              </div>
             </div>
           ))}
-          <div style={{ gridColumn: '1 / -1', background: C.lightBlue, borderRadius: 8, padding: '12px 16px', fontSize: 13, color: C.navy, lineHeight: 1.6, borderLeft: `4px solid ${C.blue}` }}>
-            Identify which active {isRealEstate ? 'listings and buyer cases' : 'loans'} in the {institutionName} portfolio are drifting toward {isRealEstate ? 'stale-market or rate-lock risk' : 'delinquency'} within 90 days, by fusing historical borrower and {isRealEstate ? 'market' : 'vehicle'} signals with live external market data, and surface ranked recommended actions.
-          </div>
+          {objectives.length === 0 && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '16px 20px', color: C.muted, fontSize: 12 }}>
+              No active objectives configured for this institution.
+            </div>
+          )}
         </div>
 
         {/* SUMMARY PILLS */}
