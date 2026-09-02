@@ -1,16 +1,19 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { VoiceBrief } from '@/lib/voice/voiceBriefTypes'
 import { speak as speakTTS } from '@/lib/voice/ttsEngine'
 import { VoiceBriefSection } from './VoiceBriefSection'
 
-type Section = 'knowledge' | 'risks_opportunities' | 'action_options' | 'scores'
+export type Section = 'knowledge' | 'risks_opportunities' | 'action_options' | 'scores'
 const SECTION_ORDER: Section[] = ['knowledge', 'risks_opportunities', 'action_options', 'scores']
 
 interface VoiceBriefPlayerProps {
   brief: VoiceBrief
   onTaskersReady: () => void
+  initialSection?: Section
+  autoPlay?: boolean
+  onSectionChange?: (s: Section) => void
 }
 
 function buildScript(brief: VoiceBrief, section: Section): string {
@@ -50,10 +53,11 @@ function buildScript(brief: VoiceBrief, section: Section): string {
   }
 }
 
-export function VoiceBriefPlayer({ brief, onTaskersReady }: VoiceBriefPlayerProps) {
-  const [currentSection, setCurrentSection] = useState<Section>('knowledge')
+export function VoiceBriefPlayer({ brief, onTaskersReady, initialSection, autoPlay, onSectionChange }: VoiceBriefPlayerProps) {
+  const [currentSection, setCurrentSection] = useState<Section>(initialSection ?? 'knowledge')
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
+  const autoPlayedRef = useRef(false)
 
   const speak = useCallback((text: string, onEnd?: () => void) => {
     setIsPlaying(true)
@@ -69,11 +73,20 @@ export function VoiceBriefPlayer({ brief, onTaskersReady }: VoiceBriefPlayerProp
     if (idx < SECTION_ORDER.length - 1) {
       const next = SECTION_ORDER[idx + 1]
       setCurrentSection(next)
+      onSectionChange?.(next)
       speak(buildScript(brief, next), next === 'scores' ? onTaskersReady : undefined)
     } else {
       onTaskersReady()
     }
-  }, [currentSection, brief, speak, onTaskersReady])
+  }, [currentSection, brief, speak, onTaskersReady, onSectionChange])
+
+  useEffect(() => {
+    if (autoPlay && !autoPlayedRef.current) {
+      autoPlayedRef.current = true
+      speak(buildScript(brief, currentSection), currentSection === 'scores' ? onTaskersReady : undefined)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handlePlay() {
     if (isPaused) {

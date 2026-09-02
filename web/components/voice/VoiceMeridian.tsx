@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { X, HelpCircle, Mic } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import type { VoiceBrief } from '@/lib/voice/voiceBriefTypes'
+import type { ConciergeResponse } from '@/lib/concierge/conciergePrompt'
 import { classifyVoiceCommand, type VoiceRoute } from '@/lib/voice/commandRouter'
 import { playActivateTone, playSuccessTone, playSkipTone, playErrorTone } from '@/lib/voice/soundSystem'
 import { speak as speakTTS, stopSpeaking } from '@/lib/voice/ttsEngine'
@@ -11,9 +12,11 @@ import { isOnline } from '@/lib/voice/networkCheck'
 import { useVoice } from '@/lib/voice/useVoice'
 import { useAppStore } from '@/store/useAppStore'
 import { createClient } from '@/lib/supabase/client'
-import { VoiceBriefPlayer } from './VoiceBriefPlayer'
+import { VoiceBriefPlayer, type Section as BriefSection } from './VoiceBriefPlayer'
 import { ActionRunner } from './ActionRunner'
 import { DrivingMode } from './DrivingMode'
+import { InlineAskResult } from './InlineAskResult'
+
 type VMState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'routing' | 'in_feature'
 
 const ONBOARDING_SCRIPT =
@@ -70,9 +73,28 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
   const [activeFeature, setActiveFeature] = useState<'brief' | 'action_runner' | 'driving' | 'help' | null>(null)
   const [showHelp, setShowHelp] = useState(false)
   const [pendingTaskCount, setPendingTaskCount] = useState(0)
+
+  // FF-066 Fix 2: inline Ask state
+  const [inlineAskQuery, setInlineAskQuery] = useState('')
+  const [inlineAskResult, setInlineAskResult] = useState<ConciergeResponse | string | null>(null)
+
+  // FF-066 Fix 3: brief tab recovery state
+  const [showResumePrompt, setShowResumePrompt] = useState(false)
+  const [briefPausedSection, setBriefPausedSection] = useState<BriefSection>('knowledge')
+  const [briefRerenderKey, setBriefRerenderKey] = useState(0)
+
+  // Refs for stale-closure-safe visibility handler
+  const activeFeatureRef = useRef<typeof activeFeature>(null)
+  const showResumePromptRef = useRef(false)
+  const briefCurrentSectionRef = useRef<BriefSection>('knowledge')
+
   const retryRef = useRef(false)
   const { isSupported, transcript: liveTranscript, isListening, startListening, stopListening, resetTranscript } = useVoice()
   const { voiceOnboarded, setVoiceOnboarded, setPendingVoiceTaskCount } = useAppStore()
+
+  // Sync refs
+  useEffect(() => { activeFeatureRef.current = activeFeature }, [activeFeature])
+  useEffect(() => { showResumePromptRef.current = showResumePrompt }, [showResumePrompt])
 
   const startListen = useCallback(() => {
     resetTranscript()
@@ -93,7 +115,6 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
   }, [])
 
   async function doOpenFlow() {
-    // Step 7: onboarding moment
     if (!voiceOnboarded) {
       setVMState('speaking')
       await speakTTS(ONBOARDING_SCRIPT)
@@ -105,7 +126,6 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
       setVoiceOnboarded(true)
     }
 
-    // Step 5: continue-where-left-off
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
@@ -128,6 +148,28 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
     else setVMState('idle')
   }
 
+  // FF-066 Fix 3: tab visibility handler — uses refs to avoid stale closures
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (activeFeatureRef.current === 'brief') {
+          stopSpeaking()
+          setBriefPausedSection(briefCurrentSectionRef.current)
+          setShowResumePrompt(true)
+        }
+      } else {
+        if (showResumePromptRef.current) {
+          setVMState('speaking')
+          speak('Welcome back. Want me to continue your brief?', () => {
+            setVMState('idle')
+          })
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
   // Track live transcript
   useEffect(() => {
     if (liveTranscript) setTranscript(liveTranscript)
@@ -147,6 +189,44 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
     setCurrentRoute(route)
     setVMState('routing')
     await dispatch(route, extractedQuery)
+  }
+
+  // FF-066 Fix 2: all voice Ask queries handled inline — Hands-Free Contract
+  async function doInlineAsk(query: string) {
+    setVMState('thinking')
+    setInlineAskQuery(query)
+    setInlineAskResult(null)
+    try {
+      const res = await fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: query, intent: 'internal' }),
+      })
+      const data = await res.json() as { response: ConciergeResponse | string }
+      const response = data.response
+      setInlineAskResult(response)
+      const prose = typeof response === 'object' ? response.answer_prose : String(response)
+      const topAction =
+        typeof response === 'object' && response.ranked_actions?.[0]
+          ? ` You could: ${response.ranked_actions[0].action}.`
+          : ''
+      setVMState('speaking')
+      speak(prose + topAction, () => {
+        setVMState('idle')
+        setTimeout(() => {
+          setInlineAskResult(null)
+          setInlineAskQuery('')
+          speak('Anything else?', () => {
+            if (isSupported) startListen()
+          })
+        }, 8000)
+      })
+    } catch {
+      speak("Sorry, I couldn't get an answer right now.", () => {
+        setVMState('idle')
+        if (isSupported) startListen()
+      })
+    }
   }
 
   async function dispatch(route: VoiceRoute, extractedQuery?: string) {
@@ -193,11 +273,12 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
       return
     }
 
+    // FF-066 Fix 2: inline Ask — never navigate away
     if (route === 'concierge') {
-      const q = extractedQuery ? `/ask?q=${encodeURIComponent(extractedQuery)}` : '/ask'
-      speak('Opening Ask Meridian.', () => {
-        router.push(q)
-        onClose()
+      const query = extractedQuery ?? ''
+      setVMState('speaking')
+      speak('Asking Meridian.', () => {
+        void doInlineAsk(query)
       })
       return
     }
@@ -255,7 +336,6 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
   }
 
   function handleFeatureComplete() {
-    // Step 4: mark brief heard when brief feature completes
     if (activeFeature === 'brief') {
       onBriefHeard?.()
     }
@@ -263,6 +343,7 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
     setActiveFeature(null)
     setCurrentRoute(null)
     setShowHelp(false)
+    setShowResumePrompt(false)
     setVMState('speaking')
     speak('All done. Anything else?', () => {
       if (isSupported) startListen()
@@ -398,17 +479,33 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
           </div>
         )}
 
+        {/* FF-066 Fix 2: inline Ask result card */}
+        {inlineAskResult && (
+          <InlineAskResult
+            query={inlineAskQuery}
+            response={inlineAskResult}
+            onDismiss={() => {
+              setInlineAskResult(null)
+              setInlineAskQuery('')
+            }}
+          />
+        )}
+
         {/* Live transcript */}
-        {transcript && vmState !== 'in_feature' && (
+        {transcript && vmState !== 'in_feature' && !inlineAskResult && (
           <p className="text-white text-center text-sm max-w-sm opacity-80">{transcript}</p>
         )}
 
-        {/* Active feature */}
+        {/* Active feature — brief */}
         {vmState === 'in_feature' && activeFeature === 'brief' && initialBrief && (
           <div className="w-full max-w-md">
             <VoiceBriefPlayer
+              key={briefRerenderKey}
               brief={initialBrief}
               onTaskersReady={handleFeatureComplete}
+              initialSection={briefPausedSection}
+              autoPlay={briefRerenderKey > 0}
+              onSectionChange={(s) => { briefCurrentSectionRef.current = s }}
             />
           </div>
         )}
@@ -419,9 +516,10 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
               brief={initialBrief}
               onComplete={handleFeatureComplete}
               onConciergeRequest={(q) => {
-                const url = q ? `/ask?q=${encodeURIComponent(q)}` : '/ask'
-                router.push(url)
-                onClose()
+                // FF-066 Fix 2: inline Ask from ActionRunner — Hands-Free Contract
+                void doInlineAsk(q ?? '')
+                setActiveFeature(null)
+                setVMState('thinking')
               }}
             />
           </div>
@@ -451,8 +549,37 @@ export function VoiceMeridian({ onClose, initialBrief, onBriefHeard }: VoiceMeri
         )}
       </div>
 
+      {/* FF-066 Fix 3: resume prompt chips (tab return recovery) */}
+      {showResumePrompt && vmState !== 'in_feature' && (
+        <div className="flex justify-center gap-3 px-6 pb-8 pt-4">
+          <button
+            onClick={() => {
+              setShowResumePrompt(false)
+              setBriefRerenderKey(k => k + 1)
+              setVMState('in_feature')
+              setActiveFeature('brief')
+            }}
+            className="px-4 py-2 rounded-full text-sm text-white border border-white/30 hover:border-white/60 transition-all"
+          >
+            Continue
+          </button>
+          <button
+            onClick={() => {
+              setShowResumePrompt(false)
+              setBriefPausedSection('knowledge')
+              setBriefRerenderKey(k => k + 1)
+              setVMState('in_feature')
+              setActiveFeature('brief')
+            }}
+            className="px-4 py-2 rounded-full text-sm text-white/60 border border-white/20 hover:border-white/40 transition-all"
+          >
+            Start over
+          </button>
+        </div>
+      )}
+
       {/* Command chips */}
-      {vmState !== 'in_feature' && (
+      {vmState !== 'in_feature' && !showResumePrompt && (
         <div className="flex justify-center gap-2 px-6 pb-8 pt-4 flex-wrap">
           {chips.map(chip => (
             <button
