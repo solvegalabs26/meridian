@@ -1041,7 +1041,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
             const userTrend = ec.feedback?.user_trend_override
 
             return (
-              <div key={ec.id} id={cardId} style={{ backgroundColor: '#0B1829', border: `1px solid ${isFlashing ? '#C9A227' : 'rgba(46,124,184,0.2)'}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${color}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
+              <div key={ec.id} id={cardId} style={{ backgroundColor: '#0B1829', border: `1px solid ${isFlashing ? '#C9A227' : 'rgba(46,124,184,0.2)'}`, borderRadius: 10, overflow: 'visible', borderLeft: `5px solid ${color}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
                 {/* Header row — 10 columns: Case, Status, Region, FICO, DOM/LTV, Drift Score, 5-Day Trend, Direction, Confidence, Close */}
                 <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '100px 110px 90px 80px 75px 130px 90px 80px 80px 80px', alignItems: 'stretch', minWidth: 920, backgroundColor: '#0D1B3E' }}>
