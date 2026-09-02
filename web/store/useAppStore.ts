@@ -9,6 +9,7 @@ interface AppState {
   drivingMode: boolean
   // FF-062: VoiceMeridian overlay state
   voiceMeridianOpen: boolean
+  voiceMeridianWasOpen: boolean
   latestVoiceBrief: VoiceBrief | null
   // FF-063: voice personalization
   voiceType: string | null
@@ -22,6 +23,7 @@ interface AppState {
   setWakeWordActive: (v: boolean) => void
   setDrivingMode: (v: boolean) => void
   setVoiceMeridianOpen: (v: boolean) => void
+  setVoiceMeridianWasOpen: (v: boolean) => void
   setLatestVoiceBrief: (b: VoiceBrief | null) => void
   setVoicePreferences: (prefs: { voiceType?: string | null; voiceRate?: number; voiceVolume?: number }) => void
   setVoiceOnboarded: (v: boolean) => void
@@ -47,6 +49,7 @@ export const useAppStore = create<AppState>((set) => ({
   wakeWordActive: false,
   drivingMode: false,
   voiceMeridianOpen: false,
+  voiceMeridianWasOpen: false,
   latestVoiceBrief: null,
   voiceType: null,
   voiceRate: 1.0,
@@ -59,6 +62,7 @@ export const useAppStore = create<AppState>((set) => ({
   setWakeWordActive: (v) => set({ wakeWordActive: v }),
   setDrivingMode: (v) => set({ drivingMode: v }),
   setVoiceMeridianOpen: (v) => set({ voiceMeridianOpen: v }),
+  setVoiceMeridianWasOpen: (v) => set({ voiceMeridianWasOpen: v }),
   setLatestVoiceBrief: (b) => set({ latestVoiceBrief: b }),
   setVoicePreferences: (prefs) => set((s) => ({
     voiceType: prefs.voiceType !== undefined ? prefs.voiceType : s.voiceType,
