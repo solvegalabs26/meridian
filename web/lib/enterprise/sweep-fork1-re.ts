@@ -115,10 +115,24 @@ export async function runREPortfolioSweep(institutionId: string): Promise<REPort
       Math.min(100, Math.round(80 - stalePct * 40 - rateLockRiskPct * 30))
     )
   }
-  const healthTrend =
-    healthScore >= 70 ? 'stable'
-    : healthScore >= 50 ? 'declining'
-    : 'at_risk'
+  // Health trend: compare to previous metric (stored as 0-1 fraction — scale back to 0-100 for delta)
+  const { data: prevMetric } = await supabase
+    .from('enterprise_portfolio_metrics')
+    .select('portfolio_health_score')
+    .eq('institution_id', institutionId)
+    .order('computed_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  const prevHealthPct = prevMetric?.portfolio_health_score != null
+    ? prevMetric.portfolio_health_score * 100
+    : null
+  const healthTrend: 'improving' | 'stable' | 'deteriorating' =
+    prevHealthPct == null
+      ? (healthScore >= 80 ? 'improving' : healthScore >= 50 ? 'stable' : 'deteriorating')
+      : healthScore > prevHealthPct + 2 ? 'improving'
+      : healthScore < prevHealthPct - 2 ? 'deteriorating'
+      : 'stable'
 
   // Price band distribution (for cohort context)
   const BAND_ORDER = ['entry', 'entry-mid', 'mid', 'upper-mid', 'luxury']
