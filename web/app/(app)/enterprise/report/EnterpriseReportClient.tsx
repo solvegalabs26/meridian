@@ -8,6 +8,7 @@ import { formatLoanStatus } from '@/lib/enterprise/format-utils'
 import { VerticalReportHeader } from '@/components/enterprise/vertical/VerticalReportHeader'
 import type { VerticalConfig } from '@/lib/vertical/verticalTypes'
 import { updateCaseFeedback } from '../actions'
+import { ExpandableSection } from '@/components/enterprise/ExpandableSection'
 
 interface Props {
   institutionId: string
@@ -883,26 +884,17 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                     </div>
                   )}
                 </div>
-                {/* Latest sweep result */}
+                {/* Latest sweep result — sections independently expandable */}
                 {result && (result.affecting_it || result.implies || result.what_to_do) && (
                   <div style={{ background: C.lightBlue, borderTop: `1px solid ${C.border}`, padding: '12px 18px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                     {result.affecting_it && (
-                      <div>
-                        <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: C.blue, marginBottom: 4 }}>Affecting It</div>
-                        <div style={{ fontSize: 11, color: C.text, lineHeight: 1.5 }}>{result.affecting_it}</div>
-                      </div>
+                      <ExpandableSection label="Affecting It" content={result.affecting_it} />
                     )}
                     {result.implies && (
-                      <div>
-                        <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: C.blue, marginBottom: 4 }}>Implies</div>
-                        <div style={{ fontSize: 11, color: C.text, lineHeight: 1.5 }}>{result.implies}</div>
-                      </div>
+                      <ExpandableSection label="Implies" content={result.implies} />
                     )}
                     {result.what_to_do && (
-                      <div>
-                        <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, color: C.blue, marginBottom: 4 }}>What to Do</div>
-                        <div style={{ fontSize: 11, color: C.text, lineHeight: 1.5 }}>{result.what_to_do}</div>
-                      </div>
+                      <ExpandableSection label="What to Do" content={result.what_to_do} />
                     )}
                   </div>
                 )}
