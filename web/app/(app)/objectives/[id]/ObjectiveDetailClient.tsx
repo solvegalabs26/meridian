@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Settings, X, Pause, Pencil, ChevronLeft, Eye, RotateCcw, Play } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -60,6 +60,12 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
   const [listingPrice, setListingPrice]     = useState((ctx.listing_price as string | undefined) ?? '')
   const [targetPrice, setTargetPrice]       = useState((ctx.target_price as string | undefined) ?? '')
   const [floorPrice, setFloorPrice]         = useState((ctx.floor_price as string | undefined) ?? '')
+
+  // Sync targetDate whenever the prop updates (router.refresh() replaces props
+  // without remounting, so useState initializer runs only once on mount).
+  useEffect(() => {
+    setTargetDate(obj.target_date ? obj.target_date.slice(0, 10) : '')
+  }, [obj.target_date])
 
   function openDrawer() {
     setView('menu')
