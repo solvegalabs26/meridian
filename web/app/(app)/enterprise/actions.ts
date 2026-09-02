@@ -82,14 +82,14 @@ export async function runEnterpriseSweep(
 
   if (isRE) {
     const reFork1 = fork1Result as REPortfolioSweepResult
-    if (reFork1.portfolioSweepId) {
-      const objectiveCaseRefs = settled
-        .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof runREObjectiveSweep>>> =>
-          r.status === 'fulfilled'
-        )
-        .map(r => r.value.keySignals)
-      await writeRECaseSnapshots(institutionId, reFork1.portfolioSweepId, objectiveCaseRefs)
-    }
+    const objectiveCaseRefs = settled
+      .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof runREObjectiveSweep>>> =>
+        r.status === 'fulfilled'
+      )
+      .map(r => r.value.keySignals)
+    console.log('[FF-062] sweepId:', reFork1.portfolioSweepId, 'objectiveRefs sets:', objectiveCaseRefs.length)
+    const snapshotResult = await writeRECaseSnapshots(institutionId, reFork1.portfolioSweepId, objectiveCaseRefs)
+    console.log('[FF-062] snapshot result:', snapshotResult)
   }
 
   return { ok: true, objectivesSwept: swept }
