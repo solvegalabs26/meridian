@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { formatLoanStatus } from '@/lib/enterprise/format-utils'
 import { VerticalReportHeader } from '@/components/enterprise/vertical/VerticalReportHeader'
 import type { VerticalConfig } from '@/lib/vertical/verticalTypes'
-import { updateCaseFeedback, updateCaseAlias, closeCaseAction } from '../actions'
+import { updateCaseFeedback, updateCaseAlias } from '../actions'
 import { displayCase } from '@/lib/enterprise/displayUtils'
 import { ExpandableSection } from '@/components/enterprise/ExpandableSection'
 import type { CaseMap } from '@/components/enterprise/ExpandableSection'
@@ -1245,7 +1245,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                     institutionId={institutionId}
                     onClose={() => setClosingCase(null)}
                     onConfirm={() => {
-                      setClosedCases(prev => new Set([...prev, ec.case_ref]))
+                      setClosedCases(prev => { const s = new Set(prev); s.add(ec.case_ref); return s })
                       setClosingCase(null)
                     }}
                   />
