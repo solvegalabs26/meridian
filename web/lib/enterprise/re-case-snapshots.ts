@@ -85,22 +85,22 @@ function buildRESignals(
   if (caseType === 'buyer') {
     const rateLock = loanData.rate_lock_expires as string | undefined
     if (rateLock) {
-      const expiry = new Date(rateLock)
-      expiry.setHours(0, 0, 0, 0)
-      const daysUntil = Math.round((expiry.getTime() - today.getTime()) / 86400000)
+      const daysUntil = Math.ceil(
+        (new Date(rateLock).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      )
 
       if (daysUntil <= 21) {
-        const magnitude = daysUntil <= 7 ? 'SEVERE' : daysUntil <= 14 ? 'SIGNIFICANT' : 'MODERATE'
+        const expired = daysUntil <= 0
+        const magnitude = (expired || daysUntil <= 7) ? 'SEVERE' : daysUntil <= 14 ? 'SIGNIFICANT' : 'MODERATE'
         signals.push({
           signal_id: 'RE:RATE_LOCK_EXPIRY',
-          label:
-            daysUntil < 0
-              ? `Rate lock expired ${Math.abs(daysUntil)} days ago`
-              : `Rate lock expires in ${daysUntil} days`,
+          label: expired
+            ? `Rate lock expired ${Math.abs(daysUntil)} days ago`
+            : `Rate lock expires in ${daysUntil} days`,
           source: 'PORTFOLIO',
           magnitude,
-          direction_score: daysUntil <= 7 ? -3 : daysUntil <= 14 ? -2 : -1,
-          score_contribution: daysUntil <= 7 ? 20 : daysUntil <= 14 ? 12 : 6,
+          direction_score: (expired || daysUntil <= 7) ? -3 : daysUntil <= 14 ? -2 : -1,
+          score_contribution: (expired || daysUntil <= 7) ? 20 : daysUntil <= 14 ? 12 : 6,
         })
       }
     }
@@ -145,10 +145,12 @@ function computeREDriftScore(
   if (caseType === 'buyer') {
     const rateLock = loanData.rate_lock_expires as string | undefined
     if (rateLock) {
-      const expiry = new Date(rateLock)
-      expiry.setHours(0, 0, 0, 0)
-      const daysUntil = Math.round((expiry.getTime() - today.getTime()) / 86400000)
-      if (daysUntil <= 7) score += 40
+      const daysUntil = Math.ceil(
+        (new Date(rateLock).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      )
+      // daysUntil <= 0 means expired — treat as maximum urgency
+      if (daysUntil <= 0) score += 40
+      else if (daysUntil <= 7) score += 40
       else if (daysUntil <= 14) score += 25
       else if (daysUntil <= 21) score += 10
     }
@@ -192,7 +194,7 @@ export async function writeRECaseSnapshots(
   institutionId: string,
   sweepId: string,
   objectiveCaseRefs: string[][]
-): Promise<void> {
+): Promise<{ written: number; error: string | null }> {
   const supabase = createServiceClient()
 
   // Build caseObjectiveCount: how many objectives flagged each case_ref
@@ -214,7 +216,7 @@ export async function writeRECaseSnapshots(
     loan_data: (c.loan_data as Record<string, unknown>) ?? {},
   }))
 
-  if (cases.length === 0) return
+  if (cases.length === 0) return { written: 0, error: null }
 
   const sweepTimestamp = new Date().toISOString()
 
@@ -256,5 +258,40 @@ export async function writeRECaseSnapshots(
 
   if (snapshotErr) {
     console.error('[FF-062] case_signal_snapshots write failed:', snapshotErr.message)
+    return { written: 0, error: snapshotErr.message }
   }
+
+  // ── Step 4: Update portfolio_metrics stoplight from actual drift_direction counts ──
+  const since = new Date(Date.now() - 60000).toISOString()
+  const { data: snapshots } = await supabase
+    .from('case_signal_snapshots')
+    .select('drift_direction')
+    .eq('institution_id', institutionId)
+    .gte('sweep_timestamp', since)
+
+  if (snapshots && snapshots.length > 0) {
+    const tierCounts = {
+      critical_count: snapshots.filter(s => s.drift_direction === 'CRITICAL').length,
+      alert_count:    snapshots.filter(s => s.drift_direction === 'ALERT').length,
+      caution_count:  snapshots.filter(s => s.drift_direction === 'CAUTION' || s.drift_direction === 'WATCH').length,
+      stable_count:   snapshots.filter(s => s.drift_direction === 'STABLE').length,
+    }
+
+    const { data: latestMetric } = await supabase
+      .from('enterprise_portfolio_metrics')
+      .select('id')
+      .eq('institution_id', institutionId)
+      .order('computed_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (latestMetric?.id) {
+      await supabase
+        .from('enterprise_portfolio_metrics')
+        .update(tierCounts)
+        .eq('id', (latestMetric as { id: string }).id)
+    }
+  }
+
+  return { written: snapshotInserts.length, error: null }
 }

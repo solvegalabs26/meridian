@@ -4,7 +4,7 @@ import { getMacroContextForSnapshot } from './lookback'
 
 export type REPortfolioSweepResult = {
   metricsId: string
-  portfolioSweepId: string | null
+  portfolioSweepId: string
   healthScore: number
   activeListings: number
   activeBuyers: number
@@ -226,7 +226,7 @@ export async function runREPortfolioSweep(institutionId: string): Promise<REPort
   }
 
   // ── Write enterprise_sweeps ──
-  const { data: sweepRow } = await supabase.from('enterprise_sweeps').insert({
+  const { data: sweepRow, error: sweepError } = await supabase.from('enterprise_sweeps').insert({
     institution_id: institutionId,
     trigger_type: 'manual',
     status: 'complete',
@@ -241,9 +241,14 @@ export async function runREPortfolioSweep(institutionId: string): Promise<REPort
     completed_at: new Date().toISOString(),
   }).select('id').single()
 
+  if (sweepError || !(sweepRow as { id?: string } | null)?.id) {
+    console.error('[RE Sweep] Failed to capture sweep ID:', sweepError?.message)
+  }
+  const portfolioSweepId = (sweepRow as { id?: string } | null)?.id ?? crypto.randomUUID()
+
   return {
     metricsId: metricsRow.id as string,
-    portfolioSweepId: (sweepRow as { id?: string } | null)?.id ?? null,
+    portfolioSweepId,
     healthScore,
     activeListings,
     activeBuyers,
