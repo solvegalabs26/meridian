@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { formatLoanStatus } from '@/lib/enterprise/format-utils'
@@ -10,6 +10,7 @@ import type { VerticalConfig } from '@/lib/vertical/verticalTypes'
 import { updateCaseFeedback, updateCaseAlias } from '../actions'
 import { displayCase } from '@/lib/enterprise/displayUtils'
 import { ExpandableSection } from '@/components/enterprise/ExpandableSection'
+import type { CaseMap } from '@/components/enterprise/ExpandableSection'
 
 interface Props {
   institutionId: string
@@ -811,8 +812,27 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
   // Popup case lookup
   const popupCase = popupCaseId ? enrichedCases.find(ec => ec.id === popupCaseId) ?? null : null
 
+  // FF-061B: case ref → { alias, elementId } map for objective narrative linkification
+  const caseMap = useMemo<CaseMap>(() =>
+    Object.fromEntries(
+      enrichedCases.map(ec => [
+        ec.case_ref,
+        { alias: ec.case_alias ?? null, elementId: caseId(ec.case_ref) },
+      ])
+    ),
+    [enrichedCases]
+  )
+
   return (
     <div style={{ background: C.bg, minHeight: '100vh', fontFamily: "'Segoe UI', system-ui, sans-serif", color: C.text }}>
+      {/* FF-061B: amber highlight for case card scroll-to */}
+      <style>{`
+        .case-card--highlighted {
+          outline: 2px solid #FBBF24 !important;
+          background-color: rgba(254, 243, 199, 0.5) !important;
+          transition: outline 0.3s ease, background-color 0.3s ease !important;
+        }
+      `}</style>
       {/* Popup overlay */}
       {popupCase && popupType && (
         <Popup
@@ -914,13 +934,13 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                 {result && (result.affecting_it || result.implies || result.what_to_do) && (
                   <div style={{ background: C.lightBlue, borderTop: `1px solid ${C.border}`, padding: '12px 18px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                     {result.affecting_it && (
-                      <ExpandableSection label="Affecting It" content={result.affecting_it} />
+                      <ExpandableSection label="Affecting It" content={result.affecting_it} caseMap={caseMap} />
                     )}
                     {result.implies && (
-                      <ExpandableSection label="Implies" content={result.implies} />
+                      <ExpandableSection label="Implies" content={result.implies} caseMap={caseMap} />
                     )}
                     {result.what_to_do && (
-                      <ExpandableSection label="What to Do" content={result.what_to_do} />
+                      <ExpandableSection label="What to Do" content={result.what_to_do} caseMap={caseMap} />
                     )}
                   </div>
                 )}
