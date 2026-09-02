@@ -1044,7 +1044,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
               <div key={ec.id} id={cardId} style={{ backgroundColor: '#0B1829', border: `1px solid ${isFlashing ? '#C9A227' : 'rgba(46,124,184,0.2)'}`, borderRadius: 10, overflow: 'visible', borderLeft: `5px solid ${color}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
                 {/* Header row — 10 columns: Case, Status, Region, FICO, DOM/LTV, Drift Score, 5-Day Trend, Direction, Confidence, Close */}
                 <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '140px 110px 110px 90px 70px 140px 75px 100px 120px 85px', alignItems: 'stretch', minWidth: 1040, backgroundColor: '#0D1B3E' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '150px 110px 120px 90px 65px 140px 72px 105px 125px 85px', alignItems: 'stretch', minWidth: 1062, backgroundColor: '#0D1B3E' }}>
                     {/* Case ID — FF-061A alias */}
                     <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden' }}>
                       <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3 }}>Case</div>
