@@ -87,19 +87,33 @@ export async function runEnterpriseSweep(
         r.status === 'fulfilled'
     )
 
-    // Build case_ref → objective UUID[] map from all fulfilled objective results
+    console.log('[FF-062-SHAPE] fulfilledResults[0]:', JSON.stringify(fulfilledRE[0]?.value))
+
+    // Read caseObjectiveIds directly from DB — avoids any shape ambiguity in result objects
+    const since = new Date(Date.now() - 300000).toISOString() // last 5 min
+    const { data: latestResults } = await supabase
+      .from('enterprise_objective_results')
+      .select('objective_id, key_case_refs')
+      .eq('institution_id', institutionId)
+      .gte('computed_at', since)
+
     const caseObjectiveIds: Record<string, string[]> = {}
-    for (const r of fulfilledRE) {
-      const objectiveId = r.value.objectiveId
-      for (const caseRef of r.value.keySignals ?? []) {
+    for (const row of latestResults ?? []) {
+      if (!row.objective_id || !row.key_case_refs) continue
+      const refs = Array.isArray(row.key_case_refs)
+        ? (row.key_case_refs as string[])
+        : (JSON.parse(row.key_case_refs as string) as string[])
+      for (const caseRef of refs) {
         if (!caseObjectiveIds[caseRef]) caseObjectiveIds[caseRef] = []
-        if (!caseObjectiveIds[caseRef].includes(objectiveId)) {
-          caseObjectiveIds[caseRef].push(objectiveId)
+        if (!caseObjectiveIds[caseRef].includes(row.objective_id as string)) {
+          caseObjectiveIds[caseRef].push(row.objective_id as string)
         }
       }
     }
 
-    console.log('[FF-062] sweepId:', reFork1.portfolioSweepId, 'caseObjectiveIds keys:', Object.keys(caseObjectiveIds).length)
+    console.log('[FF-062] caseObjectiveIds built:', Object.keys(caseObjectiveIds).length, 'cases')
+    console.log('[FF-062] sample:', JSON.stringify(Object.entries(caseObjectiveIds).slice(0, 2)))
+    console.log('[FF-062] sweepId:', reFork1.portfolioSweepId, 'fulfilledRE:', fulfilledRE.length)
     const snapshotResult = await writeRECaseSnapshots(institutionId, reFork1.portfolioSweepId, caseObjectiveIds)
     console.log('[FF-062] snapshot result:', snapshotResult)
   }
