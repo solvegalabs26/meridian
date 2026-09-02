@@ -9,6 +9,7 @@ import { VerticalReportHeader } from '@/components/enterprise/vertical/VerticalR
 import type { VerticalConfig } from '@/lib/vertical/verticalTypes'
 import { updateCaseFeedback, updateCaseAlias } from '../actions'
 import { displayCase } from '@/lib/enterprise/displayUtils'
+import { ExpandableSection } from '@/components/enterprise/ExpandableSection'
 
 interface Props {
   institutionId: string
@@ -26,6 +27,7 @@ interface CaseRow {
   id: string
   case_ref: string
   case_alias?: string | null
+  case_type: string | null
   region: string
   fico_band: string
   vehicle_class: string
@@ -58,6 +60,7 @@ interface EnrichedCase {
   id: string
   case_ref: string
   case_alias?: string | null
+  case_type: string | null
   region: string
   fico_band: string
   vehicle_class: string
@@ -104,6 +107,25 @@ interface Signal {
   event_text: string
   effective_date: string
   magnitude: string
+}
+
+interface EnterpriseObjectiveResult {
+  objective_id: string
+  affecting_it: string | null
+  implies: string | null
+  what_to_do: string | null
+  confidence_score: number | null
+  escalated_to_focus: boolean | null
+  computed_at: string
+}
+
+interface EnterpriseObjective {
+  id: string
+  obj_id: string
+  title: string
+  statement: string
+  lifecycle_state: string
+  objective_state: string | null
 }
 
 // ── Design tokens ──────────────────────────────────────────────────────────
@@ -567,6 +589,8 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [enrichedCases, setEnrichedCases] = useState<EnrichedCase[]>([])
   const [signals, setSignals] = useState<Signal[]>([])
+  const [objectives, setObjectives] = useState<EnterpriseObjective[]>([])
+  const [objectiveResults, setObjectiveResults] = useState<Map<string, EnterpriseObjectiveResult>>(new Map())
   const [loading, setLoading] = useState(true)
   const [flashId, setFlashId] = useState<string | null>(null)
   // FF-051 popup state
@@ -624,7 +648,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
       // Step 2: All in-scope cases
       const { data: casesRaw } = await supabase
         .from('enterprise_cases')
-        .select('id, case_ref, case_alias, region, fico_band, vehicle_class, loan_status, ltv_ratio, dti_ratio, current_balance, payments_remaining, loan_data')
+        .select('id, case_ref, case_alias, case_type, region, fico_band, vehicle_class, loan_status, ltv_ratio, dti_ratio, current_balance, payments_remaining, loan_data')
         .eq('institution_id', institutionId)
         .eq('in_scope', true)
       const cases = (casesRaw ?? []) as CaseRow[]
@@ -683,6 +707,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
           id: c.id,
           case_ref: c.case_ref,
           case_alias: c.case_alias,
+          case_type: c.case_type ?? null,
           region: c.region,
           fico_band: c.fico_band,
           vehicle_class: c.vehicle_class,
@@ -724,6 +749,27 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
       for (const sg of sorted) { if (all6.length >= 6) break; if (!srcSeen.has(sg.source)) { all6.push(sg); srcSeen.add(sg.source) } }
       for (const sg of sorted) { if (all6.length >= 6) break; if (!all6.includes(sg)) all6.push(sg) }
       setSignals(all6)
+
+      // Step 8: Enterprise objectives — live from DB, ordered
+      const { data: objData } = await supabase
+        .from('enterprise_objectives')
+        .select('id, obj_id, title, statement, lifecycle_state, objective_state')
+        .eq('institution_id', institutionId)
+        .eq('lifecycle_state', 'active')
+        .order('objective_order')
+      setObjectives(objData ?? [])
+
+      // Step 9: Most recent objective result per objective (latest computed_at wins)
+      const { data: objResultsData } = await supabase
+        .from('enterprise_objective_results')
+        .select('objective_id, affecting_it, implies, what_to_do, confidence_score, escalated_to_focus, computed_at')
+        .eq('institution_id', institutionId)
+        .order('computed_at', { ascending: false })
+      const resultsMap = new Map<string, EnterpriseObjectiveResult>()
+      for (const r of objResultsData ?? []) {
+        if (!resultsMap.has(r.objective_id)) resultsMap.set(r.objective_id, r as EnterpriseObjectiveResult)
+      }
+      setObjectiveResults(resultsMap)
     } finally {
       setLoading(false)
     }
@@ -753,8 +799,8 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
 
   const insight = buildInsight(signals, sweep)
   const isRealEstate = verticalConfig?.vertical_type === 'real_estate'
-  const listingCount = isRealEstate ? enrichedCases.filter(c => (c.loan_data as any)?.case_type !== 'buyer').length : 0
-  const buyerCount   = isRealEstate ? enrichedCases.filter(c => (c.loan_data as any)?.case_type === 'buyer').length  : 0
+  const listingCount = isRealEstate ? enrichedCases.filter(c => c.case_type === 'listing').length : 0
+  const buyerCount   = isRealEstate ? enrichedCases.filter(c => c.case_type === 'buyer').length  : 0
   const tierCounts = {
     CRITICAL: enrichedCases.filter(c => c.drift_tier === 'CRITICAL').length,
     ALERT:    enrichedCases.filter(c => c.drift_tier === 'ALERT').length,
@@ -833,20 +879,59 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
 
       <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
 
-        {/* OBJECTIVE */}
+        {/* OBJECTIVES — live from enterprise_objectives + enterprise_objective_results */}
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: C.muted, marginBottom: 10, paddingBottom: 6, borderBottom: `2px solid ${C.border}` }}>
-          Objective Definition
+          Objective Definitions ({objectives.length})
         </div>
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px 24px', marginBottom: 20, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-          {[['Objective ID','OBJ-CG-001'],['Owner',institutionName],['Sweep Cadence','Weekly · Monday 06:00 CT']].map(([l,v]) => (
-            <div key={l}>
-              <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: C.muted, fontWeight: 600, marginBottom: 4 }}>{l}</div>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>{v}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+          {objectives.map(obj => {
+            const result = objectiveResults.get(obj.id)
+            const conf = result?.confidence_score != null ? Math.round(result.confidence_score * 100) : null
+            return (
+              <div key={obj.id} style={{ background: C.card, border: `1px solid ${result?.escalated_to_focus ? C.gold : C.border}`, borderRadius: 10, overflow: 'hidden' }}>
+                {/* Definition row */}
+                <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: '80px 1fr auto', gap: 14, alignItems: 'start' }}>
+                  <div>
+                    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 1, color: C.muted, fontWeight: 600, marginBottom: 3 }}>ID</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: C.blue }}>{obj.obj_id}</div>
+                    {conf != null && (
+                      <div style={{ fontSize: 9, color: C.muted, marginTop: 4 }}>
+                        <span style={{ fontWeight: 700, color: conf >= 70 ? C.critical : conf >= 40 ? C.alert : C.stable }}>{conf}%</span> confidence
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 5 }}>{obj.title}</div>
+                    <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.6 }}>{obj.statement}</div>
+                  </div>
+                  {result?.escalated_to_focus && (
+                    <div style={{ padding: '3px 9px', borderRadius: 5, background: '#FFF8EC', border: `1px solid ${C.gold}`, color: C.gold, fontSize: 9, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                      ↑ FOCUS
+                    </div>
+                  )}
+                </div>
+                {/* Latest sweep result — sections independently expandable */}
+                {result && (result.affecting_it || result.implies || result.what_to_do) && (
+                  <div style={{ background: C.lightBlue, borderTop: `1px solid ${C.border}`, padding: '12px 18px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                    {result.affecting_it && (
+                      <ExpandableSection label="Affecting It" content={result.affecting_it} />
+                    )}
+                    {result.implies && (
+                      <ExpandableSection label="Implies" content={result.implies} />
+                    )}
+                    {result.what_to_do && (
+                      <ExpandableSection label="What to Do" content={result.what_to_do} />
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {objectives.length === 0 && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '16px 20px', color: C.muted, fontSize: 12 }}>
+              No active objectives configured for this institution.
             </div>
-          ))}
-          <div style={{ gridColumn: '1 / -1', background: C.lightBlue, borderRadius: 8, padding: '12px 16px', fontSize: 13, color: C.navy, lineHeight: 1.6, borderLeft: `4px solid ${C.blue}` }}>
-            Identify which active {isRealEstate ? 'listings and buyer cases' : 'loans'} in the {institutionName} portfolio are drifting toward {isRealEstate ? 'stale-market or rate-lock risk' : 'delinquency'} within 90 days, by fusing historical borrower and {isRealEstate ? 'market' : 'vehicle'} signals with live external market data, and surface ranked recommended actions.
-          </div>
+          )}
         </div>
 
         {/* SUMMARY PILLS */}
@@ -928,15 +1013,25 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                       <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Region</div>
                       <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ec.region}</div>
                     </div>
-                    {/* FICO Band */}
+                    {/* FICO Band / Price Band */}
                     <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>FICO Band</div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{ec.fico_band}</div>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>
+                        {isRealEstate ? 'Price Band' : 'FICO Band'}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>
+                        {isRealEstate ? ((ec.loan_data as any)?.price_band ?? '—') : ec.fico_band}
+                      </div>
                     </div>
-                    {/* LTV Drift */}
+                    {/* LTV Drift / DOM */}
                     <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>LTV Drift</div>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{fmtLTV(ec.ltv_ratio)}</div>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>
+                        {isRealEstate ? 'DOM' : 'LTV Drift'}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>
+                        {isRealEstate
+                          ? (typeof (ec.loan_data as any)?.days_on_market === 'number' ? `${(ec.loan_data as any).days_on_market}d` : '—')
+                          : fmtLTV(ec.ltv_ratio)}
+                      </div>
                     </div>
                     {/* Drift Score */}
                     <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>

@@ -29,6 +29,12 @@ function inferCaseType(ld: Record<string, unknown>): 'listing' | 'buyer' | null 
   return null
 }
 
+function normalizeHealthTrend(raw: string | null | undefined): 'improving' | 'stable' | 'deteriorating' {
+  if (raw === 'improving') return 'improving'
+  if (raw === 'deteriorating') return 'deteriorating'
+  return 'stable'
+}
+
 export async function runREPortfolioSweep(institutionId: string): Promise<REPortfolioSweepResult> {
   const startMs = Date.now()
   const supabase = createServiceClient()
@@ -127,12 +133,13 @@ export async function runREPortfolioSweep(institutionId: string): Promise<REPort
   const prevHealthPct = prevMetric?.portfolio_health_score != null
     ? prevMetric.portfolio_health_score * 100
     : null
-  const healthTrend: 'improving' | 'stable' | 'deteriorating' =
+  const rawTrend =
     prevHealthPct == null
       ? (healthScore >= 80 ? 'improving' : healthScore >= 50 ? 'stable' : 'deteriorating')
       : healthScore > prevHealthPct + 2 ? 'improving'
       : healthScore < prevHealthPct - 2 ? 'deteriorating'
       : 'stable'
+  const healthTrend = normalizeHealthTrend(rawTrend)
 
   // Price band distribution (for cohort context)
   const BAND_ORDER = ['entry', 'entry-mid', 'mid', 'upper-mid', 'luxury']
