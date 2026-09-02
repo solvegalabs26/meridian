@@ -11,12 +11,15 @@ import { updateCaseFeedback, updateCaseAlias } from '../actions'
 import { displayCase } from '@/lib/enterprise/displayUtils'
 import { ExpandableSection } from '@/components/enterprise/ExpandableSection'
 import type { CaseMap } from '@/components/enterprise/ExpandableSection'
+import { CaseActionTracker } from '@/components/enterprise/CaseActionTracker'
+import type { CaseAction } from './page'
 
 interface Props {
   institutionId: string
   institutionName: string
   highlight?: string | null
   verticalConfig?: VerticalConfig | null
+  caseActionsMap?: Record<string, CaseAction[]>
 }
 
 type Dir = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'STABLE'
@@ -586,7 +589,7 @@ function Popup({
   )
 }
 
-export default function EnterpriseReportClient({ institutionId, institutionName, highlight, verticalConfig }: Props) {
+export default function EnterpriseReportClient({ institutionId, institutionName, highlight, verticalConfig, caseActionsMap = {} }: Props) {
   const supabase = createClient()
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [enrichedCases, setEnrichedCases] = useState<EnrichedCase[]>([])
@@ -1206,6 +1209,14 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                     </div>
                   </div>
                 )}
+
+                {/* FF-061E: Case Action Tracker */}
+                <CaseActionTracker
+                  institutionId={institutionId}
+                  caseRef={ec.case_ref}
+                  actions={caseActionsMap[ec.case_ref] ?? []}
+                  objectives={objectives}
+                />
               </div>
             )
           })}

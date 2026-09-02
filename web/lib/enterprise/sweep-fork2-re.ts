@@ -195,6 +195,7 @@ const RE_OBJECTIVE_SWEEP_PROMPT = (data: {
   objId: string
   caseNarratives: string[]
   macroEvents: string[]
+  brokerActionsBlock: string
 }): string => `You are a real estate portfolio intelligence analyst for Meridian Fusion.
 Answer the following business intelligence question using only the provided data.
 
@@ -207,7 +208,7 @@ ${data.caseNarratives.join('\n')}
 CURRENT MACRO CONDITIONS (last 90 days, real_estate):
 ${data.macroEvents.length > 0
   ? data.macroEvents.join('\n')
-  : '- No macro events in last 90 days for real estate'}
+  : '- No macro events in last 90 days for real estate'}${data.brokerActionsBlock}
 
 Return ONLY valid JSON with no preamble or markdown:
 {
@@ -281,12 +282,29 @@ export async function runREObjectiveSweep(
     `- [Magnitude ${e.magnitude}/${e.direction}] ${e.event_name} (${e.event_date})`
   )
 
+  // ── Step 4b: Broker actions context (FF-061E) ──
+  const scopedRefs = scopedCases.map(c => c.case_ref)
+  const { data: recentActions } = await supabase
+    .from('enterprise_case_actions')
+    .select('case_ref, action_text, action_date, outcome, outcome_note')
+    .eq('institution_id', institutionId)
+    .in('case_ref', scopedRefs.length > 0 ? scopedRefs : ['__none__'])
+    .order('action_date', { ascending: false })
+    .limit(20)
+
+  const brokerActionsBlock = recentActions?.length
+    ? `\n\n[BROKER ACTIONS — logged since last sweep]\n${recentActions.map(a =>
+        `${a.action_date} [${a.case_ref}]: ${a.action_text} — ${a.outcome}${a.outcome_note ? ` (${a.outcome_note})` : ''}`
+      ).join('\n')}`
+    : ''
+
   // ── Step 5: Claude API call ──
   const prompt = RE_OBJECTIVE_SWEEP_PROMPT({
     objectiveStatement: objective.statement,
     objId: objective.obj_id,
     caseNarratives: narratives,
     macroEvents: macroStrings,
+    brokerActionsBlock,
   })
 
   let posResult = await callClaude(prompt, 1)

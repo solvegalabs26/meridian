@@ -54,12 +54,37 @@ export default async function EnterpriseReportPage({
   const highlight = searchParams?.highlight ?? null
   const verticalConfig = await getVerticalConfig(resolvedInstitutionId)
 
+  const { data: caseActionsRaw } = await supabase
+    .from('enterprise_case_actions')
+    .select('id, case_ref, objective_id, action_text, action_date, outcome, outcome_note, outcome_date, created_at')
+    .eq('institution_id', resolvedInstitutionId)
+    .order('action_date', { ascending: false })
+
+  const caseActionsMap: Record<string, CaseAction[]> = {}
+  for (const action of caseActionsRaw ?? []) {
+    if (!caseActionsMap[action.case_ref]) caseActionsMap[action.case_ref] = []
+    caseActionsMap[action.case_ref].push(action as CaseAction)
+  }
+
   return (
     <EnterpriseReportClient
       institutionId={resolvedInstitutionId}
       institutionName={institutionName}
       highlight={highlight}
       verticalConfig={verticalConfig}
+      caseActionsMap={caseActionsMap}
     />
   )
+}
+
+export interface CaseAction {
+  id: string
+  case_ref: string
+  objective_id: string | null
+  action_text: string
+  action_date: string
+  outcome: 'pending' | 'complete' | 'no_response' | 'abandoned'
+  outcome_note: string | null
+  outcome_date: string | null
+  created_at: string
 }
