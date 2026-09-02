@@ -20,8 +20,17 @@ interface Props {
 }
 
 type Dir = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'STABLE'
+type ForwardStatus = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'WATCH' | 'STABLE'
 type TrendDir = 'up' | 'down' | 'flat'
 type PopupType = 'implies' | 'todo' | 'adjust'
+
+// FF-061D: per-objective signal attached to a case (from caseObjectiveMap)
+interface ObjectiveFlag {
+  obj_id: string
+  title: string
+  confidence_score: number
+  escalated_to_focus: boolean
+}
 
 // Raw row from enterprise_cases
 interface CaseRow {
@@ -138,6 +147,7 @@ const C = {
   critical: '#C0392B',
   alert:    '#D35400',
   caution:  '#D4AC0D',
+  watch:    '#D97706',
   stable:   '#1E8449',
   bg:       '#F0F3F8',
   card:     '#FFFFFF',
@@ -149,6 +159,10 @@ const C = {
 
 const DIR: Record<Dir, string> = {
   CRITICAL: C.critical, ALERT: C.alert, CAUTION: C.caution, STABLE: C.stable,
+}
+
+const FORWARD_DIR: Record<ForwardStatus, string> = {
+  CRITICAL: C.critical, ALERT: C.alert, CAUTION: C.caution, WATCH: C.watch, STABLE: C.stable,
 }
 
 const USER_STATUS_LABELS: Record<string, string> = {
@@ -184,6 +198,17 @@ function parseSignal(s: Signal): { label: string; value: string; delta: string; 
   const isNeg = s.direction_score < 0
   const arrow = isNeg ? '▼' : s.direction_score > 0 ? '▲' : '→'
   return { label, value, delta: delta ? `${arrow} ${delta}` : `${arrow} Score: ${s.direction_score}`, isNeg }
+}
+
+// ── FF-061D: Forward trajectory status ────────────────────────────────────
+function computeForwardStatus(snapshotTier: string, objectiveFlags: ObjectiveFlag[]): ForwardStatus {
+  if (snapshotTier === 'critical') return 'CRITICAL'
+  if (snapshotTier === 'alert') return 'ALERT'
+  const highUrgency = objectiveFlags.some(f => f.confidence_score >= 0.6 && f.escalated_to_focus === true)
+  const mediumUrgency = objectiveFlags.some(f => f.confidence_score >= 0.4)
+  if (highUrgency) return 'CAUTION'
+  if (mediumUrgency) return 'WATCH'
+  return snapshotTier === 'caution' ? 'CAUTION' : 'STABLE'
 }
 
 // ── 5-Day Trend helpers ────────────────────────────────────────────────────
@@ -801,13 +826,18 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
     [enrichedCases]
   )
 
-  const caseObjectiveMap = useMemo<Record<string, Array<{ obj_id: string; title: string }>>>(() => {
-    const map: Record<string, Array<{ obj_id: string; title: string }>> = {}
+  const caseObjectiveMap = useMemo<Record<string, ObjectiveFlag[]>>(() => {
+    const map: Record<string, ObjectiveFlag[]> = {}
     for (const obj of objectives) {
       const result = objectiveResults.get(obj.id)
       for (const caseRef of result?.key_case_refs ?? []) {
         if (!map[caseRef]) map[caseRef] = []
-        map[caseRef].push({ obj_id: obj.obj_id, title: obj.title })
+        map[caseRef].push({
+          obj_id: obj.obj_id,
+          title: obj.title,
+          confidence_score: result?.confidence_score ?? 0,
+          escalated_to_focus: result?.escalated_to_focus ?? false,
+        })
       }
     }
     return map
@@ -1018,6 +1048,10 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28 }}>
           {enrichedCases.map(ec => {
             const color = DIR[ec.drift_tier]
+            const objectiveFlags = caseObjectiveMap[ec.case_ref] ?? []
+            const forwardStatus = computeForwardStatus(ec.drift_tier.toLowerCase(), objectiveFlags)
+            const fwdColor = FORWARD_DIR[forwardStatus]
+            const isWatch = forwardStatus === 'WATCH'
             const cardId = caseId(ec.case_ref ?? ec.id)
             const isFlashing = flashId === cardId
             const confPct = ec.pred?.confidence_pct ??
@@ -1027,9 +1061,13 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
             const userConf = ec.feedback?.user_confidence
             const userStatus = ec.feedback?.user_status
             const userTrend = ec.feedback?.user_trend_override
+            const hasObjFlags = objectiveFlags.length > 0
+            const objRiskLabel = objectiveFlags.some(f => f.confidence_score >= 0.6) ? 'HIGH'
+              : objectiveFlags.some(f => f.confidence_score >= 0.4) ? 'MED' : 'LOW'
+            const objRiskColor = objRiskLabel === 'HIGH' ? C.critical : objRiskLabel === 'MED' ? C.caution : C.stable
 
             return (
-              <div key={ec.id} id={cardId} style={{ background: C.card, border: `1px solid ${isFlashing ? '#C9A227' : C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${color}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
+              <div key={ec.id} id={cardId} style={{ background: C.card, border: `1px solid ${isFlashing ? '#C9A227' : C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${fwdColor}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
                 {/* Header row — 9 columns now (added 5-Day Trend) */}
                 <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '100px 110px 90px 80px 75px 130px 90px 80px 90px', alignItems: 'stretch', minWidth: 860 }}>
@@ -1064,10 +1102,15 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                       )}
                       {ec.case_alias && <div style={{ fontSize: 8, color: C.muted, marginTop: 1 }}>{ec.case_ref}</div>}
                     </div>
-                    {/* Status */}
+                    {/* Status — FF-061D forward trajectory */}
                     <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
                       <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Status</div>
-                      <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 800, color: 'white', background: color, marginBottom: 3 }}>{ec.drift_tier}</span>
+                      <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 800, color: 'white', background: fwdColor, marginBottom: 3 }}>
+                        {isWatch ? '⚠ WATCH' : forwardStatus}
+                      </span>
+                      {isWatch && (
+                        <div style={{ fontSize: 7, color: C.watch, fontWeight: 700, marginBottom: 2, whiteSpace: 'nowrap' }}>In Objective Focus</div>
+                      )}
                       {userStatus && (
                         <div style={{ display: 'inline-block', marginLeft: 4, padding: '1px 5px', borderRadius: 3, fontSize: 8, fontWeight: 700, color: 'white', background: USER_STATUS_COLORS[userStatus], marginBottom: 3 }}>{USER_STATUS_LABELS[userStatus]}</div>
                       )}
@@ -1117,22 +1160,35 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                         <div style={{ fontSize: 8, color: C.blue, marginTop: 2, fontWeight: 600 }}>Your override</div>
                       )}
                     </div>
-                    {/* Direction */}
+                    {/* Direction — FF-061D forward status */}
                     <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
                       <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Direction</div>
-                      <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 800, color: 'white', background: color, marginTop: 4 }}>{ec.drift_tier}</span>
+                      <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 800, color: 'white', background: fwdColor, marginTop: 4 }}>
+                        {isWatch ? '⚠ WATCH' : forwardStatus}
+                      </span>
                     </div>
-                    {/* Outcome Confidence */}
+                    {/* Confidence — FF-061D: objective risk replaces snapshot conf when flags exist */}
                     <div style={{ padding: '10px 12px' }}>
                       <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Confidence</div>
-                      <div title={OUTCOME_TOOLTIP[ec.drift_tier] ?? ''} style={{ fontSize: 13, fontWeight: 700, cursor: 'help' }}>
-                        {userConf != null ? (
-                          <>
-                            <span style={{ color: C.blue }}>{userConf}%</span>
-                            <span style={{ fontSize: 9, color: C.muted, marginLeft: 3 }}>({confPct}%)</span>
-                          </>
-                        ) : `${confPct}%`}
-                      </div>
+                      {hasObjFlags ? (
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: objRiskColor }}>
+                            Objective Risk: {objRiskLabel}
+                          </div>
+                          {userConf != null && (
+                            <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>{userConf}% override</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div title={OUTCOME_TOOLTIP[ec.drift_tier] ?? ''} style={{ fontSize: 13, fontWeight: 700, cursor: 'help' }}>
+                          {userConf != null ? (
+                            <>
+                              <span style={{ color: C.blue }}>{userConf}%</span>
+                              <span style={{ fontSize: 9, color: C.muted, marginLeft: 3 }}>({confPct}%)</span>
+                            </>
+                          ) : `${confPct}%`}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
