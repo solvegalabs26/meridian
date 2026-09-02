@@ -255,6 +255,28 @@ export async function updateCaseAlias(
   return { ok: true }
 }
 
+// ── FF-061E: Close case ───────────────────────────────────────────────────
+export async function closeCaseAction(
+  caseRef: string,
+  institutionId: string,
+  closeOutcome: 'sold' | 'off_market' | 'relist' | 'other',
+  closeNote: string | null
+): Promise<{ ok: boolean; error?: string }> {
+  const supabase = createServiceClient()
+  const { error } = await supabase
+    .from('enterprise_cases')
+    .update({
+      closed_at: new Date().toISOString(),
+      close_outcome: closeOutcome,
+      close_note: closeNote,
+      in_scope: false,
+    })
+    .eq('case_ref', caseRef)
+    .eq('institution_id', institutionId)
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
 // ── FF-051: Per-case user feedback / confidence adjustment ─────────────────
 export async function updateCaseFeedback(
   institutionId: string,

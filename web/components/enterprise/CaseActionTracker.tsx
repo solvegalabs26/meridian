@@ -26,7 +26,6 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   showing_activity:'Showing Activity',
   offer_activity:  'Offer Activity',
   internal_review: 'Internal Review',
-  other:           'Other',
 }
 
 const OUTCOME_BG: Record<Outcome, string> = {
@@ -58,7 +57,7 @@ export function CaseActionTracker({ institutionId, caseRef, actions: initialActi
   const [showHistory, setShowHistory] = useState(false)
   const [actionText, setActionText] = useState('')
   const [actionDate, setActionDate] = useState(new Date().toISOString().split('T')[0])
-  const [actionType, setActionType] = useState('other')
+  const [actionType, setActionType] = useState('')
   const [selectedObjectiveId, setSelectedObjectiveId] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -130,13 +129,14 @@ export function CaseActionTracker({ institutionId, caseRef, actions: initialActi
             value={actionText}
             onChange={e => setActionText(e.target.value)}
             rows={2}
-            style={{ width: '100%', fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 5, padding: '6px 8px', resize: 'vertical', fontFamily: 'inherit', color: C.text, outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 5, padding: '6px 8px', resize: 'vertical', fontFamily: 'inherit', color: '#111111', outline: 'none', boxSizing: 'border-box' }}
           />
           <select
             value={actionType}
             onChange={e => setActionType(e.target.value)}
             style={{ fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 5, padding: '4px 7px', fontFamily: 'inherit', color: C.text, width: '100%' }}
           >
+            <option value="">Action Type</option>
             {Object.entries(ACTION_TYPE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
@@ -163,9 +163,9 @@ export function CaseActionTracker({ institutionId, caseRef, actions: initialActi
             <button
               onClick={handleSave}
               disabled={saving || !actionText.trim()}
-              style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: saving || !actionText.trim() ? '#D1D5DB' : C.blue, color: 'white', fontSize: 10, fontWeight: 700, cursor: saving || !actionText.trim() ? 'default' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+              style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: '#2563eb', color: '#ffffff', fontSize: 10, fontWeight: 700, cursor: saving || !actionText.trim() ? 'default' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', opacity: saving || !actionText.trim() ? 0.5 : 1 }}
             >
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? 'Saving…' : 'Log Action'}
             </button>
             <button
               onClick={() => setShowForm(false)}

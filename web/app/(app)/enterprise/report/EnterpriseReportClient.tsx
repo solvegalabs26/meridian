@@ -7,11 +7,13 @@ import Link from 'next/link'
 import { formatLoanStatus } from '@/lib/enterprise/format-utils'
 import { VerticalReportHeader } from '@/components/enterprise/vertical/VerticalReportHeader'
 import type { VerticalConfig } from '@/lib/vertical/verticalTypes'
-import { updateCaseFeedback, updateCaseAlias } from '../actions'
+import { updateCaseFeedback, updateCaseAlias, closeCaseAction } from '../actions'
 import { displayCase } from '@/lib/enterprise/displayUtils'
 import { ExpandableSection } from '@/components/enterprise/ExpandableSection'
 import type { CaseMap } from '@/components/enterprise/ExpandableSection'
 import { CaseActionTracker } from '@/components/enterprise/CaseActionTracker'
+import { InfoTooltip } from '@/components/enterprise/InfoTooltip'
+import { CloseCaseModal } from '@/components/enterprise/CloseCaseModal'
 import type { CaseAction } from './page'
 
 interface Props {
@@ -605,6 +607,9 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
   const [aliasCaseRef, setAliasCaseRef] = useState<string | null>(null)
   const [aliasValue, setAliasValue] = useState('')
   const [aliasSaving, setAliasSaving] = useState(false)
+  // FF-061E close case state
+  const [closingCase, setClosingCase] = useState<string | null>(null)
+  const [closedCases, setClosedCases] = useState<Set<string>>(new Set())
 
   const openPopup = (caseId: string, type: PopupType) => {
     setPopupCaseId(caseId)
@@ -1035,7 +1040,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
               <div key={ec.id} id={cardId} style={{ background: C.card, border: `1px solid ${isFlashing ? '#C9A227' : C.border}`, borderRadius: 10, overflow: 'hidden', borderLeft: `5px solid ${color}`, transition: 'border-color 0.4s', boxShadow: isFlashing ? '0 0 0 3px rgba(201,162,39,0.25)' : 'none' }}>
                 {/* Header row — 9 columns now (added 5-Day Trend) */}
                 <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '100px 110px 90px 80px 75px 130px 90px 80px 90px', alignItems: 'stretch', minWidth: 860 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '100px 110px 90px 80px 75px 130px 90px 80px 130px', alignItems: 'stretch', minWidth: 900 }}>
                     {/* Case ID — FF-061A alias */}
                     <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
                       <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Case</div>
@@ -1069,7 +1074,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                     </div>
                     {/* Status */}
                     <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Status</div>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Status<InfoTooltip text="Current risk tier based on case trajectory and objective signals. STABLE = no active risk flags. WATCH = flagged by one or more objectives. CAUTION = approaching a threshold. ALERT = immediate action needed." /></div>
                       <span style={{ display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 800, color: 'white', background: color, marginBottom: 3 }}>{ec.drift_tier}</span>
                       {userStatus && (
                         <div style={{ display: 'inline-block', marginLeft: 4, padding: '1px 5px', borderRadius: 3, fontSize: 8, fontWeight: 700, color: 'white', background: USER_STATUS_COLORS[userStatus], marginBottom: 3 }}>{USER_STATUS_LABELS[userStatus]}</div>
@@ -1103,7 +1108,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                     </div>
                     {/* Drift Score */}
                     <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Drift Score</div>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Drift Score<InfoTooltip text="How far this case has moved from its baseline since the last sweep. 0/100 = no drift detected. Higher scores indicate accelerating change in key metrics." /></div>
                       <div style={{ fontSize: 13, fontWeight: 700 }}>{ec.drift_score} / 100</div>
                       <div style={{ marginTop: 6, height: 5, background: C.bg, borderRadius: 3, overflow: 'hidden' }}>
                         <div style={{ height: '100%', width: `${ec.drift_score}%`, background: color, borderRadius: 3 }} />
@@ -1122,19 +1127,33 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                     </div>
                     {/* Direction */}
                     <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}` }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Direction</div>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Direction<InfoTooltip text="Trajectory of this case over the last 5-day sweep window. Arrow up = improving. Arrow down = deteriorating. Flat = holding steady." /></div>
                       <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 5, fontSize: 10, fontWeight: 800, color: 'white', background: color, marginTop: 4 }}>{ec.drift_tier}</span>
                     </div>
-                    {/* Outcome Confidence */}
-                    <div style={{ padding: '10px 12px' }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Confidence</div>
-                      <div title={OUTCOME_TOOLTIP[ec.drift_tier] ?? ''} style={{ fontSize: 13, fontWeight: 700, cursor: 'help' }}>
-                        {userConf != null ? (
-                          <>
-                            <span style={{ color: C.blue }}>{userConf}%</span>
-                            <span style={{ fontSize: 9, color: C.muted, marginLeft: 3 }}>({confPct}%)</span>
-                          </>
-                        ) : `${confPct}%`}
+                    {/* Outcome Confidence + Close */}
+                    <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Confidence<InfoTooltip text="How confident the sweep engine is in the current status assessment for this case. Based on data completeness, signal strength, and objective result quality." /></div>
+                        <div title={OUTCOME_TOOLTIP[ec.drift_tier] ?? ''} style={{ fontSize: 13, fontWeight: 700, cursor: 'help' }}>
+                          {userConf != null ? (
+                            <>
+                              <span style={{ color: C.blue }}>{userConf}%</span>
+                              <span style={{ fontSize: 9, color: C.muted, marginLeft: 3 }}>({confPct}%)</span>
+                            </>
+                          ) : `${confPct}%`}
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 6 }}>
+                        {closedCases.has(ec.case_ref) ? (
+                          <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>✓ Closed</span>
+                        ) : (
+                          <button
+                            onClick={() => setClosingCase(ec.case_ref)}
+                            style={{ backgroundColor: '#10b981', color: '#ffffff', border: 'none', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            Close
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1217,6 +1236,20 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                   actions={caseActionsMap[ec.case_ref] ?? []}
                   objectives={objectives}
                 />
+
+                {/* FF-061E: Close Case Modal */}
+                {closingCase === ec.case_ref && (
+                  <CloseCaseModal
+                    caseRef={ec.case_ref}
+                    caseDisplay={displayCase(ec)}
+                    institutionId={institutionId}
+                    onClose={() => setClosingCase(null)}
+                    onConfirm={() => {
+                      setClosedCases(prev => new Set([...prev, ec.case_ref]))
+                      setClosingCase(null)
+                    }}
+                  />
+                )}
               </div>
             )
           })}
