@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { formatLoanStatus } from '@/lib/enterprise/format-utils'
@@ -10,6 +10,7 @@ import type { VerticalConfig } from '@/lib/vertical/verticalTypes'
 import { updateCaseFeedback, updateCaseAlias } from '../actions'
 import { displayCase } from '@/lib/enterprise/displayUtils'
 import { ExpandableSection } from '@/components/enterprise/ExpandableSection'
+import type { CaseMap } from '@/components/enterprise/ExpandableSection'
 
 interface Props {
   institutionId: string
@@ -117,6 +118,7 @@ interface EnterpriseObjectiveResult {
   confidence_score: number | null
   escalated_to_focus: boolean | null
   computed_at: string
+  key_case_refs: string[] | null
 }
 
 interface EnterpriseObjective {
@@ -762,7 +764,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
       // Step 9: Most recent objective result per objective (latest computed_at wins)
       const { data: objResultsData } = await supabase
         .from('enterprise_objective_results')
-        .select('objective_id, affecting_it, implies, what_to_do, confidence_score, escalated_to_focus, computed_at')
+        .select('objective_id, affecting_it, implies, what_to_do, confidence_score, escalated_to_focus, computed_at, key_case_refs')
         .eq('institution_id', institutionId)
         .order('computed_at', { ascending: false })
       const resultsMap = new Map<string, EnterpriseObjectiveResult>()
@@ -788,6 +790,29 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
     }
   }, [highlight, loading])
 
+  // FF-061B + FF-061C: both useMemo hooks must be before any early return
+  const caseMap = useMemo<CaseMap>(() =>
+    Object.fromEntries(
+      enrichedCases.map(ec => [
+        ec.case_ref,
+        { alias: ec.case_alias ?? null, elementId: caseId(ec.case_ref) },
+      ])
+    ),
+    [enrichedCases]
+  )
+
+  const caseObjectiveMap = useMemo<Record<string, Array<{ obj_id: string; title: string }>>>(() => {
+    const map: Record<string, Array<{ obj_id: string; title: string }>> = {}
+    for (const obj of objectives) {
+      const result = objectiveResults.get(obj.id)
+      for (const caseRef of result?.key_case_refs ?? []) {
+        if (!map[caseRef]) map[caseRef] = []
+        map[caseRef].push({ obj_id: obj.obj_id, title: obj.title })
+      }
+    }
+    return map
+  }, [objectives, objectiveResults])
+
   if (loading) return (
     <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center' }}>
@@ -811,8 +836,48 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
   // Popup case lookup
   const popupCase = popupCaseId ? enrichedCases.find(ec => ec.id === popupCaseId) ?? null : null
 
+  function scrollToObjective(objId: string) {
+    const el = document.getElementById(`objective-${objId}`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
   return (
     <div style={{ background: C.bg, minHeight: '100vh', fontFamily: "'Segoe UI', system-ui, sans-serif", color: C.text }}>
+      {/* FF-061B: amber highlight for case card scroll-to */}
+      <style>{`
+        .case-card--highlighted {
+          outline: 2px solid #FBBF24 !important;
+          background-color: rgba(254, 243, 199, 0.5) !important;
+          transition: outline 0.3s ease, background-color 0.3s ease !important;
+        }
+        .case-objectives-strip {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          padding: 7px 12px;
+          border-top: 1px solid #DDE3EE;
+          background: #FEFCF5;
+        }
+        .objective-pill {
+          display: inline-flex;
+          align-items: center;
+          padding: 3px 8px;
+          border-radius: 99px;
+          border: 1px solid #C8A84B;
+          background: white;
+          color: #C8A84B;
+          font-size: 10px;
+          font-weight: 700;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: background 0.15s, color 0.15s;
+          font-family: inherit;
+        }
+        .objective-pill:hover {
+          background: #C8A84B;
+          color: white;
+        }
+      `}</style>
       {/* Popup overlay */}
       {popupCase && popupType && (
         <Popup
@@ -888,7 +953,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
             const result = objectiveResults.get(obj.id)
             const conf = result?.confidence_score != null ? Math.round(result.confidence_score * 100) : null
             return (
-              <div key={obj.id} style={{ background: C.card, border: `1px solid ${result?.escalated_to_focus ? C.gold : C.border}`, borderRadius: 10, overflow: 'hidden' }}>
+              <div key={obj.id} id={`objective-${obj.obj_id}`} style={{ background: C.card, border: `1px solid ${result?.escalated_to_focus ? C.gold : C.border}`, borderRadius: 10, overflow: 'hidden' }}>
                 {/* Definition row */}
                 <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: '80px 1fr auto', gap: 14, alignItems: 'start' }}>
                   <div>
@@ -914,13 +979,13 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                 {result && (result.affecting_it || result.implies || result.what_to_do) && (
                   <div style={{ background: C.lightBlue, borderTop: `1px solid ${C.border}`, padding: '12px 18px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                     {result.affecting_it && (
-                      <ExpandableSection label="Affecting It" content={result.affecting_it} />
+                      <ExpandableSection label="Affecting It" content={result.affecting_it} caseMap={caseMap} />
                     )}
                     {result.implies && (
-                      <ExpandableSection label="Implies" content={result.implies} />
+                      <ExpandableSection label="Implies" content={result.implies} caseMap={caseMap} />
                     )}
                     {result.what_to_do && (
-                      <ExpandableSection label="What to Do" content={result.what_to_do} />
+                      <ExpandableSection label="What to Do" content={result.what_to_do} caseMap={caseMap} />
                     )}
                   </div>
                 )}
@@ -1071,6 +1136,21 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                     </div>
                   </div>
                 </div>
+
+                {/* FF-061C: Objective pill strip */}
+                {(caseObjectiveMap[ec.case_ref] ?? []).length > 0 && (
+                  <div className="case-objectives-strip">
+                    {(caseObjectiveMap[ec.case_ref] ?? []).map(obj => (
+                      <button
+                        key={obj.obj_id}
+                        className="objective-pill"
+                        onClick={() => scrollToObjective(obj.obj_id)}
+                      >
+                        {obj.obj_id} · {obj.title.length > 20 ? obj.title.slice(0, 20) + '…' : obj.title}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* FF-051 Action Bar */}
                 <div style={{ background: '#F7F9FC', borderTop: `1px solid ${C.border}`, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>

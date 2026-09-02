@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 
 const BLUE  = '#2D6BE4'
 const TEXT  = '#1A1A2E'
@@ -7,15 +8,68 @@ const MUTED = '#6B7280'
 
 const CHAR_THRESHOLD = 400
 
+const CASE_REF_PATTERN = /\b([A-Z]{2,5}-[A-Z]-\d{3,})\b/g
+
+export interface CaseMap {
+  [caseRef: string]: {
+    alias: string | null
+    elementId: string
+  }
+}
+
+function linkifyCaseRefs(text: string, caseMap: CaseMap): ReactNode {
+  const parts: ReactNode[] = []
+  let lastIndex = 0
+
+  CASE_REF_PATTERN.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = CASE_REF_PATTERN.exec(text)) !== null) {
+    const ref = match[1]
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+    const entry = caseMap[ref]
+    if (entry) {
+      parts.push(
+        <a
+          key={`${ref}-${match.index}`}
+          href={`#${entry.elementId}`}
+          onClick={e => {
+            e.preventDefault()
+            const el = document.getElementById(entry.elementId)
+            if (!el) return
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            el.classList.add('case-card--highlighted')
+            setTimeout(() => el.classList.remove('case-card--highlighted'), 2000)
+          }}
+          style={{ color: BLUE, fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}
+        >
+          {entry.alias ?? ref}
+        </a>
+      )
+    } else {
+      parts.push(ref)
+    }
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+  return parts.length === 0 ? text : <>{parts}</>
+}
+
 interface ExpandableSectionProps {
   label: string
   content: string
   defaultLines?: number
+  caseMap?: CaseMap
 }
 
-export function ExpandableSection({ label, content, defaultLines = 4 }: ExpandableSectionProps) {
+export function ExpandableSection({ label, content, defaultLines = 4, caseMap }: ExpandableSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const isLong = content.length >= CHAR_THRESHOLD
+
+  const rendered = caseMap ? linkifyCaseRefs(content, caseMap) : content
 
   return (
     <div>
@@ -38,7 +92,7 @@ export function ExpandableSection({ label, content, defaultLines = 4 }: Expandab
         color: TEXT,
         lineHeight: 1.5,
       }}>
-        {content}
+        {rendered}
       </div>
       {isLong ? (
         <button
@@ -58,7 +112,6 @@ export function ExpandableSection({ label, content, defaultLines = 4 }: Expandab
           {expanded ? 'Read less ↑' : 'Read more ↓'}
         </button>
       ) : (
-        /* spacer so the grid row height stays stable when siblings have a toggle */
         <div style={{ height: 19 }} aria-hidden />
       )}
       {!isLong && content.length === 0 && (
