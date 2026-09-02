@@ -471,7 +471,7 @@ export default function EnterprisePortalClient({ institutionId, institutionName,
     setError(null)
     try {
       const result = await runEnterpriseSweep(institutionId)
-      if (!result.ok) throw new Error(result.error ?? 'Sweep failed')
+      if (!result?.ok) throw new Error(result?.error ?? 'Sweep failed')
       await loadAll()
     } catch (e: any) {
       setError(e.message)
