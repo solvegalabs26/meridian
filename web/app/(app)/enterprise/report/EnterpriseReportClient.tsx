@@ -7,7 +7,8 @@ import Link from 'next/link'
 import { formatLoanStatus } from '@/lib/enterprise/format-utils'
 import { VerticalReportHeader } from '@/components/enterprise/vertical/VerticalReportHeader'
 import type { VerticalConfig } from '@/lib/vertical/verticalTypes'
-import { updateCaseFeedback } from '../actions'
+import { updateCaseFeedback, updateCaseAlias } from '../actions'
+import { displayCase } from '@/lib/enterprise/displayUtils'
 import { ExpandableSection } from '@/components/enterprise/ExpandableSection'
 
 interface Props {
@@ -25,6 +26,7 @@ type PopupType = 'implies' | 'todo' | 'adjust'
 interface CaseRow {
   id: string
   case_ref: string
+  case_alias?: string | null
   case_type: string | null
   region: string
   fico_band: string
@@ -57,6 +59,7 @@ interface CaseFeedback {
 interface EnrichedCase {
   id: string
   case_ref: string
+  case_alias?: string | null
   case_type: string | null
   region: string
   fico_band: string
@@ -401,7 +404,7 @@ function Popup({
           <div>
             <div style={{ color: 'white', fontWeight: 800, fontSize: 15 }}>{POPUP_TITLES[type]}</div>
             <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, marginTop: 2 }}>
-              {ec.case_ref} · <span style={{ textTransform: 'capitalize' }}>{ec.drift_tier}</span>
+              {displayCase(ec)} · <span style={{ textTransform: 'capitalize' }}>{ec.drift_tier}</span>
               {isRE && ec.loan_data?.case_type ? ` · ${(ec.loan_data.case_type as string) === 'buyer' ? 'Buyer' : 'Listing'}` : ''}
             </div>
           </div>
@@ -593,12 +596,34 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
   // FF-051 popup state
   const [popupCaseId, setPopupCaseId] = useState<string | null>(null)
   const [popupType, setPopupType] = useState<PopupType | null>(null)
+  // FF-061A alias edit state
+  const [aliasCaseRef, setAliasCaseRef] = useState<string | null>(null)
+  const [aliasValue, setAliasValue] = useState('')
+  const [aliasSaving, setAliasSaving] = useState(false)
 
   const openPopup = (caseId: string, type: PopupType) => {
     setPopupCaseId(caseId)
     setPopupType(type)
   }
   const closePopup = () => { setPopupCaseId(null); setPopupType(null) }
+
+  const startAliasEdit = (ec: EnrichedCase) => {
+    setAliasCaseRef(ec.case_ref)
+    setAliasValue(ec.case_alias ?? '')
+  }
+  const cancelAliasEdit = () => { setAliasCaseRef(null); setAliasValue('') }
+  const commitAliasEdit = async () => {
+    if (!aliasCaseRef) return
+    setAliasSaving(true)
+    const result = await updateCaseAlias(institutionId, aliasCaseRef, aliasValue)
+    setAliasSaving(false)
+    if (result.ok) {
+      setEnrichedCases(prev => prev.map(ec =>
+        ec.case_ref === aliasCaseRef ? { ...ec, case_alias: aliasValue.trim() || null } : ec
+      ))
+      setAliasCaseRef(null)
+    }
+  }
 
   const handleSaveFeedback = useCallback(async (caseId: string, fb: CaseFeedback) => {
     const result = await updateCaseFeedback(institutionId, caseId, fb)
@@ -623,7 +648,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
       // Step 2: All in-scope cases
       const { data: casesRaw } = await supabase
         .from('enterprise_cases')
-        .select('id, case_ref, case_type, region, fico_band, vehicle_class, loan_status, ltv_ratio, dti_ratio, current_balance, payments_remaining, loan_data')
+        .select('id, case_ref, case_alias, case_type, region, fico_band, vehicle_class, loan_status, ltv_ratio, dti_ratio, current_balance, payments_remaining, loan_data')
         .eq('institution_id', institutionId)
         .eq('in_scope', true)
       const cases = (casesRaw ?? []) as CaseRow[]
@@ -681,6 +706,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
         return {
           id: c.id,
           case_ref: c.case_ref,
+          case_alias: c.case_alias,
           case_type: c.case_type ?? null,
           region: c.region,
           fico_band: c.fico_band,
@@ -942,10 +968,36 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                 {/* Header row — 9 columns now (added 5-Day Trend) */}
                 <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '100px 110px 90px 80px 75px 130px 90px 80px 90px', alignItems: 'stretch', minWidth: 860 }}>
-                    {/* Case ID */}
+                    {/* Case ID — FF-061A alias */}
                     <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
-                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Case ID</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ec.case_ref}</div>
+                      <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.8, color: C.muted, fontWeight: 600, marginBottom: 3 }}>Case</div>
+                      {aliasCaseRef === ec.case_ref ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <input
+                            autoFocus
+                            value={aliasValue}
+                            onChange={e => setAliasValue(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') commitAliasEdit(); if (e.key === 'Escape') cancelAliasEdit() }}
+                            onBlur={commitAliasEdit}
+                            placeholder="Add alias (e.g. Anderson Pool Pad)"
+                            maxLength={60}
+                            style={{ fontSize: 11, fontWeight: 600, border: `1px solid ${C.blue}`, borderRadius: 4, padding: '2px 5px', width: 80, outline: 'none', color: C.text }}
+                          />
+                          {aliasSaving && <span style={{ fontSize: 9, color: C.muted }}>…</span>}
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={ec.case_ref}>
+                            {displayCase(ec)}
+                          </div>
+                          <button
+                            onClick={() => startAliasEdit(ec)}
+                            title={`Edit alias (${ec.case_ref})`}
+                            style={{ background: 'none', border: 'none', padding: '0 2px', cursor: 'pointer', color: C.muted, fontSize: 10, lineHeight: 1, flexShrink: 0 }}
+                          >✏️</button>
+                        </div>
+                      )}
+                      {ec.case_alias && <div style={{ fontSize: 8, color: C.muted, marginTop: 1 }}>{ec.case_ref}</div>}
                     </div>
                     {/* Status */}
                     <div style={{ padding: '10px 12px', borderRight: `1px solid ${C.border}`, overflow: 'hidden' }}>
