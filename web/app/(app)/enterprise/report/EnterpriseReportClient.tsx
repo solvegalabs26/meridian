@@ -790,7 +790,7 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
     }
   }, [highlight, loading])
 
-  // FF-061B: must be before early return — hooks must not be called conditionally
+  // FF-061B + FF-061C: both useMemo hooks must be before any early return
   const caseMap = useMemo<CaseMap>(() =>
     Object.fromEntries(
       enrichedCases.map(ec => [
@@ -800,6 +800,18 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
     ),
     [enrichedCases]
   )
+
+  const caseObjectiveMap = useMemo<Record<string, Array<{ obj_id: string; title: string }>>>(() => {
+    const map: Record<string, Array<{ obj_id: string; title: string }>> = {}
+    for (const obj of objectives) {
+      const result = objectiveResults.get(obj.id)
+      for (const caseRef of result?.key_case_refs ?? []) {
+        if (!map[caseRef]) map[caseRef] = []
+        map[caseRef].push({ obj_id: obj.obj_id, title: obj.title })
+      }
+    }
+    return map
+  }, [objectives, objectiveResults])
 
   if (loading) return (
     <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -823,19 +835,6 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
 
   // Popup case lookup
   const popupCase = popupCaseId ? enrichedCases.find(ec => ec.id === popupCaseId) ?? null : null
-
-  // FF-061C: inverted index — case_ref → objectives that reference it
-  const caseObjectiveMap = useMemo<Record<string, Array<{ obj_id: string; title: string }>>>(() => {
-    const map: Record<string, Array<{ obj_id: string; title: string }>> = {}
-    for (const obj of objectives) {
-      const result = objectiveResults.get(obj.id)
-      for (const caseRef of result?.key_case_refs ?? []) {
-        if (!map[caseRef]) map[caseRef] = []
-        map[caseRef].push({ obj_id: obj.obj_id, title: obj.title })
-      }
-    }
-    return map
-  }, [objectives, objectiveResults])
 
   function scrollToObjective(objId: string) {
     const el = document.getElementById(`objective-${objId}`)
