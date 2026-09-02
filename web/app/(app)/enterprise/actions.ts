@@ -195,7 +195,8 @@ export async function logCaseAction(
   caseRef: string,
   actionText: string,
   actionDate: string,
-  objectiveId: string | null
+  objectiveId: string | null,
+  actionType: string
 ): Promise<{ ok: boolean; error?: string }> {
   const supabase = createServiceClient()
   const { error } = await supabase
@@ -206,6 +207,7 @@ export async function logCaseAction(
       action_text: actionText,
       action_date: actionDate,
       objective_id: objectiveId || null,
+      action_type: actionType,
       outcome: 'pending',
       created_by: 'broker',
     })

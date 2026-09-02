@@ -19,6 +19,16 @@ const OUTCOME_LABELS: Record<Outcome, string> = {
   abandoned:   'Abandoned',
 }
 
+const ACTION_TYPE_LABELS: Record<string, string> = {
+  seller_contact:  'Seller Contact',
+  buyer_contact:   'Buyer Contact',
+  price_discussion:'Price Discussion',
+  showing_activity:'Showing Activity',
+  offer_activity:  'Offer Activity',
+  internal_review: 'Internal Review',
+  other:           'Other',
+}
+
 const OUTCOME_BG: Record<Outcome, string> = {
   pending:     '#FEF9C3',
   complete:    '#DCFCE7',
@@ -48,6 +58,7 @@ export function CaseActionTracker({ institutionId, caseRef, actions: initialActi
   const [showHistory, setShowHistory] = useState(false)
   const [actionText, setActionText] = useState('')
   const [actionDate, setActionDate] = useState(new Date().toISOString().split('T')[0])
+  const [actionType, setActionType] = useState('other')
   const [selectedObjectiveId, setSelectedObjectiveId] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -59,13 +70,15 @@ export function CaseActionTracker({ institutionId, caseRef, actions: initialActi
       caseRef,
       actionText.trim(),
       actionDate,
-      selectedObjectiveId || null
+      selectedObjectiveId || null,
+      actionType
     )
     if (result.ok) {
       const optimistic: CaseAction = {
         id: crypto.randomUUID(),
         case_ref: caseRef,
         objective_id: selectedObjectiveId || null,
+        action_type: actionType,
         action_text: actionText.trim(),
         action_date: actionDate,
         outcome: 'pending',
@@ -119,6 +132,15 @@ export function CaseActionTracker({ institutionId, caseRef, actions: initialActi
             rows={2}
             style={{ width: '100%', fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 5, padding: '6px 8px', resize: 'vertical', fontFamily: 'inherit', color: C.text, outline: 'none', boxSizing: 'border-box' }}
           />
+          <select
+            value={actionType}
+            onChange={e => setActionType(e.target.value)}
+            style={{ fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 5, padding: '4px 7px', fontFamily: 'inherit', color: C.text, width: '100%' }}
+          >
+            {Object.entries(ACTION_TYPE_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>{label}</option>
+            ))}
+          </select>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input
               type="date"
@@ -164,6 +186,9 @@ export function CaseActionTracker({ institutionId, caseRef, actions: initialActi
               <div key={action.id} style={{ background: 'white', border: `1px solid ${C.border}`, borderRadius: 6, padding: '7px 10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                   <span style={{ fontSize: 10, color: C.muted }}>{action.action_date}</span>
+                  <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, background: '#EEF2FF', color: '#3730A3' }}>
+                    {ACTION_TYPE_LABELS[action.action_type] ?? action.action_type}
+                  </span>
                   <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: 9, fontWeight: 700, background: OUTCOME_BG[action.outcome], color: OUTCOME_COLOR[action.outcome] }}>
                     {OUTCOME_LABELS[action.outcome]}
                   </span>

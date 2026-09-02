@@ -81,6 +81,7 @@ export interface CaseAction {
   id: string
   case_ref: string
   objective_id: string | null
+  action_type: string
   action_text: string
   action_date: string
   outcome: 'pending' | 'complete' | 'no_response' | 'abandoned'

@@ -286,7 +286,7 @@ export async function runREObjectiveSweep(
   const scopedRefs = scopedCases.map(c => c.case_ref)
   const { data: recentActions } = await supabase
     .from('enterprise_case_actions')
-    .select('case_ref, action_text, action_date, outcome, outcome_note')
+    .select('case_ref, action_type, action_text, action_date, outcome, outcome_note')
     .eq('institution_id', institutionId)
     .in('case_ref', scopedRefs.length > 0 ? scopedRefs : ['__none__'])
     .order('action_date', { ascending: false })
@@ -294,7 +294,7 @@ export async function runREObjectiveSweep(
 
   const brokerActionsBlock = recentActions?.length
     ? `\n\n[BROKER ACTIONS — logged since last sweep]\n${recentActions.map(a =>
-        `${a.action_date} [${a.case_ref}]: ${a.action_text} — ${a.outcome}${a.outcome_note ? ` (${a.outcome_note})` : ''}`
+        `${a.action_date} [${a.case_ref}] [${a.action_type}]: ${a.action_text} — ${a.outcome}${a.outcome_note ? ` (${a.outcome_note})` : ''}`
       ).join('\n')}`
     : ''
 
