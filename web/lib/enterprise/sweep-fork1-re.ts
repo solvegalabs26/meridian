@@ -4,6 +4,7 @@ import { getMacroContextForSnapshot } from './lookback'
 
 export type REPortfolioSweepResult = {
   metricsId: string
+  portfolioSweepId: string | null
   healthScore: number
   activeListings: number
   activeBuyers: number
@@ -225,7 +226,7 @@ export async function runREPortfolioSweep(institutionId: string): Promise<REPort
   }
 
   // ── Write enterprise_sweeps ──
-  await supabase.from('enterprise_sweeps').insert({
+  const { data: sweepRow } = await supabase.from('enterprise_sweeps').insert({
     institution_id: institutionId,
     trigger_type: 'manual',
     status: 'complete',
@@ -238,10 +239,11 @@ export async function runREPortfolioSweep(institutionId: string): Promise<REPort
     engine_version: 're-sweep-v1',
     started_at: new Date(startMs).toISOString(),
     completed_at: new Date().toISOString(),
-  })
+  }).select('id').single()
 
   return {
     metricsId: metricsRow.id as string,
+    portfolioSweepId: (sweepRow as { id?: string } | null)?.id ?? null,
     healthScore,
     activeListings,
     activeBuyers,

@@ -1,0 +1,260 @@
+import { createServiceClient } from '@/lib/supabase/server'
+
+// ── RE Signal Taxonomy ────────────────────────────────────────────────────────
+
+type RESignal = {
+  signal_id: string
+  label: string
+  source: string
+  magnitude: string
+  direction_score: number
+  score_contribution: number
+}
+
+type RECaseRow = {
+  id: string
+  case_ref: string
+  loan_data: Record<string, unknown>
+}
+
+function inferCaseType(ld: Record<string, unknown>): 'listing' | 'buyer' | null {
+  const explicit = ld.case_type as string | undefined
+  if (explicit === 'listing') return 'listing'
+  if (explicit === 'buyer') return 'buyer'
+  if (ld.days_on_market !== undefined || ld.list_price !== undefined) return 'listing'
+  if (ld.rate_lock_expires !== undefined) return 'buyer'
+  return null
+}
+
+function buildRESignals(
+  loanData: Record<string, unknown>,
+  caseType: 'listing' | 'buyer' | null
+): RESignal[] {
+  const signals: RESignal[] = []
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  if (caseType === 'listing') {
+    const domRaw = loanData.days_on_market
+    const dom =
+      typeof domRaw === 'number' ? domRaw
+      : typeof domRaw === 'string' ? Number(domRaw)
+      : undefined
+
+    if (dom !== undefined && !isNaN(dom) && dom >= 25) {
+      const magnitude = dom >= 45 ? 'SEVERE' : dom >= 35 ? 'SIGNIFICANT' : 'MODERATE'
+      signals.push({
+        signal_id: 'RE:DOM_THRESHOLD',
+        label: `Days on market: ${dom}d (${dom >= 45 ? 'past' : 'approaching'} 45-day threshold)`,
+        source: 'PORTFOLIO',
+        magnitude,
+        direction_score: dom >= 45 ? -3 : dom >= 35 ? -2 : -1,
+        score_contribution: dom >= 45 ? 25 : dom >= 35 ? 15 : 8,
+      })
+    }
+
+    const priceBand = loanData.price_band as string | undefined
+    if (dom !== undefined && !isNaN(dom) && dom >= 25 && priceBand) {
+      signals.push({
+        signal_id: 'RE:PRICE_BAND_STALL',
+        label: `${priceBand} price band stalling at ${dom}d DOM`,
+        source: 'PORTFOLIO',
+        magnitude: 'MODERATE',
+        direction_score: -1,
+        score_contribution: 5,
+      })
+    }
+
+    const listPriceRaw = loanData.list_price
+    const lastSalePriceRaw = loanData.last_sale_price
+    if (typeof listPriceRaw === 'number' && typeof lastSalePriceRaw === 'number' && lastSalePriceRaw > 0) {
+      const delta = (listPriceRaw - lastSalePriceRaw) / lastSalePriceRaw
+      if (delta > 0.15) {
+        signals.push({
+          signal_id: 'RE:LIST_PRICE_PREMIUM',
+          label: `List price ${Math.round(delta * 100)}% above last sale`,
+          source: 'PORTFOLIO',
+          magnitude: delta > 0.25 ? 'SIGNIFICANT' : 'MODERATE',
+          direction_score: -1,
+          score_contribution: delta > 0.25 ? 10 : 5,
+        })
+      }
+    }
+  }
+
+  if (caseType === 'buyer') {
+    const rateLock = loanData.rate_lock_expires as string | undefined
+    if (rateLock) {
+      const expiry = new Date(rateLock)
+      expiry.setHours(0, 0, 0, 0)
+      const daysUntil = Math.round((expiry.getTime() - today.getTime()) / 86400000)
+
+      if (daysUntil <= 21) {
+        const magnitude = daysUntil <= 7 ? 'SEVERE' : daysUntil <= 14 ? 'SIGNIFICANT' : 'MODERATE'
+        signals.push({
+          signal_id: 'RE:RATE_LOCK_EXPIRY',
+          label:
+            daysUntil < 0
+              ? `Rate lock expired ${Math.abs(daysUntil)} days ago`
+              : `Rate lock expires in ${daysUntil} days`,
+          source: 'PORTFOLIO',
+          magnitude,
+          direction_score: daysUntil <= 7 ? -3 : daysUntil <= 14 ? -2 : -1,
+          score_contribution: daysUntil <= 7 ? 20 : daysUntil <= 14 ? 12 : 6,
+        })
+      }
+    }
+
+    const budgetRaw = loanData.buyer_budget ?? loanData.max_budget
+    const listPriceRaw = loanData.list_price
+    if (typeof budgetRaw === 'number' && typeof listPriceRaw === 'number' && listPriceRaw > budgetRaw) {
+      const gap = ((listPriceRaw - budgetRaw) / budgetRaw) * 100
+      signals.push({
+        signal_id: 'RE:BUDGET_GAP',
+        label: `List price ${Math.round(gap)}% above buyer budget`,
+        source: 'PORTFOLIO',
+        magnitude: gap > 10 ? 'SIGNIFICANT' : 'MODERATE',
+        direction_score: -2,
+        score_contribution: gap > 10 ? 15 : 8,
+      })
+    }
+  }
+
+  return signals
+}
+
+function computeREDriftScore(
+  loanData: Record<string, unknown>,
+  caseType: 'listing' | 'buyer' | null
+): { drift_score: number; drift_direction: string } {
+  let score = 0
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  if (caseType === 'listing') {
+    const domRaw = loanData.days_on_market
+    const dom =
+      typeof domRaw === 'number' ? domRaw
+      : typeof domRaw === 'string' ? Number(domRaw)
+      : 0
+    if (dom >= 45) score += 40
+    else if (dom >= 35) score += 25
+    else if (dom >= 25) score += 10
+  }
+
+  if (caseType === 'buyer') {
+    const rateLock = loanData.rate_lock_expires as string | undefined
+    if (rateLock) {
+      const expiry = new Date(rateLock)
+      expiry.setHours(0, 0, 0, 0)
+      const daysUntil = Math.round((expiry.getTime() - today.getTime()) / 86400000)
+      if (daysUntil <= 7) score += 40
+      else if (daysUntil <= 14) score += 25
+      else if (daysUntil <= 21) score += 10
+    }
+  }
+
+  const direction =
+    score >= 40 ? 'ALERT' :
+    score >= 20 ? 'CAUTION' :
+    score >= 10 ? 'WATCH' : 'STABLE'
+
+  return { drift_score: Math.min(score, 100), drift_direction: direction }
+}
+
+function computeRECaseConfidence(
+  loanData: Record<string, unknown>,
+  activeSignals: RESignal[],
+  objectiveCount: number
+): number {
+  let score = 40
+
+  // Data completeness
+  if (loanData.days_on_market !== undefined) score += 10
+  if (loanData.price_band) score += 8
+  if (loanData.list_price) score += 6
+  if (loanData.neighborhood) score += 4
+  // Buyer-specific fields
+  if (loanData.rate_lock_expires) score += 10
+  if (loanData.buyer_budget ?? loanData.max_budget) score += 5
+
+  // Signal and objective coverage bonuses
+  if (activeSignals.length >= 2) score += 5
+  if (objectiveCount >= 1) score += 5
+  if (objectiveCount >= 3) score += 7
+
+  return Math.min(score, 100)
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+
+export async function writeRECaseSnapshots(
+  institutionId: string,
+  sweepId: string,
+  objectiveCaseRefs: string[][]
+): Promise<void> {
+  const supabase = createServiceClient()
+
+  // Build caseObjectiveCount: how many objectives flagged each case_ref
+  const caseObjectiveCount: Record<string, number> = {}
+  for (const refs of objectiveCaseRefs) {
+    for (const ref of refs) {
+      caseObjectiveCount[ref] = (caseObjectiveCount[ref] ?? 0) + 1
+    }
+  }
+
+  const { data: casesData } = await supabase
+    .from('enterprise_cases')
+    .select('id, case_ref, loan_data')
+    .eq('institution_id', institutionId)
+
+  const cases: RECaseRow[] = (casesData ?? []).map(c => ({
+    id: c.id as string,
+    case_ref: (c.case_ref as string) ?? (c.id as string),
+    loan_data: (c.loan_data as Record<string, unknown>) ?? {},
+  }))
+
+  if (cases.length === 0) return
+
+  const sweepTimestamp = new Date().toISOString()
+
+  const snapshotInserts = cases.map(ec => {
+    const ld = ec.loan_data
+    const caseType = inferCaseType(ld)
+    const activeSignals = buildRESignals(ld, caseType)
+    const { drift_score, drift_direction } = computeREDriftScore(ld, caseType)
+    const confidence_pct = computeRECaseConfidence(
+      ld,
+      activeSignals,
+      caseObjectiveCount[ec.case_ref] ?? 0
+    )
+
+    return {
+      case_id: ec.id,
+      institution_id: institutionId,
+      objective_id: null,
+      sweep_id: sweepId,
+      sweep_timestamp: sweepTimestamp,
+      active_signals: activeSignals,
+      pattern_matches: [],
+      drift_score,
+      drift_direction,
+      top_signal_1: activeSignals[0]?.label ?? null,
+      top_signal_2: activeSignals[1]?.label ?? null,
+      top_signal_3: activeSignals[2]?.label ?? null,
+      collateral_risk: null,
+      income_stress: null,
+      recommended_action: null,
+      confidence_pct,
+      engine_version: 're-sweep-v2',
+    }
+  })
+
+  const { error: snapshotErr } = await supabase
+    .from('case_signal_snapshots')
+    .insert(snapshotInserts)
+
+  if (snapshotErr) {
+    console.error('[FF-062] case_signal_snapshots write failed:', snapshotErr.message)
+  }
+}

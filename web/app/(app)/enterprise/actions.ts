@@ -5,7 +5,9 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { runPortfolioSweep } from '@/lib/enterprise/sweep-fork1'
 import { runObjectiveSweep } from '@/lib/enterprise/sweep-fork2'
 import { runREPortfolioSweep } from '@/lib/enterprise/sweep-fork1-re'
+import type { REPortfolioSweepResult } from '@/lib/enterprise/sweep-fork1-re'
 import { runREObjectiveSweep } from '@/lib/enterprise/sweep-fork2-re'
+import { writeRECaseSnapshots } from '@/lib/enterprise/re-case-snapshots'
 import type { ObjectiveState } from '@/lib/enterprise/objectives-queries'
 
 export async function updateObjectiveState(
@@ -76,6 +78,18 @@ export async function runEnterpriseSweep(
 
   if (failed > 0) {
     console.error(`[FF-035-C] ${failed} objective sweep(s) failed`)
+  }
+
+  if (isRE) {
+    const reFork1 = fork1Result as REPortfolioSweepResult
+    if (reFork1.portfolioSweepId) {
+      const objectiveCaseRefs = settled
+        .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof runREObjectiveSweep>>> =>
+          r.status === 'fulfilled'
+        )
+        .map(r => r.value.keySignals)
+      await writeRECaseSnapshots(institutionId, reFork1.portfolioSweepId, objectiveCaseRefs)
+    }
   }
 
   return { ok: true, objectivesSwept: swept }
