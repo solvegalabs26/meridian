@@ -51,7 +51,7 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
 
   // Edit form state
   const [title, setTitle]                   = useState(obj.title)
-  const [targetDate, setTargetDate]         = useState(obj.target_date ?? '')
+  const [targetDate, setTargetDate]         = useState(obj.target_date ? obj.target_date.slice(0, 10) : '')
   const [deadlineType, setDeadlineType]     = useState<'hard' | 'soft'>(obj.deadline_type ?? 'hard')
   const [reservationPrice, setReservation]  = useState(obj.reservation_price?.toString() ?? '')
   const [notes, setNotes]                   = useState(obj.notes ?? '')
@@ -432,11 +432,14 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                 )}
 
                 <div>
-                  <label className={labelCls} style={{ color: 'var(--ov-text-dim)' }}>Notes</label>
+                  <label className={labelCls} style={{ color: 'var(--ov-text-dim)' }}>Personal Notes</label>
+                  <p className="text-xs mt-0.5 mb-2" style={{ color: 'var(--ov-text-dim)' }}>
+                    For your reference only — not analyzed by Meridian
+                  </p>
                   <textarea
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
-                    rows={3}
+                    rows={6}
                     className={inputCls}
                     style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', resize: 'none' }}
                   />
