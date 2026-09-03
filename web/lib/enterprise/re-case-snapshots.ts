@@ -212,8 +212,11 @@ export async function writeRECaseSnapshots(
 
   const sweepTimestamp = new Date().toISOString()
 
-  // One row per case per objective that references it — objective_id is required
+  // One row per case per objective — also capture one score per case for history write
   const snapshotInserts: object[] = []
+  type CaseScore = { drift_score: number; drift_direction: string; confidence_pct: number; case_ref: string }
+  const caseLevelScores = new Map<string, CaseScore>()
+
   for (const ec of cases) {
     const objectiveIds = caseObjectiveIds[ec.case_ref] ?? []
     if (objectiveIds.length === 0) continue   // skip cases not referenced by any objective
@@ -223,6 +226,8 @@ export async function writeRECaseSnapshots(
     const activeSignals = buildRESignals(ld, caseType)
     const { drift_score, drift_direction } = computeREDriftScore(ld, caseType)
     const confidence_pct = computeRECaseConfidence(ld, activeSignals, objectiveIds.length)
+
+    caseLevelScores.set(ec.id, { drift_score, drift_direction, confidence_pct, case_ref: ec.case_ref })
 
     for (const objectiveId of objectiveIds) {
       snapshotInserts.push({
@@ -256,6 +261,32 @@ export async function writeRECaseSnapshots(
   if (snapshotErr) {
     console.error('[FF-062] case_signal_snapshots write failed:', snapshotErr.message)
     return { written: 0, error: snapshotErr.message }
+  }
+
+  // ── Step 3b: Write enterprise_case_history (mirrors auto-finance sweep pattern) ──
+  // One row per case so the report client reads drift_score + drift_tier correctly.
+  // WATCH has no equivalent in the Dir type — map it to CAUTION.
+  if (caseLevelScores.size > 0) {
+    const historyInserts = Array.from(caseLevelScores.entries()).map(([caseId, s]) => ({
+      case_id: caseId,
+      institution_id: institutionId,
+      case_ref: s.case_ref,
+      snapshot_type: 'sweep',
+      snapshot_at: sweepTimestamp,
+      drift_score: s.drift_score,
+      drift_tier: s.drift_direction === 'ALERT' ? 'ALERT'
+        : (s.drift_direction === 'CAUTION' || s.drift_direction === 'WATCH') ? 'CAUTION'
+        : 'STABLE',
+      confidence_pct: s.confidence_pct,
+      macro_event_ids: [],
+      notes: `re-sweep-${sweepId.slice(0, 8)}`,
+      prior_status: null,
+    }))
+    const { error: histErr } = await supabase
+      .from('enterprise_case_history')
+      .insert(historyInserts)
+    if (histErr) console.error('[FF-062] enterprise_case_history write failed:', histErr.message)
+    else console.log('[FF-062] enterprise_case_history written:', historyInserts.length, 'rows')
   }
 
   // ── Step 4: Update portfolio_metrics stoplight from actual drift_direction counts ──
