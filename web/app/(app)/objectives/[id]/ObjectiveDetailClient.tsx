@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Settings, X, Pause, Pencil, ChevronLeft, Eye, RotateCcw, Play } from 'lucide-react'
+import { Settings, X, Pause, Pencil, ChevronLeft, Eye, RotateCcw, Play, CalendarPlus } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import * as chrono from 'chrono-node'
 import WatchSourcesPanel, { type WatchSource } from '@/components/watchlist/WatchSourcesPanel'
 import CloseModal from '@/components/objectives/CloseModal'
 import AbandonModal from '@/components/objectives/AbandonModal'
@@ -42,6 +43,16 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
   // Reopen confirmation state
   const [reopenConfirm, setReopenConfirm] = useState(false)
   const [reopenSaving, setReopenSaving]   = useState(false)
+
+  // Calendar add state
+  const [calendarModalOpen, setCalendarModalOpen] = useState(false)
+  const [calModalTitle, setCalModalTitle]         = useState('')
+  const [calModalDate, setCalModalDate]           = useState('')
+  const [calModalTime, setCalModalTime]           = useState('09:00')
+  const [calModalNotes, setCalModalNotes]         = useState('')
+  const [calAddStatus, setCalAddStatus]           = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [notesDateSuggestion, setNotesDateSuggestion] = useState<{ iso: string; readable: string } | null>(null)
+  const [notesBannerDismissed, setNotesBannerDismissed] = useState(false)
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [view, setView] = useState<DrawerView>('menu')
@@ -160,6 +171,52 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
     router.refresh()
   }
 
+  function openCalendarModal(prefillDate?: string) {
+    setCalModalTitle(obj.title)
+    setCalModalDate(prefillDate ?? targetDate)
+    setCalModalTime('09:00')
+    setCalModalNotes('')
+    setCalAddStatus('idle')
+    setCalendarModalOpen(true)
+  }
+
+  function handleNotesBlur() {
+    if (notesBannerDismissed || !notes.trim()) return
+    const results = chrono.parse(notes, new Date(), { forwardDate: true })
+    if (results.length === 0) { setNotesDateSuggestion(null); return }
+    const detected = results[0].start.date()
+    if (detected <= new Date()) { setNotesDateSuggestion(null); return }
+    const iso = detected.toISOString().split('T')[0]
+    const readable = detected.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    setNotesDateSuggestion({ iso, readable })
+  }
+
+  async function handleCalendarAdd() {
+    setCalAddStatus('loading')
+    const res = await fetch('/api/calendar/add-event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: calModalTitle,
+        date: calModalDate,
+        time: calModalTime,
+        notes: calModalNotes,
+        objective_id: obj.id,
+      }),
+    })
+    if (!res.ok) {
+      setCalAddStatus('error')
+      return
+    }
+    const data = await res.json() as { success: boolean; url?: string }
+    if (data.url) window.open(data.url, '_blank', 'noopener,noreferrer')
+    setCalAddStatus('success')
+    setTimeout(() => {
+      setCalAddStatus('idle')
+      setCalendarModalOpen(false)
+    }, 3000)
+  }
+
   const isActive   = obj.status === 'active'
   const isPaused   = obj.status === 'paused'
   const isClosed   = obj.status === 'closed' || obj.status === 'abandoned'
@@ -207,6 +264,15 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
             Resume Goal
           </button>
         )}
+        <button
+          onClick={() => openCalendarModal()}
+          className="px-3 py-1.5 rounded-lg text-[12px] font-medium flex items-center gap-1.5 transition-colors whitespace-nowrap flex-shrink-0"
+          style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-mid)', backgroundColor: 'transparent' }}
+          aria-label="Add to Calendar"
+        >
+          <CalendarPlus size={13} />
+          Add to Calendar
+        </button>
         <button
           onClick={openDrawer}
           className="p-2 rounded-lg flex-shrink-0 transition-colors"
@@ -445,10 +511,33 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                   <textarea
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
+                    onBlur={handleNotesBlur}
                     rows={6}
                     className={inputCls}
                     style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', resize: 'none' }}
                   />
+                  {notesDateSuggestion && !notesBannerDismissed && (
+                    <div
+                      className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg text-xs"
+                      style={{ background: 'rgba(201,162,39,.12)', border: '1px solid rgba(201,162,39,.3)', color: 'rgba(201,162,39,.9)' }}
+                    >
+                      <span className="flex-1">📅 Detected: {notesDateSuggestion.readable} — Add to calendar?</span>
+                      <button
+                        onClick={() => { openCalendarModal(notesDateSuggestion.iso); setNotesDateSuggestion(null) }}
+                        className="px-2 py-0.5 rounded text-[11px] font-medium"
+                        style={{ background: 'rgba(201,162,39,.25)', color: 'rgba(201,162,39,.95)' }}
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => { setNotesBannerDismissed(true); setNotesDateSuggestion(null) }}
+                        className="px-2 py-0.5 rounded text-[11px]"
+                        style={{ color: 'rgba(201,162,39,.7)' }}
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -513,6 +602,103 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
             setPauseConfirmOpen(true)
           }}
         />
+      )}
+
+      {/* ── Add to Calendar modal ── */}
+      {calendarModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setCalendarModalOpen(false)} />
+          <div
+            className="relative w-full max-w-sm rounded-2xl shadow-xl flex flex-col p-6 gap-4"
+            style={{ backgroundColor: 'var(--ov-navy-card)', border: '1px solid var(--ov-border-md)' }}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-[15px] font-semibold flex items-center gap-2" style={{ color: 'var(--ov-text-hi)' }}>
+                <CalendarPlus size={15} style={{ color: 'var(--ov-blue)' }} />
+                Add to Calendar
+              </h2>
+              <button onClick={() => setCalendarModalOpen(false)} style={{ color: 'var(--ov-text-dim)' }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {calAddStatus === 'success' ? (
+              <p className="text-[13px] text-center py-4 font-medium" style={{ color: '#4ade80' }}>
+                Added to your calendar ✓
+              </p>
+            ) : (
+              <>
+                {calAddStatus === 'error' && (
+                  <div className="px-3 py-2 rounded-lg text-[12px]" style={{ background: 'rgba(201,162,39,.12)', border: '1px solid rgba(201,162,39,.3)', color: 'rgba(201,162,39,.9)' }}>
+                    Calendar not connected — go to Settings to connect
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <label className={labelCls} style={{ color: 'var(--ov-text-dim)' }}>Event Title</label>
+                    <input
+                      value={calModalTitle}
+                      onChange={e => setCalModalTitle(e.target.value)}
+                      className={inputCls}
+                      style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)' }}
+                    />
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className={labelCls} style={{ color: 'var(--ov-text-dim)' }}>Date</label>
+                      <input
+                        type="date"
+                        value={calModalDate}
+                        onChange={e => setCalModalDate(e.target.value)}
+                        className={inputCls}
+                        style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', colorScheme: 'dark' }}
+                      />
+                    </div>
+                    <div style={{ width: '110px' }}>
+                      <label className={labelCls} style={{ color: 'var(--ov-text-dim)' }}>Time</label>
+                      <input
+                        type="time"
+                        value={calModalTime}
+                        onChange={e => setCalModalTime(e.target.value)}
+                        className={inputCls}
+                        style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', colorScheme: 'dark' }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelCls} style={{ color: 'var(--ov-text-dim)' }}>Notes <span style={{ color: 'var(--ov-text-dim)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+                    <textarea
+                      value={calModalNotes}
+                      onChange={e => setCalModalNotes(e.target.value)}
+                      rows={3}
+                      className={inputCls}
+                      style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', resize: 'none' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    onClick={() => setCalendarModalOpen(false)}
+                    className="flex-1 py-2.5 rounded-xl text-[13px] transition-colors"
+                    style={{ border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-dim)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCalendarAdd}
+                    disabled={calAddStatus === 'loading' || !calModalTitle.trim() || !calModalDate}
+                    className="flex-1 py-2.5 rounded-xl text-[13px] font-medium transition-colors disabled:opacity-40"
+                    style={{ background: 'var(--gold)', color: '#0a1628' }}
+                  >
+                    {calAddStatus === 'loading' ? 'Adding...' : 'Add to Calendar'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── Pause confirm modal ── */}
