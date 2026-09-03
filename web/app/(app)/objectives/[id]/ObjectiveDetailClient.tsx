@@ -652,7 +652,7 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                         value={calModalDate}
                         onChange={e => setCalModalDate(e.target.value)}
                         className={inputCls}
-                        style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: '#1a1a2e', colorScheme: 'light' }}
+                        style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', colorScheme: 'dark' }}
                       />
                     </div>
                     <div style={{ width: '110px' }}>
@@ -662,7 +662,7 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
                         value={calModalTime}
                         onChange={e => setCalModalTime(e.target.value)}
                         className={inputCls}
-                        style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: '#1a1a2e', colorScheme: 'light' }}
+                        style={{ background: 'var(--ov-navy)', border: '1px solid var(--ov-border-md)', color: 'var(--ov-text-hi)', colorScheme: 'dark' }}
                       />
                     </div>
                   </div>
