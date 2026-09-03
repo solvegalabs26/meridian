@@ -66,6 +66,23 @@ export default async function EnterpriseReportPage({
     caseActionsMap[action.case_ref].push(action as CaseAction)
   }
 
+  const { data: snapshotsRaw } = await supabase
+    .from('case_signal_snapshots')
+    .select('case_id, drift_score, drift_direction, confidence_pct')
+    .eq('institution_id', resolvedInstitutionId)
+    .order('sweep_timestamp', { ascending: false })
+
+  const snapshotMap: Record<string, { drift_score: number; drift_direction: string; confidence_pct: number }> = {}
+  for (const snap of snapshotsRaw ?? []) {
+    if (!snapshotMap[snap.case_id as string]) {
+      snapshotMap[snap.case_id as string] = {
+        drift_score: (snap.drift_score as number) ?? 0,
+        drift_direction: (snap.drift_direction as string) ?? 'STABLE',
+        confidence_pct: (snap.confidence_pct as number) ?? 0,
+      }
+    }
+  }
+
   return (
     <EnterpriseReportClient
       institutionId={resolvedInstitutionId}
@@ -73,6 +90,7 @@ export default async function EnterpriseReportPage({
       highlight={highlight}
       verticalConfig={verticalConfig}
       caseActionsMap={caseActionsMap}
+      snapshotMap={snapshotMap}
     />
   )
 }

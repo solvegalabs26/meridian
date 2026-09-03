@@ -16,12 +16,19 @@ import { InfoTooltip } from '@/components/enterprise/InfoTooltip'
 import { CloseCaseModal } from '@/components/enterprise/CloseCaseModal'
 import type { CaseAction } from './page'
 
+interface SnapshotEntry {
+  drift_score: number
+  drift_direction: string
+  confidence_pct: number
+}
+
 interface Props {
   institutionId: string
   institutionName: string
   highlight?: string | null
   verticalConfig?: VerticalConfig | null
   caseActionsMap?: Record<string, CaseAction[]>
+  snapshotMap?: Record<string, SnapshotEntry>
 }
 
 type Dir = 'CRITICAL' | 'ALERT' | 'CAUTION' | 'STABLE'
@@ -616,7 +623,7 @@ function Popup({
   )
 }
 
-export default function EnterpriseReportClient({ institutionId, institutionName, highlight, verticalConfig, caseActionsMap = {} }: Props) {
+export default function EnterpriseReportClient({ institutionId, institutionName, highlight, verticalConfig, caseActionsMap = {}, snapshotMap = {} }: Props) {
   const supabase = createClient()
   const [sweep, setSweep] = useState<Sweep | null>(null)
   const [enrichedCases, setEnrichedCases] = useState<EnrichedCase[]>([])
@@ -1066,7 +1073,9 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
             const isWatch = forwardStatus === 'WATCH'
             const cardId = caseId(ec.case_ref ?? ec.id)
             const isFlashing = flashId === cardId
-            const confPct = ec.pred?.confidence_pct ??
+            const snapshot = snapshotMap[ec.id]
+            const activeDriftScore = snapshot?.drift_score ?? ec.drift_score
+            const confPct = snapshot?.confidence_pct ?? ec.pred?.confidence_pct ??
               (ec.drift_tier === 'STABLE'
                 ? Math.round(100 - ec.drift_score)
                 : Math.round(ec.drift_score))
@@ -1156,9 +1165,9 @@ export default function EnterpriseReportClient({ institutionId, institutionName,
                     {/* Drift Score */}
                     <div style={{ padding: '10px 12px', borderRight: '1px solid rgba(255,255,255,0.08)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.38)', fontWeight: 600, marginBottom: 3, whiteSpace: 'nowrap' }}>DRIFT SCORE<InfoTooltip text="Measures how far this case has moved from its baseline. 0/100 = no drift. Higher = accelerating change." /></div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased', letterSpacing: '-0.01em' }}>{ec.drift_score} / 100</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#ffffff', fontFamily: "'Inter', sans-serif", WebkitFontSmoothing: 'antialiased', letterSpacing: '-0.01em' }}>{activeDriftScore} / 100</div>
                       <div style={{ marginTop: 6, height: 5, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${ec.drift_score}%`, background: color, borderRadius: 3 }} />
+                        <div style={{ height: '100%', width: `${activeDriftScore}%`, background: color, borderRadius: 3 }} />
                       </div>
                     </div>
                     {/* 5-Day Trend — FF-051 */}
