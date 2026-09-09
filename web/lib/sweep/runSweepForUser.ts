@@ -398,16 +398,12 @@ export async function runSweepForUser(
       objectives.map(async obj => {
         let signalBrief: SignalBrief | null = null
         try {
-          const dispatchPromise = dispatchSubAgent({
+          signalBrief = await dispatchSubAgent({
             id: obj.id,
             title: obj.title,
             category: (obj as { category?: string }).category ?? '',
             notes: (obj as { notes?: string | null }).notes ?? undefined,
           })
-          const timeoutPromise = new Promise<null>((_, reject) =>
-            setTimeout(() => reject(new Error('[FF-064] Sub-agent timeout after 8s')), 8000)
-          )
-          signalBrief = await Promise.race([dispatchPromise, timeoutPromise])
         } catch (err) {
           console.error(`[FF-064] Top-level dispatch failed for ${obj.id} — sweep continues without Layer 7`, err)
           signalBrief = null
