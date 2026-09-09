@@ -26,15 +26,22 @@ export async function executeSubAgent(
   const searchResults: string[] = []
   const sourcesConsulted: string[] = []
 
-  for (const query of queries) {
-    try {
-      const result = await executeBraveSearch(query)
-      if (result) {
-        searchResults.push(`QUERY: ${query}\nRESULT: ${result}`)
-        sourcesConsulted.push(query)
+  const queryResults = await Promise.all(
+    queries.map(async (query) => {
+      try {
+        const result = await executeBraveSearch(query)
+        return result ? { query, result } : null
+      } catch (err) {
+        console.error(`[FF-064] Sub-agent query failed: ${query}`, err)
+        return null
       }
-    } catch (err) {
-      console.error(`[FF-064] Sub-agent query failed: ${query}`, err)
+    })
+  )
+
+  for (const item of queryResults) {
+    if (item) {
+      searchResults.push(`QUERY: ${item.query}\nRESULT: ${item.result}`)
+      sourcesConsulted.push(item.query)
     }
   }
 

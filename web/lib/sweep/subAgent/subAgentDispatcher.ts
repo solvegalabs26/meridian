@@ -54,7 +54,7 @@ export async function dispatchSubAgent(objective: {
     setTimeout(() => {
       console.warn(`[FF-064] Sub-agent timeout for objective ${objective.id} — returning null after 8s`)
       resolve(null)
-    }, 8000)
+    }, 25000)
   )
 
   return Promise.race([dispatchSubAgentInternal(objective), timeoutPromise])
