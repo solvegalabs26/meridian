@@ -396,17 +396,23 @@ export async function runSweepForUser(
     const signalBriefMap: Record<string, SignalBrief | null> = {}
     await Promise.allSettled(
       objectives.map(async obj => {
+        let signalBrief: SignalBrief | null = null
         try {
-          signalBriefMap[obj.id] = await dispatchSubAgent({
+          const dispatchPromise = dispatchSubAgent({
             id: obj.id,
             title: obj.title,
             category: (obj as { category?: string }).category ?? '',
             notes: (obj as { notes?: string | null }).notes ?? undefined,
           })
+          const timeoutPromise = new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('[FF-064] Sub-agent timeout after 8s')), 8000)
+          )
+          signalBrief = await Promise.race([dispatchPromise, timeoutPromise])
         } catch (err) {
-          console.error(`[FF-064] Sub-agent dispatch failed for objective ${obj.id} (${(obj as { obj_id?: string }).obj_id ?? ''}):`, err)
-          signalBriefMap[obj.id] = null
+          console.error(`[FF-064] Top-level dispatch failed for ${obj.id} — sweep continues without Layer 7`, err)
+          signalBrief = null
         }
+        signalBriefMap[obj.id] = signalBrief
       })
     )
 

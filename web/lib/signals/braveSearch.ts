@@ -4,27 +4,34 @@
 
 export async function executeBraveSearch(query: string): Promise<string> {
   const apiKey = process.env.BRAVE_SEARCH_API_KEY
-  if (!apiKey) return ''
+  if (!apiKey) {
+    console.warn('[braveSearch] BRAVE_SEARCH_API_KEY is not set — skipping search')
+    return ''
+  }
 
   const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5&text_decorations=false`
 
-  const resp = await fetch(url, {
-    headers: {
-      Accept: 'application/json',
-      'Accept-Encoding': 'gzip',
-      'X-Subscription-Token': apiKey,
-    },
-    signal: AbortSignal.timeout(6000),
-  })
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        'Accept-Encoding': 'gzip',
+        'X-Subscription-Token': apiKey,
+      },
+      signal: AbortSignal.timeout(6000),
+    })
 
-  if (!resp.ok) return ''
+    if (!resp.ok) return ''
 
-  const data = await resp.json()
-  const results: Array<{ title: string; url: string; description?: string }> =
-    data.web?.results ?? []
+    const data = await resp.json()
+    const results: Array<{ title: string; url: string; description?: string }> =
+      data.web?.results ?? []
 
-  return results
-    .slice(0, 5)
-    .map(r => `[${r.title}](${r.url})\n${r.description ?? '(no snippet)'}`)
-    .join('\n\n')
+    return results
+      .slice(0, 5)
+      .map(r => `[${r.title}](${r.url})\n${r.description ?? '(no snippet)'}`)
+      .join('\n\n')
+  } catch {
+    return ''
+  }
 }
