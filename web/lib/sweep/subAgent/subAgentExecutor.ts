@@ -45,6 +45,8 @@ export async function executeSubAgent(
     }
   }
 
+  console.log(`[FF-064] Brave Search complete — ${searchResults.length}/${queries.length} queries returned results`)
+
   if (searchResults.length === 0) {
     return {
       domain,
@@ -87,12 +89,14 @@ T4 = Modeled/inferred from pattern analysis
 Base confidence tier on the LOWEST quality source used.
 Be honest. Do not overstate certainty. Flag anything unverified.`
 
+  console.log('[FF-064] Starting Haiku synthesis call')
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 1000,
     messages: [{ role: 'user', content: prompt }],
   })
 
+  console.log('[FF-064] Haiku synthesis complete')
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
 
   try {
