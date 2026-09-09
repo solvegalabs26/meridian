@@ -13,7 +13,7 @@ import { extractResponseSignals } from '@/lib/ask/extractResponseSignals'
 import { classifyAskIntent, type AskIntent } from '@/lib/ask/intentClassifier'
 import { buildConciergeContext } from '@/lib/concierge/buildConciergeContext'
 import { buildConciergePrompt, type ConciergeResponse } from '@/lib/concierge/conciergePrompt'
-
+import { executeBraveSearch } from '@/lib/signals/braveSearch'
 
 // ── Tier gate ──────────────────────────────────────────────────────────────
 const ASK_LIMITS: Record<string, number> = {
@@ -39,40 +39,6 @@ function getEffectiveTier(profile: {
   if (raw.includes('accelerator')) return 'accelerator'
   if (raw.includes('command')) return 'command'
   return raw
-}
-
-// ── Optional Brave Search ──────────────────────────────────────────────────
-async function braveSearch(query: string): Promise<string> {
-  const apiKey = process.env.BRAVE_SEARCH_API_KEY
-  if (!apiKey) return ''
-
-  try {
-    const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(
-      query
-    )}&count=5&text_decorations=false`
-
-    const resp = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-        'Accept-Encoding': 'gzip',
-        'X-Subscription-Token': apiKey,
-      },
-      signal: AbortSignal.timeout(6000),
-    })
-
-    if (!resp.ok) return ''
-
-    const data = await resp.json()
-    const results: Array<{ title: string; url: string; description?: string }> =
-      data.web?.results ?? []
-
-    return results
-      .slice(0, 5)
-      .map(r => `[${r.title}](${r.url})\n${r.description ?? '(no snippet)'}`)
-      .join('\n\n')
-  } catch {
-    return ''
-  }
 }
 
 // ── Phase C: synchronous action candidate extraction ──────────────────────
@@ -274,7 +240,7 @@ export async function POST(req: NextRequest) {
     }
   } else {
     // External: Brave Search + Sonnet
-    const searchSnippet = await braveSearch(question)
+    const searchSnippet = await executeBraveSearch(question)
     webSearchUsed = searchSnippet.length > 0
 
     const objectivesSummary =
