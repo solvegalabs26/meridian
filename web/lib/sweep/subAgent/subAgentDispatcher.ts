@@ -17,6 +17,8 @@ export async function dispatchSubAgent(objective: {
 }): Promise<SignalBrief | null> {
   const domain = detectDomain(objective)
 
+  console.log(`[FF-064] dispatchSubAgent called for: ${objective.title} | domain: ${domain}`)
+
   if (domain === 'unknown') {
     return null
   }
