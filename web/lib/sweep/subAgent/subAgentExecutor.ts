@@ -103,6 +103,8 @@ Be honest. Do not overstate certainty. Flag anything unverified.`
     const clean = text.replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(clean)
 
+    console.log(`[FF-064] Signal brief findings: ${JSON.stringify(parsed.keyFindings)}`)
+
     return {
       domain,
       queriesRun: searchResults.length,
