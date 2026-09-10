@@ -99,10 +99,16 @@ Signal classes: WILDLIFE_MANAGEMENT, DROUGHT_DECLARATION, WEATHER_EVENT, REGULAT
       const text = response.content[0].type === 'text' ? response.content[0].text : ''
       console.log('[FF-066] Raw Haiku response (first 300 chars):', text.slice(0, 300))
       try {
-        const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
-        const parsed = JSON.parse(clean) as DomainEvent[]
-        if (Array.isArray(parsed)) {
-          events.push(...parsed)
+        const arrayStart = text.indexOf('[')
+        const arrayEnd = text.lastIndexOf(']')
+        if (arrayStart === -1 || arrayEnd === -1 || arrayEnd <= arrayStart) {
+          console.error('[FF-066] Event parse failed — no JSON array found in response:', text.slice(0, 200))
+        } else {
+          const jsonStr = text.slice(arrayStart, arrayEnd + 1)
+          const parsed = JSON.parse(jsonStr) as DomainEvent[]
+          if (Array.isArray(parsed)) {
+            events.push(...parsed)
+          }
         }
       } catch {
         console.error('[FF-066] Event parse failed:', text.slice(0, 200))
@@ -183,6 +189,7 @@ async function fetchNoaaDroughtEvents(
   currentYear: number
 ): Promise<DomainEvent[]> {
   const events: DomainEvent[] = []
+  console.log(`[FF-066] fetchNoaaDroughtEvents entered — range ${startYear}–${currentYear - 1}`)
 
   for (let year = startYear; year < currentYear; year++) {
     console.log('[FF-066] NOAA drought fetch starting for year:', year)
