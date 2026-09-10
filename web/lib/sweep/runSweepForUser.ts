@@ -14,6 +14,7 @@ import { autoLogPredictions, ObjectiveWithConfidenceDelta } from '@/lib/sweep/au
 import { getSignalClassWeights } from '@/lib/engine4/getSignalClassWeights'
 import { buildCoherencePackage, formatCoherencePackageForPrompt, type CoherencePackage } from '@/lib/sweep/buildCoherencePackage'
 import { dispatchFACAgent, type FACReport } from '@/lib/fac/dispatchFACAgent'
+import { dispatchSubAgent, type SignalBrief } from '@/lib/sweep/subAgent/subAgentDispatcher'
 
 export interface SweepObjectiveResult {
   id: string
@@ -389,6 +390,31 @@ export async function runSweepForUser(
 
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — market comps fetched (${Object.keys(compsMap).length} resale objectives)`)
 
+    // 5c-pre. FF-064: Sub-agent dispatch — query external world state per objective
+    // before coherence package assembly. Runs in parallel; individual failures are
+    // always non-fatal (sub-agent is best-effort, sweep must never depend on it).
+    const signalBriefMap: Record<string, SignalBrief | null> = {}
+    await Promise.allSettled(
+      objectives.map(async obj => {
+        let signalBrief: SignalBrief | null = null
+        try {
+          signalBrief = await dispatchSubAgent({
+            id: obj.id,
+            title: obj.title,
+            category: (obj as { category?: string }).category ?? '',
+            notes: (obj as { notes?: string | null }).notes ?? undefined,
+          })
+        } catch (err) {
+          console.error(`[FF-064] Top-level dispatch failed for ${obj.id} — sweep continues without Layer 7`, err)
+          signalBrief = null
+        }
+        signalBriefMap[obj.id] = signalBrief
+      })
+    )
+
+    const subAgentCount = Object.values(signalBriefMap).filter(Boolean).length
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — FF-064 sub-agent dispatch complete (${subAgentCount}/${objectives.length} objectives returned signal briefs)`)
+
     // 5c. Build signal coherence packages for objectives with active watch sources.
     // Runs in parallel — individual failures are caught per-objective and do not
     // abort the sweep (Promise.allSettled semantics preserved).
@@ -396,9 +422,9 @@ export async function runSweepForUser(
     await Promise.allSettled(
       objectives.map(async obj => {
         try {
-          coherenceMap[obj.id] = await buildCoherencePackage(supabase, obj.id)
+          coherenceMap[obj.id] = await buildCoherencePackage(supabase, obj.id, signalBriefMap[obj.id] ?? null)
         } catch (err) {
-          console.error(`[sweep:coherence] buildCoherencePackage failed for objective ${obj.id} (${obj.obj_id}):`, err)
+          console.error(`[sweep:coherence] buildCoherencePackage failed for objective ${obj.id} (${(obj as { obj_id?: string }).obj_id ?? ''}):`, err)
           coherenceMap[obj.id] = null
         }
       })

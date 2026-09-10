@@ -12,6 +12,17 @@ export interface WatchSourceEntry {
   target_signal: string | null
 }
 
+export interface Layer7ExternalSignals {
+  available: boolean
+  domain: string
+  keyFindings: string[]
+  patternObservation: string
+  confidenceTier: string
+  rawSummary: string
+  queriesRun: number
+  executedAt: string
+}
+
 export interface CoherencePackage {
   objectiveId: string
   title: string
@@ -24,11 +35,13 @@ export interface CoherencePackage {
   completedActions: { description: string; actionDate: string }[]
   predictions: { statement: string; confidencePct: number; horizonDate: string | null; status: string }[]
   episodes: { episodeNumber: number; narrative: string | null; createdAt: string }[]
+  layer7ExternalSignals: Layer7ExternalSignals
 }
 
 export async function buildCoherencePackage(
   supabase: SupabaseClient,
-  objectiveId: string
+  objectiveId: string,
+  signalBrief?: { domain: string; keyFindings: string[]; patternObservation: string; confidenceTier: string; rawSummary: string; queriesRun: number; executedAt: string } | null
 ): Promise<CoherencePackage | null> {
   // Fetch objective + watch sources in parallel
   const [objResult, watchResult] = await Promise.all([
@@ -105,6 +118,25 @@ export async function buildCoherencePackage(
       narrative: (e.narrative as string | null) ?? null,
       createdAt: e.created_at as string,
     })),
+    layer7ExternalSignals: signalBrief ? {
+      available: true,
+      domain: signalBrief.domain,
+      keyFindings: signalBrief.keyFindings,
+      patternObservation: signalBrief.patternObservation,
+      confidenceTier: signalBrief.confidenceTier,
+      rawSummary: signalBrief.rawSummary,
+      queriesRun: signalBrief.queriesRun,
+      executedAt: signalBrief.executedAt,
+    } : {
+      available: false,
+      domain: 'none',
+      keyFindings: [],
+      patternObservation: '',
+      confidenceTier: 'T4',
+      rawSummary: '',
+      queriesRun: 0,
+      executedAt: '',
+    },
   }
 }
 
@@ -156,6 +188,35 @@ export function formatCoherencePackageForPrompt(pkg: CoherencePackage): string {
       const summary = e.narrative ? e.narrative.slice(0, 300) : 'No narrative'
       lines.push(`  Episode ${e.episodeNumber} (${e.createdAt.split('T')[0]}): ${summary}`)
     }
+    lines.push('')
+  }
+
+  const l7 = pkg.layer7ExternalSignals
+  if (l7?.available) {
+    lines.push('=== LAYER 7: EXTERNAL SIGNAL BRIEF ===')
+    lines.push(`Domain: ${l7.domain}`)
+    lines.push(`Queries executed: ${l7.queriesRun}`)
+    lines.push(`Confidence tier: ${l7.confidenceTier}`)
+    lines.push('')
+    lines.push('Key findings from external world:')
+    l7.keyFindings.forEach((f, i) => lines.push(`${i + 1}. ${f}`))
+    lines.push('')
+    lines.push(`Pattern observation: ${l7.patternObservation}`)
+    lines.push('')
+    lines.push(`Full external signal summary: ${l7.rawSummary}`)
+    lines.push('')
+    lines.push('INTELLIGENCE INTEGRITY STANDARD:')
+    lines.push('- T1 findings (government/agency structured data) → state as confirmed fact with source')
+    lines.push('- T2 findings (verified field observation) → state with high confidence, cite source')
+    lines.push('- T3 findings (reported/anecdotal) → flag as unverified lead')
+    lines.push('- T4 findings (modeled/inferred) → state as pattern inference, field verification required')
+    lines.push('- NEVER state a location as confirmed without T1 or T2 source')
+    lines.push('=== END LAYER 7 ===')
+    lines.push('')
+  } else {
+    lines.push('=== LAYER 7: EXTERNAL SIGNAL BRIEF ===')
+    lines.push('No external signals available for this objective domain.')
+    lines.push('=== END LAYER 7 ===')
     lines.push('')
   }
 
