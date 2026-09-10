@@ -400,6 +400,7 @@ export async function runSweepForUser(
         try {
           signalBrief = await dispatchSubAgent({
             id: obj.id,
+            userId,
             title: obj.title,
             category: (obj as { category?: string }).category ?? '',
             notes: (obj as { notes?: string | null }).notes ?? undefined,
