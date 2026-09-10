@@ -17,6 +17,8 @@ import { dispatchFACAgent, type FACReport } from '@/lib/fac/dispatchFACAgent'
 import { dispatchSubAgent, type SignalBrief } from '@/lib/sweep/subAgent/subAgentDispatcher'
 import { enrichDomainEvents } from '@/lib/sweep/domainEvents/domainEventEnrichment'
 import { detectDomain } from '@/lib/sweep/subAgent/domainDetector'
+import { runPatternDeviationEngine } from '@/lib/sweep/patternDeviation/patternDeviationEngine'
+import { getDomainProfile } from '@/lib/sweep/domainBaseline/domainProfileManager'
 
 export interface SweepObjectiveResult {
   id: string
@@ -436,6 +438,33 @@ export async function runSweepForUser(
       })
     )
 
+    // 5c-pattern. FF-067: Pattern deviation engine — scores each historical year
+    // against current conditions and persists to pattern_matches. Runs after
+    // enrichment so ELK_HUNT events are available for fingerprinting. Non-fatal.
+    const patternResults = await Promise.all(
+      objectives.map(async (obj) => {
+        const domain = detectDomain({
+          title: obj.title,
+          category: (obj as { category?: string }).category ?? '',
+          notes: (obj as { notes?: string | null }).notes ?? undefined,
+        })
+        if (domain === 'unknown') return { objectiveId: obj.id, result: null }
+        const profile = await getDomainProfile(obj.id, domain).catch(() => null)
+        const geoScope = profile?.geographicScope ?? { states: ['UT'], counties: [] }
+        const result = await runPatternDeviationEngine(
+          obj.id, userId, domain, null, geoScope
+        ).catch(err => {
+          console.error(`[FF-067] Pattern deviation failed for ${obj.id}:`, err)
+          return null
+        })
+        return { objectiveId: obj.id, result }
+      })
+    )
+
+    const patternMap = new Map(patternResults.map(r => [r.objectiveId, r.result]))
+    const patternCount = patternResults.filter(r => r.result !== null).length
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — FF-067 pattern deviation complete (${patternCount}/${objectives.length} objectives matched)`)
+
     // 5c. Build signal coherence packages for objectives with active watch sources.
     // Runs in parallel — individual failures are caught per-objective and do not
     // abort the sweep (Promise.allSettled semantics preserved).
@@ -443,7 +472,7 @@ export async function runSweepForUser(
     await Promise.allSettled(
       objectives.map(async obj => {
         try {
-          coherenceMap[obj.id] = await buildCoherencePackage(supabase, obj.id, signalBriefMap[obj.id] ?? null)
+          coherenceMap[obj.id] = await buildCoherencePackage(supabase, obj.id, signalBriefMap[obj.id] ?? null, patternMap.get(obj.id) ?? null)
         } catch (err) {
           console.error(`[sweep:coherence] buildCoherencePackage failed for objective ${obj.id} (${(obj as { obj_id?: string }).obj_id ?? ''}):`, err)
           coherenceMap[obj.id] = null

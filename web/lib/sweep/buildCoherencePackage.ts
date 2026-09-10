@@ -23,6 +23,16 @@ export interface Layer7ExternalSignals {
   executedAt: string
 }
 
+export interface Layer8PatternDeviation {
+  available: boolean
+  topMatchYear: number | null
+  topMatchScore: number | null
+  patternLabel: string | null
+  patternSummary: string
+  historicalOutcome: string | null
+  outcomeConfidence: number
+}
+
 export interface CoherencePackage {
   objectiveId: string
   title: string
@@ -36,12 +46,14 @@ export interface CoherencePackage {
   predictions: { statement: string; confidencePct: number; horizonDate: string | null; status: string }[]
   episodes: { episodeNumber: number; narrative: string | null; createdAt: string }[]
   layer7ExternalSignals: Layer7ExternalSignals
+  layer8PatternDeviation: Layer8PatternDeviation
 }
 
 export async function buildCoherencePackage(
   supabase: SupabaseClient,
   objectiveId: string,
-  signalBrief?: { domain: string; keyFindings: string[]; patternObservation: string; confidenceTier: string; rawSummary: string; queriesRun: number; executedAt: string } | null
+  signalBrief?: { domain: string; keyFindings: string[]; patternObservation: string; confidenceTier: string; rawSummary: string; queriesRun: number; executedAt: string } | null,
+  patternResult?: { topMatch: { year: number; score: number; patternLabel: string; historicalOutcome: string | null; outcomeConfidence: number } | null; patternSummary: string } | null
 ): Promise<CoherencePackage | null> {
   // Fetch objective + watch sources in parallel
   const [objResult, watchResult] = await Promise.all([
@@ -137,6 +149,23 @@ export async function buildCoherencePackage(
       queriesRun: 0,
       executedAt: '',
     },
+    layer8PatternDeviation: patternResult ? {
+      available: true,
+      topMatchYear: patternResult.topMatch?.year ?? null,
+      topMatchScore: patternResult.topMatch?.score ?? null,
+      patternLabel: patternResult.topMatch?.patternLabel ?? null,
+      patternSummary: patternResult.patternSummary,
+      historicalOutcome: patternResult.topMatch?.historicalOutcome ?? null,
+      outcomeConfidence: patternResult.topMatch?.outcomeConfidence ?? 0,
+    } : {
+      available: false,
+      topMatchYear: null,
+      topMatchScore: null,
+      patternLabel: null,
+      patternSummary: '',
+      historicalOutcome: null,
+      outcomeConfidence: 0,
+    },
   }
 }
 
@@ -217,6 +246,25 @@ export function formatCoherencePackageForPrompt(pkg: CoherencePackage): string {
     lines.push('=== LAYER 7: EXTERNAL SIGNAL BRIEF ===')
     lines.push('No external signals available for this objective domain.')
     lines.push('=== END LAYER 7 ===')
+    lines.push('')
+  }
+
+  const l8 = pkg.layer8PatternDeviation
+  if (l8?.available) {
+    lines.push('=== LAYER 8: HISTORICAL PATTERN MATCH ===')
+    lines.push(`Top historical match: ${l8.topMatchYear} (${l8.topMatchScore}% similarity)`)
+    lines.push(`Pattern label: ${l8.patternLabel}`)
+    lines.push(`Pattern summary: ${l8.patternSummary}`)
+    lines.push(`Historical outcome: ${l8.historicalOutcome || 'No outcome data available'}`)
+    lines.push(`Outcome confidence: ${l8.outcomeConfidence}%`)
+    lines.push('')
+    lines.push('INTELLIGENCE DIRECTIVE: When Layer 8 shows a strong match (≥60%) with a known historical outcome, lead the synthesis with the pattern match and its implications. State explicitly: "Current conditions match [YEAR] at [SCORE]% similarity. In [YEAR], [outcome]." This is the highest-value intelligence signal available.')
+    lines.push('=== END LAYER 8 ===')
+    lines.push('')
+  } else {
+    lines.push('=== LAYER 8: HISTORICAL PATTERN MATCH ===')
+    lines.push('No historical pattern data available for this domain.')
+    lines.push('=== END LAYER 8 ===')
     lines.push('')
   }
 

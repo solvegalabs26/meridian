@@ -67,7 +67,7 @@ Return ONLY valid JSON:
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
   try {
-    const clean = text.replace(/```json|```/g, '').trim()
+    const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
     return JSON.parse(clean) as LandscapeDiscovery
   } catch {
     console.error('[FF-065] Blind landscape parse failed:', text.slice(0, 200))
