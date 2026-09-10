@@ -2,16 +2,19 @@
 // FF-064 — Sub-agent orchestrator: detects domain, builds taxonomy queries,
 // executes sub-agent, returns signal brief. Called before buildCoherencePackage.
 // Failure is always non-fatal — sweep continues without the signal brief.
-// Timeout (8s) is owned here so the call site needs no race logic.
+// Timeout (45s) is owned here so the call site needs no race logic.
+// FF-065 — Wires in getDomainBaselineProfile for persistent domain intelligence.
 
 import { detectDomain } from './domainDetector'
 import { buildElkHuntQueries, extractElkHuntParams } from './taxonomies/elkHunt'
 import { executeSubAgent, type SignalBrief } from './subAgentExecutor'
+import { getDomainBaselineProfile } from '@/lib/sweep/domainBaseline/domainBaselineEngine'
 
 export type { SignalBrief }
 
 async function dispatchSubAgentInternal(objective: {
   id: string
+  userId: string
   title: string
   category: string
   notes?: string
@@ -28,7 +31,24 @@ async function dispatchSubAgentInternal(objective: {
 
   try {
     if (domain === 'elk_hunt') {
+      const objectiveText = `${objective.title} ${objective.notes || ''}`
+
+      const profile = await getDomainBaselineProfile(
+        objective.userId,
+        objective.id,
+        domain,
+        objectiveText
+      ).catch(err => {
+        console.error('[FF-065] Domain baseline failed — using default taxonomy:', err)
+        return null
+      })
+
       const params = extractElkHuntParams(objective)
+
+      if (profile?.geographicScope?.counties?.length) {
+        params.county = params.county || profile.geographicScope.counties[0]
+      }
+
       const queries = buildElkHuntQueries(params)
       return await executeSubAgent(domain, queries, objectiveContext)
     }
@@ -44,6 +64,7 @@ async function dispatchSubAgentInternal(objective: {
 
 export async function dispatchSubAgent(objective: {
   id: string
+  userId: string
   title: string
   category: string
   notes?: string
