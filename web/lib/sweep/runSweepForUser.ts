@@ -132,7 +132,6 @@ export async function runSweepForUser(
   userId: string,
   options: { objectiveIds?: string[]; manualSignals?: string; triggerType?: string } = {}
 ): Promise<RunSweepResult> {
-  console.log('[FF-064-ENTRY] runSweepForUser called — FF-064 branch confirmed')
   const supabase = createServiceClient()
   const triggerType = options.triggerType ?? 'manual'
 

@@ -16,15 +16,13 @@ async function dispatchSubAgentInternal(objective: {
   category: string
   notes?: string
 }): Promise<SignalBrief | null> {
-  console.log(`[FF-064] detectDomain input — title: "${objective.title}" | category: "${objective.category}" | notes: "${objective.notes?.slice(0, 50)}"`)
-
   const domain = detectDomain(objective)
-
-  console.log(`[FF-064] detected domain: ${domain}`)
 
   if (domain === 'unknown') {
     return null
   }
+
+  console.log(`[FF-064] Domain detected: ${domain} for objective ${objective.id}`)
 
   const objectiveContext = `Title: ${objective.title}\nCategory: ${objective.category}\nNotes: ${objective.notes || 'None'}`
 
