@@ -8,7 +8,7 @@ import { retrieveDomainEvents } from './domainEventRetriever'
 import { writeDomainEvents } from './domainEventWriter'
 import { createServiceClient } from '@/lib/supabase/server'
 
-const ENRICHMENT_INTERVAL_MS = 0 // TEMP: force re-enrichment after FF-066 extension
+const ENRICHMENT_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000
 
 export async function enrichDomainEvents(
   objectiveId: string,
