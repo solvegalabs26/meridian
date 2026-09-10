@@ -83,7 +83,7 @@ Return ONLY valid JSON array:
 ]
 
 Only include events you can clearly identify from the data. Do not fabricate. If unsure about a date, use the year only (YYYY-01-01).
-Signal classes: WILDLIFE_MANAGEMENT, DROUGHT_DECLARATION, WEATHER_EVENT, REGULATORY_CHANGE, LAND_ACCESS, HABITAT_CONDITION`,
+Signal classes: WILDLIFE_MANAGEMENT, DROUGHT_DECLARATION, WEATHER_EVENT, REGULATORY_CHANGE, LAND_ACCESS, HABITAT_CONDITION, POLICY_REGULATORY`,
       }],
     })
 
@@ -128,6 +128,76 @@ function buildElkHuntHistoricalQueries(
     query: `Utah elk hunting unit conditions harvest report ${geo} ${startYear} ${currentYear}`,
     year: currentYear,
     signalClass: 'HABITAT_CONDITION',
+  })
+
+  // Thread 2: Ammunition/firearms demand
+  for (let year = startYear; year <= currentYear; year++) {
+    queries.push({
+      query: `FBI NICS background checks firearms ${year} monthly volume trend ammunition shortage supply`,
+      year,
+      signalClass: 'REGULATORY_CHANGE',
+    })
+  }
+  queries.push({
+    query: `FBI NICS background checks firearms ${startYear} ${currentYear} ammunition shortage trend annual`,
+    year: currentYear,
+    signalClass: 'REGULATORY_CHANGE',
+  })
+
+  // Thread 3: Beef/protein economics
+  for (let year = startYear; year <= currentYear; year++) {
+    queries.push({
+      query: `USDA beef cattle prices retail ${year} supply impact drought ranch fire feed alfalfa`,
+      year,
+      signalClass: 'HABITAT_CONDITION',
+    })
+  }
+  queries.push({
+    query: `USDA beef cattle prices retail ${startYear} ${currentYear} western drought ranch fire supply`,
+    year: currentYear,
+    signalClass: 'HABITAT_CONDITION',
+  })
+
+  // Thread 4: Hunter demographics
+  for (let year = startYear; year <= currentYear; year++) {
+    queries.push({
+      query: `Utah hunting license sales ${year} hunter population age demographic trend decline increase`,
+      year,
+      signalClass: 'WILDLIFE_MANAGEMENT',
+    })
+  }
+  queries.push({
+    query: `Utah hunting license sales trend ${startYear} ${currentYear} demographic shift hunter population`,
+    year: currentYear,
+    signalClass: 'WILDLIFE_MANAGEMENT',
+  })
+
+  // Thread 5: ENSO/climate
+  for (let year = startYear; year <= currentYear; year++) {
+    queries.push({
+      query: `NOAA ENSO El Nino La Nina ${year} Utah precipitation snowpack winter forecast impact`,
+      year,
+      signalClass: 'DROUGHT_DECLARATION',
+    })
+  }
+  queries.push({
+    query: `NOAA ENSO climate forecast Utah precipitation snowpack ${startYear} ${currentYear} drought impact`,
+    year: currentYear,
+    signalClass: 'DROUGHT_DECLARATION',
+  })
+
+  // Thread 6: Ranch consolidation
+  for (let year = startYear; year <= currentYear; year++) {
+    queries.push({
+      query: `Utah ranch consolidation land ownership change federal grazing allotment ${year} elk habitat access`,
+      year,
+      signalClass: 'POLICY_REGULATORY',
+    })
+  }
+  queries.push({
+    query: `Utah ranch land consolidation federal grazing allotment ${startYear} ${currentYear} elk access change`,
+    year: currentYear,
+    signalClass: 'POLICY_REGULATORY',
   })
 
   return queries

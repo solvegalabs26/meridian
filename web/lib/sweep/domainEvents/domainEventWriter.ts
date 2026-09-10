@@ -29,6 +29,7 @@ const SIGNAL_CLASS_TO_CATEGORY: Record<string, string> = {
   REGULATORY_CHANGE: 'policy_regulatory',
   LAND_ACCESS: 'policy_regulatory',
   HABITAT_CONDITION: 'climate_regulatory',
+  POLICY_REGULATORY: 'policy_regulatory',
 }
 
 function toCategory(signalClass: string): string {
