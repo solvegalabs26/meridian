@@ -24,7 +24,7 @@ export async function getDomainBaselineProfile(
   console.log(`[FF-065] Building domain baseline for ${domain} — objective ${objectiveId}`)
 
   const landscape = await runBlindLandscape(domain, objectiveText)
-  const signalTaxonomy = buildSignalTaxonomy(domain, landscape)
+  const signalTaxonomy = buildSignalTaxonomy(domain)
   const expansionRules = buildExpansionRules(domain, landscape.geographicScope)
 
   const profile: DomainProfile = {
@@ -45,7 +45,7 @@ export async function getDomainBaselineProfile(
   return profile
 }
 
-function buildSignalTaxonomy(domain: string, _landscape: { namedEntities: string[] }): string[] {
+function buildSignalTaxonomy(domain: string): string[] {
   if (domain === 'elk_hunt') {
     return [
       'drought classification and water source status',
