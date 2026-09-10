@@ -55,7 +55,7 @@ export async function runPatternDeviationEngine(
   }> = []
 
   for (let year = currentYear - lookbackYears; year < currentYear; year++) {
-    const historical = await fingerprintHistoricalYear(domain, year, geographicScope)
+    const historical = await fingerprintHistoricalYear(domain, year)
     const similarity = scoreSimilarity(currentConditions, historical)
     const outcome = getHistoricalOutcome(domain, year)
 

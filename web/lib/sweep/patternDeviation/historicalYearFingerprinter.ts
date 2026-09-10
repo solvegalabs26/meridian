@@ -7,21 +7,18 @@ import { ConditionFingerprint } from './currentConditionsExtractor'
 
 export async function fingerprintHistoricalYear(
   domain: string,
-  year: number,
-  geographicScope: { states: string[]; counties: string[] }
+  year: number
 ): Promise<ConditionFingerprint> {
   const supabase = createServiceClient()
   const yearStart = `${year}-01-01`
   const yearEnd = `${year}-12-31`
-
-  const stateTag = geographicScope.states[0] ?? 'UT'
 
   const { data: events } = await supabase
     .from('enterprise_macro_events')
     .select('event_category, event_name, description, direction, magnitude, relevant_industries, affected_regions')
     .gte('event_date', yearStart)
     .lte('event_date', yearEnd)
-    .or(`affected_regions.cs.{"${stateTag}"},relevant_industries.cs.{"hunting"},relevant_industries.cs.{"wildlife"},relevant_industries.cs.{"drought"},relevant_industries.cs.{"climate"}`)
+    .like('source_series_id', `${domain.toUpperCase()}:%`)
 
   const fingerprint: ConditionFingerprint = {
     domain,

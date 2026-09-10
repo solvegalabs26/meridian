@@ -93,7 +93,9 @@ Signal classes: WILDLIFE_MANAGEMENT, DROUGHT_DECLARATION, WEATHER_EVENT, REGULAT
       const parsed = JSON.parse(clean) as DomainEvent[]
       if (Array.isArray(parsed)) {
         events.push(...parsed)
-        console.log(`[FF-066] Retrieved ${parsed.length} historical events for ${domain}`)
+        const byClass: Record<string, number> = {}
+        for (const e of parsed) { byClass[e.signalClass] = (byClass[e.signalClass] ?? 0) + 1 }
+        console.log(`[FF-066] Retrieved ${parsed.length} historical events for ${domain} — by class: ${JSON.stringify(byClass)}`)
       }
     } catch {
       console.error('[FF-066] Event parse failed:', text.slice(0, 200))
