@@ -15,6 +15,8 @@ import { getSignalClassWeights } from '@/lib/engine4/getSignalClassWeights'
 import { buildCoherencePackage, formatCoherencePackageForPrompt, type CoherencePackage } from '@/lib/sweep/buildCoherencePackage'
 import { dispatchFACAgent, type FACReport } from '@/lib/fac/dispatchFACAgent'
 import { dispatchSubAgent, type SignalBrief } from '@/lib/sweep/subAgent/subAgentDispatcher'
+import { enrichDomainEvents } from '@/lib/sweep/domainEvents/domainEventEnrichment'
+import { detectDomain } from '@/lib/sweep/subAgent/domainDetector'
 
 export interface SweepObjectiveResult {
   id: string
@@ -415,6 +417,24 @@ export async function runSweepForUser(
 
     const subAgentCount = Object.values(signalBriefMap).filter(Boolean).length
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — FF-064 sub-agent dispatch complete (${subAgentCount}/${objectives.length} objectives returned signal briefs)`)
+
+    // 5c-enrich. FF-066: Domain event enrichment — writes historical domain events
+    // to enterprise_macro_events so Engine 8 picks them up. Runs in parallel,
+    // always non-fatal, skips if events were written within the last 30 days.
+    await Promise.all(
+      objectives.map(async (obj) => {
+        const domain = detectDomain({
+          title: obj.title,
+          category: (obj as { category?: string }).category ?? '',
+          notes: (obj as { notes?: string | null }).notes ?? undefined,
+        })
+        if (domain !== 'unknown') {
+          await enrichDomainEvents(obj.id, domain).catch(err =>
+            console.error(`[FF-066] Enrichment failed for ${obj.id}:`, err)
+          )
+        }
+      })
+    )
 
     // 5c. Build signal coherence packages for objectives with active watch sources.
     // Runs in parallel — individual failures are caught per-objective and do not
