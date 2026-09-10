@@ -99,7 +99,11 @@ Signal classes: WILDLIFE_MANAGEMENT, DROUGHT_DECLARATION, WEATHER_EVENT, REGULAT
       const text = response.content[0].type === 'text' ? response.content[0].text : ''
       console.log('[FF-066] Raw Haiku response (first 300 chars):', text.slice(0, 300))
       try {
-        const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
+        const clean = text
+          .replace(/^```json\s*/i, '')
+          .replace(/^```\s*/i, '')
+          .replace(/```$/i, '')
+          .trim()
         const parsed = JSON.parse(clean) as DomainEvent[]
         if (Array.isArray(parsed)) {
           events.push(...parsed)
