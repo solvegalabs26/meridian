@@ -100,7 +100,7 @@ Be honest. Do not overstate certainty. Flag anything unverified.`
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
 
   try {
-    const clean = text.replace(/```json|```/g, '').trim()
+    const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
     const parsed = JSON.parse(clean)
 
     console.log(`[FF-064] Signal brief findings: ${JSON.stringify(parsed.keyFindings)}`)

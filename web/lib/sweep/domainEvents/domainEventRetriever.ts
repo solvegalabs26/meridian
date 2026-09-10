@@ -89,7 +89,7 @@ Signal classes: WILDLIFE_MANAGEMENT, DROUGHT_DECLARATION, WEATHER_EVENT, REGULAT
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
     try {
-      const clean = text.replace(/```json|```/g, '').trim()
+      const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
       const parsed = JSON.parse(clean) as DomainEvent[]
       if (Array.isArray(parsed)) {
         events.push(...parsed)
