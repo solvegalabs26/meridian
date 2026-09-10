@@ -47,11 +47,12 @@ export async function fingerprintHistoricalYear(
   else if (allText.includes('d1') || allText.includes('moderate drought')) fingerprint.droughtLevel = 'D1'
   else if (allText.includes('d0') || allText.includes('abnormally dry')) fingerprint.droughtLevel = 'D0'
   else if (allText.includes('no drought') || allText.includes('normal')) fingerprint.droughtLevel = 'none'
+  else if (allText.includes('drought conditions') || allText.includes('drought impact') || allText.includes('drought')) fingerprint.droughtLevel = 'D2'
 
-  const permitEvents = events.filter(e => e.event_category === 'policy_regulatory')
+  const permitEvents = events.filter(e => e.event_category === 'policy_regulatory' || e.event_category === 'wildlife_management')
   if (permitEvents.some(e => {
     const t = `${e.event_name} ${e.description}`.toLowerCase()
-    return t.includes('additional') && t.includes('permit')
+    return (t.includes('additional') && t.includes('permit')) || (t.includes('antlerless') && t.includes('permit'))
   })) {
     fingerprint.permitPressure = 'elevated'
   }

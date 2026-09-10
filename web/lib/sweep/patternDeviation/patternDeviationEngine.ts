@@ -44,7 +44,7 @@ export async function runPatternDeviationEngine(
   console.log(`[FF-067] Running pattern deviation engine for ${domain} — objective ${objectiveId}`)
 
   const currentYear = new Date().getFullYear()
-  const currentConditions = extractCurrentConditions(domain, signalBrief)
+  const currentConditions = await extractCurrentConditions(domain, signalBrief)
   const supabase = createServiceClient()
 
   const matches: Array<{
