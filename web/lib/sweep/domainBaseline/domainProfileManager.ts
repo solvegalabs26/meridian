@@ -2,7 +2,7 @@
 // FF-065 — Reads and writes domain profiles from domain_profiles table.
 // Profiles are keyed (objective_id, domain) — one profile per objective per domain.
 
-import { createServiceClient } from '@/lib/supabase/serviceClient'
+import { createServiceClient } from '@/lib/supabase/server'
 
 export interface DomainProfile {
   id?: string
