@@ -97,6 +97,7 @@ Signal classes: WILDLIFE_MANAGEMENT, DROUGHT_DECLARATION, WEATHER_EVENT, REGULAT
       })
 
       const text = response.content[0].type === 'text' ? response.content[0].text : ''
+      console.log('[FF-066] Raw Haiku response (first 300 chars):', text.slice(0, 300))
       try {
         const clean = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim()
         const parsed = JSON.parse(clean) as DomainEvent[]
@@ -184,6 +185,7 @@ async function fetchNoaaDroughtEvents(
   const events: DomainEvent[] = []
 
   for (let year = startYear; year < currentYear; year++) {
+    console.log('[FF-066] NOAA drought fetch starting for year:', year)
     // Sept 1 captures summer drought peak — peak stress before elk season opens
     const url = `https://droughtmonitor.unl.edu/DmData/GISData.aspx?mode=table&aoi=county&date=${year}-09-01&state=UT`
     try {
