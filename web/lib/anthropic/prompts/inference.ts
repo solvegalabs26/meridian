@@ -66,8 +66,8 @@ export function buildInferenceInput(
   facSignals?: FACSignal[]
 ): string {
   const notesTrunc = objective.notes
-    ? objective.notes.length > 500
-      ? objective.notes.slice(0, 500) + ' [notes truncated]'
+    ? objective.notes.length > 1000
+      ? objective.notes.slice(0, 1000) + ' [notes truncated]'
       : objective.notes
     : null
 

@@ -35,11 +35,11 @@ interface ObjectiveStateInput {
 
 function truncateNotes(notes: string | null | undefined, objectiveId: string): string | null {
   if (!notes || notes.trim() === '') return null
-  if (notes.length <= 500) return notes
-  const sub = notes.slice(0, 500)
+  if (notes.length <= 1000) return notes
+  const sub = notes.slice(0, 1000)
   const lastPeriod = sub.lastIndexOf('. ')
-  const truncAt = lastPeriod > 0 ? lastPeriod + 1 : 500
-  console.log(`[FF-032] Notes truncated for objective ${objectiveId}: ${notes.length} chars → 500`)
+  const truncAt = lastPeriod > 0 ? lastPeriod + 1 : 1000
+  console.log(`[FF-032] Notes truncated for objective ${objectiveId}: ${notes.length} chars → 1000`)
   return notes.slice(0, truncAt).trimEnd() + ' [notes truncated]'
 }
 
