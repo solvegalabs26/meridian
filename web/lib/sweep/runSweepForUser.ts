@@ -19,6 +19,7 @@ import { enrichDomainEvents } from '@/lib/sweep/domainEvents/domainEventEnrichme
 import { detectDomain } from '@/lib/sweep/subAgent/domainDetector'
 import { runPatternDeviationEngine } from '@/lib/sweep/patternDeviation/patternDeviationEngine'
 import { getDomainProfile } from '@/lib/sweep/domainBaseline/domainProfileManager'
+import { bindObjectiveToAgents } from '@/lib/agents/agentContextResolver'
 
 export interface SweepObjectiveResult {
   id: string
@@ -464,6 +465,19 @@ export async function runSweepForUser(
     const patternMap = new Map(patternResults.map(r => [r.objectiveId, r.result]))
     const patternCount = patternResults.filter(r => r.result !== null).length
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — FF-067 pattern deviation complete (${patternCount}/${objectives.length} objectives matched)`)
+
+    // FF-072: Bind agents to objectives so the swarm cron has context per-objective.
+    // Runs in parallel, failures silently skipped — does not block sweep.
+    await Promise.allSettled(
+      objectives.map(async obj => {
+        const domain = detectDomain({ title: obj.title, category: obj.category as string, notes: (obj.notes as string | undefined) ?? undefined })
+        if (domain === 'unknown') return
+        await bindObjectiveToAgents(obj.id, userId, domain).catch(err =>
+          console.error(`[sweep:agentBind] bindObjectiveToAgents failed for ${obj.id}:`, err)
+        )
+      })
+    )
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — FF-072 agent binding complete`)
 
     // 5c. Build signal coherence packages for objectives with active watch sources.
     // Runs in parallel — individual failures are caught per-objective and do not
