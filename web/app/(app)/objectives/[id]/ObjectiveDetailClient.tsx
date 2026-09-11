@@ -8,6 +8,7 @@ import * as chrono from 'chrono-node'
 import WatchSourcesPanel, { type WatchSource } from '@/components/watchlist/WatchSourcesPanel'
 import CloseModal from '@/components/objectives/CloseModal'
 import AbandonModal from '@/components/objectives/AbandonModal'
+import StrikeBriefCard from '@/components/strikeBrief/StrikeBriefCard'
 
 interface ObjProps {
   id: string
@@ -282,6 +283,9 @@ export default function ObjectiveDetailClient({ obj, tier, accountType, initialS
           <Settings size={16} />
         </button>
       </div>
+
+      {/* ── Strike Brief — elk_hunt domain only ── */}
+      <StrikeBriefCard objectiveId={obj.id} domain={obj.category} />
 
       {/* ── Settings drawer ── */}
       {drawerOpen && (
