@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runAgent } from '@/lib/agents/agentRunner';
 import { createServiceClient } from '@/lib/supabase/server';
+import { resolveAgentParams } from '@/lib/agents/agentContextResolver';
 
 export const maxDuration = 300;
 
@@ -14,7 +15,7 @@ export async function GET(request: Request) {
 
   const { data: agents } = await supabase
     .from('agent_configs')
-    .select('agent_key, vertical, domain, geo_scope')
+    .select('agent_key, vertical, domain, geo_scope, source_url_template')
     .eq('is_active', true);
 
   if (!agents || agents.length === 0) {
@@ -24,12 +25,21 @@ export async function GET(request: Request) {
   // Sequential to avoid rate limiting on government APIs
   const results = [];
   for (const agent of agents) {
-    const geoContext = {
-      state: (agent.geo_scope as string[] | null)?.[0] ?? 'UT',
-      county: (agent.geo_scope as string[] | null)?.[1] ?? '',
-      domain: agent.domain as string,
-    };
-    const result = await runAgent(agent.agent_key as string, geoContext);
+    // FF-071: resolve context dynamically; falls back to UT if no objective context bound
+    const resolvedParams = resolveAgentParams(
+      {
+        source_url_template: agent.source_url_template as string,
+        domain: agent.domain as string,
+        geo_scope: agent.geo_scope as string[] | null,
+      },
+      {
+        state: (agent.geo_scope as string[] | null)?.[0] ?? 'UT',
+        county: (agent.geo_scope as string[] | null)?.[1] ?? '',
+        domain: agent.domain as string,
+      }
+    );
+
+    const result = await runAgent(agent.agent_key as string, resolvedParams);
     results.push(result);
   }
 
