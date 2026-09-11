@@ -71,9 +71,9 @@ export async function dispatchSubAgent(objective: {
 }): Promise<SignalBrief | null> {
   const timeoutPromise = new Promise<null>(resolve =>
     setTimeout(() => {
-      console.warn(`[FF-064] Sub-agent timeout for objective ${objective.id} — returning null after 45s`)
+      console.warn(`[FF-064] Sub-agent timeout for objective ${objective.id} — returning null after 60s`)
       resolve(null)
-    }, 45000)
+    }, 60000)
   )
 
   return Promise.race([dispatchSubAgentInternal(objective), timeoutPromise])
