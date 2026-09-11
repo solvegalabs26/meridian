@@ -71,7 +71,7 @@ export async function resolveObjectiveContext(
     .eq('objective_id', objectiveId)
     .maybeSingle();
 
-  let baseGeo: Partial<ResolvedGeo> = {};
+  const baseGeo: Partial<ResolvedGeo> = {};
   let contextSource: ObjectiveGeoContext['contextSource'] = 'objective';
 
   // 3. Extract from objective text
