@@ -73,7 +73,7 @@ Use this exact JSON format:
 
 {
   "keyFindings": ["finding 1", "finding 2", "finding 3"],
-  "patternObservation": "Does current condition match any historical pattern with a known outcome?",
+  "patternObservation": "Does current condition match any historical pattern with a known outcome? If the matching year is too recent for outcome data (historical_outcome is null), state that explicitly — do not treat it as a predictive signal.",
   "confidenceTier": "T1|T2|T3|T4",
   "rawSummary": "2-3 sentence synthesis of all findings for injection into main sweep"
 }
