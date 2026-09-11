@@ -50,7 +50,20 @@ async function dispatchSubAgentInternal(objective: {
       }
 
       const queries = buildElkHuntQueries(params)
-      return await executeSubAgent(domain, queries, objectiveContext)
+      const agentStart = Date.now()
+
+      const brief = await executeSubAgent(domain, queries, objectiveContext, {
+        state: params.state,
+        county: params.county,
+        unit: params.unit,
+      })
+
+      const latency = Date.now() - agentStart
+      const status = brief.queriesRun > 0 ? 'hit' : 'miss'
+      const topSource = brief.sourcesConsulted[0]?.split(':')[0] ?? 'unknown'
+      console.log(`[SubAgent] ${domain} completed in ${latency}ms via ${topSource} — ${status}`)
+
+      return brief
     }
 
     // Future domains added here in subsequent FFs

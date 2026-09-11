@@ -1,6 +1,16 @@
 // lib/sweep/subAgent/taxonomies/elkHunt.ts
 // FF-064 — Signal taxonomy for elk hunt objectives.
+// FF-064 Search Router — each query tagged with QueryType for source routing.
 // 5 queries validated in FF-068, parameterized by geography extracted from the objective.
+
+import { type QueryType } from '../searchRouter'
+
+export interface ElkHuntQuery {
+  id: string
+  query: string
+  queryType: QueryType
+  contextFields?: string[]
+}
 
 export interface ElkHuntParams {
   unit?: string    // e.g. "Unit 10"
@@ -11,27 +21,42 @@ export interface ElkHuntParams {
   year?: number
 }
 
-export function buildElkHuntQueries(params: ElkHuntParams): string[] {
+export function buildElkHuntQueries(params: ElkHuntParams): ElkHuntQuery[] {
   const { unit = '', state = 'Utah', county = '', year = new Date().getFullYear() } = params
   const geo = [county, state].filter(Boolean).join(' ')
   const unitStr = unit || ''
 
   return [
-    // Signal 1 — Drought and water conditions
-    `NOAA drought monitor ${geo} current ${year} severity classification`,
-
-    // Signal 2 — DWR population data
-    `Utah DWR elk population estimate ${unitStr} ${year} target herd size`,
-
-    // Signal 3 — Water source and movement intelligence
-    `${unitStr} ${state} elk water source conditions drought ${year} movement`,
-
-    // Signal 4 — Adjacent unit comparison
-    `Utah elk hunting adjacent units ${unitStr} conditions comparison ${year}`,
-
-    // Signal 5 — Tag availability as proxy for conditions
-    `Utah DWR elk permits remaining ${unitStr} ${year} antlerless`,
-  ].filter(Boolean)
+    {
+      id: 'elk-drought',
+      query: `NOAA drought monitor ${geo} current ${year} severity classification`,
+      queryType: 'government_structured',
+      contextFields: ['state', 'county'],
+    },
+    {
+      id: 'elk-population',
+      query: `Utah DWR elk population estimate ${unitStr} ${year} target herd size`,
+      queryType: 'government_structured',
+      contextFields: ['unit', 'state'],
+    },
+    {
+      id: 'elk-conditions',
+      query: `What are current elk conditions in ${unitStr} ${state} ${year} water drought movement`,
+      queryType: 'current_conditions',
+      contextFields: ['unit', 'state', 'county'],
+    },
+    {
+      id: 'elk-field-reports',
+      query: `elk hunting ${unitStr} ${state} ${year} field reports local conditions`,
+      queryType: 'news_local',
+    },
+    {
+      id: 'elk-permits',
+      query: `Utah DWR elk permits remaining ${unitStr} ${year} antlerless`,
+      queryType: 'government_structured',
+      contextFields: ['unit'],
+    },
+  ]
 }
 
 export function extractElkHuntParams(objective: {
