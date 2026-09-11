@@ -1,10 +1,11 @@
 // lib/sweep/subAgent/subAgentExecutor.ts
-// FF-064 — Core sub-agent engine: executes Brave Search queries and synthesizes
+// FF-064 — Core sub-agent engine: executes typed queries via searchRouter, synthesizes
 // results into a structured signal brief via a Haiku call. Haiku is correct here —
 // classification/synthesis of raw search results, not the main Engine 3 synthesis.
+// FF-064 Search Router — replaces direct Brave calls with routeSearch().
 
 import Anthropic from '@anthropic-ai/sdk'
-import { executeBraveSearch } from '@/lib/signals/braveSearch'
+import { routeSearch, type TypedQuery } from './searchRouter'
 
 export interface SignalBrief {
   domain: string
@@ -19,33 +20,30 @@ export interface SignalBrief {
 
 export async function executeSubAgent(
   domain: string,
-  queries: string[],
-  objectiveContext: string
+  queries: TypedQuery[],
+  objectiveContext: string,
+  structuredContext?: { state?: string; county?: string; unit?: string; date?: string }
 ): Promise<SignalBrief> {
   const client = new Anthropic()
   const searchResults: string[] = []
   const sourcesConsulted: string[] = []
 
-  const queryResults = await Promise.all(
-    queries.map(async (query) => {
-      try {
-        const result = await executeBraveSearch(query)
-        return result ? { query, result } : null
-      } catch (err) {
-        console.error(`[FF-064] Sub-agent query failed: ${query}`, err)
-        return null
-      }
+  const queryResults = await Promise.allSettled(
+    queries.map(async (q) => {
+      const result = await routeSearch(q.query, q.queryType, structuredContext)
+      return result.results ? { query: q.query, result: result.results, source: result.source, tier: result.confidence_tier } : null
     })
   )
 
-  for (const item of queryResults) {
-    if (item) {
-      searchResults.push(`QUERY: ${item.query}\nRESULT: ${item.result}`)
-      sourcesConsulted.push(item.query)
+  for (const settled of queryResults) {
+    if (settled.status === 'fulfilled' && settled.value) {
+      const { query, result, source } = settled.value
+      searchResults.push(`QUERY: ${query}\nSOURCE: ${source}\nRESULT: ${result}`)
+      sourcesConsulted.push(`${source}: ${query}`)
     }
   }
 
-  console.log(`[FF-064] Brave Search complete — ${searchResults.length}/${queries.length} queries returned results`)
+  console.log(`[FF-064] Search complete — ${searchResults.length}/${queries.length} queries returned results`)
 
   if (searchResults.length === 0) {
     return {
