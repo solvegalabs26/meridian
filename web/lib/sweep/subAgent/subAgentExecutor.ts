@@ -94,7 +94,7 @@ Be honest. Do not overstate certainty. Flag anything unverified.`
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 1000,
     messages: [{ role: 'user', content: prompt }],
-  }, { timeout: 30000 })
+  })
 
   console.log('[FF-064] Haiku synthesis complete')
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
