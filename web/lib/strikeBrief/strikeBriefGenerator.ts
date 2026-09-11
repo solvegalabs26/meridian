@@ -1,5 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { getAnthropicClient } from '@/lib/anthropic/client';
+import { generateMovementWindows } from './movementPrediction';
+import { getTerrainIntel } from './terrainIntelligence';
 
 // --- Time window resolution (Mountain Time) ---
 
@@ -20,10 +22,13 @@ export type StrikeBriefContext = {
   domain: string;
   signalBrief: string;
   domainEvents: string;
+  rawMacroEvents: object[];
   patternMatchYear: number | null;
   patternMatchScore: number | null;
   confidenceTier: string;
   agentHits: string[];
+  geoProfile: { lat?: number; lng?: number } | null;
+  domainProfile: object | null;
 };
 
 export type StrikeBriefRow = {
@@ -40,6 +45,9 @@ export type StrikeBriefRow = {
   pattern_match_year: number | null;
   confidence_tier: string | null;
   agent_hits: string[];
+  movement_windows: Array<{ time: string; probability: number; reason: string; confidence_tier: string }> | null;
+  terrain_intel: { bedding: string[]; feeding: string[]; corridors: string[]; elevation_range: { min: number; max: number } | null } | null;
+  terrain_source: '3DEP' | 'user_described' | null;
   created_at: string;
 };
 
@@ -63,11 +71,12 @@ export async function buildStrikeBriefContext(
   // Domain profile
   const { data: profile } = await supabase
     .from('domain_profiles')
-    .select('domain, signal_taxonomy, named_entities')
+    .select('domain, signal_taxonomy, named_entities, geographic_scope')
     .eq('objective_id', objectiveId)
     .maybeSingle();
 
   const domain = profile?.domain ?? 'elk_hunt';
+  const geoScope = profile?.geographic_scope as { lat?: number; lng?: number } | null;
 
   // Recent macro events (ELK_HUNT + UNIVERSAL, last 10)
   const { data: macroEvents } = await supabase
@@ -131,10 +140,13 @@ export async function buildStrikeBriefContext(
     domain,
     signalBrief,
     domainEvents,
+    rawMacroEvents: (macroEvents ?? []) as object[],
     patternMatchYear: pattern?.comparison_year ?? null,
     patternMatchScore: pattern ? Number(pattern.similarity_score) : null,
     confidenceTier,
     agentHits,
+    geoProfile: geoScope ?? null,
+    domainProfile: profile ?? null,
   };
 }
 
@@ -264,6 +276,42 @@ export async function generateStrikeBrief(
     .single();
 
   if (error || !brief) throw new Error(`[StrikeBrief] DB write failed: ${error?.message}`);
+
+  const briefId = (brief as { id: string }).id;
+
+  // FF-076: Movement windows (Haiku, non-fatal)
+  try {
+    const movementWindows = await generateMovementWindows(
+      context.domain,
+      context.patternMatchYear,
+      context.signalBrief,
+      context.rawMacroEvents
+    );
+    await supabase.from('strike_briefs').update({ movement_windows: movementWindows }).eq('id', briefId);
+    (brief as Record<string, unknown>).movement_windows = movementWindows;
+  } catch (err) {
+    console.error('[StrikeBrief] Movement windows failed:', err);
+  }
+
+  // FF-076: Terrain intelligence (Sonnet, non-fatal, only when lat/lng available)
+  try {
+    if (context.geoProfile?.lat !== undefined && context.geoProfile?.lng !== undefined) {
+      const terrainResult = await getTerrainIntel(
+        context.geoProfile.lat,
+        context.geoProfile.lng,
+        context.domain,
+        context.domainProfile ?? {}
+      );
+      await supabase.from('strike_briefs').update({
+        terrain_intel: terrainResult.intel,
+        terrain_source: terrainResult.source,
+      }).eq('id', briefId);
+      (brief as Record<string, unknown>).terrain_intel = terrainResult.intel;
+      (brief as Record<string, unknown>).terrain_source = terrainResult.source;
+    }
+  } catch (err) {
+    console.error('[StrikeBrief] Terrain intel failed:', err);
+  }
 
   return brief as StrikeBriefRow;
 }
