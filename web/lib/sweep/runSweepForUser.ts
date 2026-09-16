@@ -20,6 +20,7 @@ import { detectDomain } from '@/lib/sweep/subAgent/domainDetector'
 import { runPatternDeviationEngine } from '@/lib/sweep/patternDeviation/patternDeviationEngine'
 import { getDomainProfile } from '@/lib/sweep/domainBaseline/domainProfileManager'
 import { bindObjectiveToAgents } from '@/lib/agents/agentContextResolver'
+import { generateStrikeBrief } from '@/lib/strikeBrief/strikeBriefGenerator'
 
 export interface SweepObjectiveResult {
   id: string
@@ -478,6 +479,27 @@ export async function runSweepForUser(
       })
     )
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — FF-072 agent binding complete`)
+
+    // FF-072/FF-076: Generate strike brief for objectives in Strike Brief-enabled domains.
+    // Mirrors the 0430 MT cron so StrikeBriefCard has data when a manual sweep runs
+    // outside cron hours. generateStrikeBrief returns a cached brief if one already
+    // exists for this time window today, so duplicate work is avoided. Non-fatal.
+    //
+    // Strike Brief ships per-vertical — add domains here as each vertical launches.
+    // TODO FF-081: add 'fishing_trout', 'fishing_salmon' when fishing vertical ships.
+    const STRIKE_BRIEF_DOMAINS = new Set(['elk_hunt'])
+    await Promise.allSettled(
+      objectives.map(async obj => {
+        const domain = detectDomain({ title: obj.title, category: obj.category as string, notes: (obj.notes as string | undefined) ?? undefined })
+        if (!STRIKE_BRIEF_DOMAINS.has(domain)) return
+        try {
+          await generateStrikeBrief(obj.id, userId)
+        } catch (err) {
+          console.error(`[sweep:strikeBrief] generateStrikeBrief failed for ${obj.id}:`, err)
+        }
+      })
+    )
+    console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — strike brief generation complete`)
 
     // 5c. Build signal coherence packages for objectives with active watch sources.
     // Runs in parallel — individual failures are caught per-objective and do not
