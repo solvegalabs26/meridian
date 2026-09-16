@@ -46,6 +46,13 @@ function confidenceTier(pct: number): number {
   return 4
 }
 
+// strike_briefs.confidence_tier stores 'T1'/'T2'/'T3'/'T4' text
+function briefTierToInt(tier: string | null): number {
+  if (!tier) return 4
+  const n = parseInt(tier.replace(/\D/g, ''), 10)
+  return isNaN(n) ? 4 : Math.min(Math.max(n, 1), 4)
+}
+
 function agentKeyToLabel(key: string): string {
   // OUTDOOR_NOAA_TEMP → "NOAA Temp" · UNIV_FRED_CPI → "FRED CPI"
   const parts = key.split('_').slice(1)
@@ -146,12 +153,6 @@ export async function GET(request: Request) {
     confidencePct = (obj?.confidence as number) ?? 0
   }
 
-  if (!sweep) {
-    return NextResponse.json(pendingResponse(objectiveId), {
-      headers: partnerHeaders(partnerKey),
-    })
-  }
-
   // 3. Signal chips — most recent run per agent in assigned_agents list
   const signalChips: SignalChip[] = []
   if (assignedAgents.length > 0) {
@@ -178,7 +179,7 @@ export async function GET(request: Request) {
   // 4. Time windows from most recent strike_brief
   const { data: brief } = await supabase
     .from('strike_briefs')
-    .select('movement_windows, time_window, go_no_go')
+    .select('movement_windows, time_window, go_no_go, synthesis, confidence_tier')
     .eq('objective_id', nativeObjectiveId)
     .order('created_at', { ascending: false })
     .limit(1)
@@ -206,6 +207,13 @@ export async function GET(request: Request) {
     }
   }
 
+  // Return pending only if neither sweep nor brief has any data
+  if (!sweep && !brief) {
+    return NextResponse.json(pendingResponse(objectiveId), {
+      headers: partnerHeaders(partnerKey),
+    })
+  }
+
   // 5. Map pins from terrain_cache (empty array until FF-080 populates)
   const { data: terrainRows } = await supabase
     .from('terrain_cache')
@@ -226,16 +234,21 @@ export async function GET(request: Request) {
   })
 
   // 6. Sources
-  const sources = ['Meridian Arc Swarm']
+  const sources: string[] = []
+  if (sweep) sources.push('Meridian Arc Swarm')
   if ((terrainRows ?? []).length > 0) sources.push('USGS 3DEP Terrain')
   if (brief) sources.push('Strike Brief Engine')
+
+  const derivedTier = confidencePct > 0
+    ? confidenceTier(confidencePct)
+    : briefTierToInt((brief?.confidence_tier as string | null) ?? null)
 
   const payload: MipBriefPayload = {
     objective_id: objectiveId,
     brief_generated_at: new Date().toISOString(),
-    confidence_tier: confidenceTier(confidencePct),
+    confidence_tier: derivedTier,
     confidence_pct: confidencePct,
-    summary: (sweep.summary as string) ?? 'Intelligence sweep pending — check back after next scheduled run.',
+    summary: (sweep?.summary as string) ?? (brief?.synthesis as string) ?? 'Intelligence sweep pending — check back after next scheduled run.',
     signal_chips: signalChips,
     time_windows: timeWindows,
     map_pins: mapPins,
