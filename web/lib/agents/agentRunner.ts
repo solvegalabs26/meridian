@@ -109,12 +109,18 @@ export async function runAgent(
     .replace('EIA_API_KEY',  process.env.EIA_API_KEY  ?? '');
 
   try {
-    // 4. Fetch
-    const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    // 4. Fetch — Accept header excludes application/json so HTML pages respond correctly
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(15000),
+      headers: { Accept: 'text/html, application/xhtml+xml, */*' },
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const contentType = response.headers.get('content-type') ?? '';
-    const body = contentType.includes('json') ? await response.json() : await response.text();
+    // HTML responses are always read as plain text — never JSON.parse
+    const body = (!contentType.includes('text/html') && contentType.includes('json'))
+      ? await response.json()
+      : await response.text();
 
     // 5. Threshold evaluation
     const { crossed, observedValue } = evaluateThreshold(
