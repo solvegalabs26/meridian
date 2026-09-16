@@ -58,7 +58,9 @@ export async function runAgent(
   }
 
   // 3. Build URL
-  const url = buildUrl(agent.source_url_template as string, geoContext);
+  const url = buildUrl(agent.source_url_template as string, geoContext)
+    .replace('FRED_API_KEY', process.env.FRED_API_KEY ?? '')
+    .replace('EIA_API_KEY',  process.env.EIA_API_KEY  ?? '');
 
   try {
     // 4. Fetch
