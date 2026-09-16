@@ -60,6 +60,38 @@ function extractFirstNumeric(body: unknown): number | null {
         }
       }
     }
+    // GeoJSON FeatureCollection (weather.gov station observations):
+    // Properties are QualifiedValues: { value: 19.4, unitCode: "wmoUnit:degC", qualityControl: "V" }
+    // Skip static station attributes (elevation, stationId) and array fields (presentWeather, cloudLayers).
+    if (b.type === 'FeatureCollection' && Array.isArray(b.features) && b.features.length > 0) {
+      const props = (b.features[0] as Record<string, unknown>).properties;
+      if (typeof props === 'object' && props !== null) {
+        for (const [k, v] of Object.entries(props as Record<string, unknown>)) {
+          if (k === 'elevation' || k === 'stationId') continue;
+          if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+            const qv = (v as Record<string, unknown>).value;
+            if (typeof qv === 'number' && !isNaN(qv)) return qv;
+          }
+        }
+      }
+    }
+    // GeoJSON Feature (weather.gov forecast): periods[0] QualifiedValues come before windSpeed string.
+    // Property order: probabilityOfPrecipitation → dewpoint → relativeHumidity → windSpeed (string) → ...
+    // Walking QualifiedValues first returns probabilityOfPrecipitation.value for both forecast agents.
+    if (b.type === 'Feature' && typeof b.properties === 'object' && b.properties !== null) {
+      const props = b.properties as Record<string, unknown>;
+      if (Array.isArray(props.periods) && props.periods.length > 0) {
+        const period = props.periods[0] as Record<string, unknown>;
+        for (const v of Object.values(period)) {
+          if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+            const qv = (v as Record<string, unknown>).value;
+            if (typeof qv === 'number' && !isNaN(qv)) return qv;
+          }
+        }
+        if (typeof period.temperature === 'number') return period.temperature;
+      }
+    }
+
     // USGS waterservices-style: { value: { timeSeries: [{ values: [{ value: [{ value: "..." }] }] }] } }
     if (typeof b.value === 'object' && b.value !== null) {
       const v = b.value as Record<string, unknown>;
@@ -101,6 +133,18 @@ function extractSecondNumeric(body: unknown): number | null {
         const val = (resp.data[1] as Record<string, unknown>).value;
         const n = parseFloat(String(val));
         if (!isNaN(n)) return n;
+      }
+    }
+    if (b.type === 'FeatureCollection' && Array.isArray(b.features) && b.features.length > 1) {
+      const props = (b.features[1] as Record<string, unknown>).properties;
+      if (typeof props === 'object' && props !== null) {
+        for (const [k, v] of Object.entries(props as Record<string, unknown>)) {
+          if (k === 'elevation' || k === 'stationId') continue;
+          if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+            const qv = (v as Record<string, unknown>).value;
+            if (typeof qv === 'number' && !isNaN(qv)) return qv;
+          }
+        }
       }
     }
   }
