@@ -62,10 +62,12 @@ function extractFirstNumeric(body: unknown): number | null {
     }
     // GeoJSON FeatureCollection (weather.gov station observations):
     // { type: 'FeatureCollection', features: [{ properties: { temp: { value: 15.5 }, ... } }] }
+    // Skip 'elevation' — it is a static station attribute, not an observation measurement.
     if (b.type === 'FeatureCollection' && Array.isArray(b.features) && b.features.length > 0) {
       const props = (b.features[0] as Record<string, unknown>).properties;
       if (typeof props === 'object' && props !== null) {
-        for (const v of Object.values(props as Record<string, unknown>)) {
+        for (const [k, v] of Object.entries(props as Record<string, unknown>)) {
+          if (k === 'elevation') continue;
           if (typeof v === 'object' && v !== null) {
             const qv = (v as Record<string, unknown>).value;
             if (typeof qv === 'number' && !isNaN(qv)) return qv;
@@ -74,14 +76,22 @@ function extractFirstNumeric(body: unknown): number | null {
       }
     }
     // GeoJSON Feature (weather.gov forecast):
-    // { type: 'Feature', properties: { periods: [{ windSpeed: "15 mph", temperature: 54 }] } }
+    // { type: 'Feature', properties: { periods: [{ windSpeed: "15 mph", probabilityOfPrecipitation: { value: 20 }, temperature: 54 }] } }
+    // Try windSpeed string first (OUTDOOR_WINDY_API), then first QualifiedValue (e.g. probabilityOfPrecipitation),
+    // then plain temperature integer as final fallback.
     if (b.type === 'Feature' && typeof b.properties === 'object' && b.properties !== null) {
       const props = b.properties as Record<string, unknown>;
       if (Array.isArray(props.periods) && props.periods.length > 0) {
         const period = props.periods[0] as Record<string, unknown>;
         if (typeof period.windSpeed === 'string') {
-          const m = period.windSpeed.match(/\d+/);
+          const m = (period.windSpeed as string).match(/\d+/);
           if (m) return parseFloat(m[0]);
+        }
+        for (const v of Object.values(period)) {
+          if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+            const qv = (v as Record<string, unknown>).value;
+            if (typeof qv === 'number' && !isNaN(qv)) return qv;
+          }
         }
         if (typeof period.temperature === 'number') return period.temperature;
       }
@@ -133,7 +143,8 @@ function extractSecondNumeric(body: unknown): number | null {
     if (b.type === 'FeatureCollection' && Array.isArray(b.features) && b.features.length > 1) {
       const props = (b.features[1] as Record<string, unknown>).properties;
       if (typeof props === 'object' && props !== null) {
-        for (const v of Object.values(props as Record<string, unknown>)) {
+        for (const [k, v] of Object.entries(props as Record<string, unknown>)) {
+          if (k === 'elevation') continue;
           if (typeof v === 'object' && v !== null) {
             const qv = (v as Record<string, unknown>).value;
             if (typeof qv === 'number' && !isNaN(qv)) return qv;
