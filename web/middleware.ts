@@ -54,6 +54,8 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/cron/score-horizons') ||
     pathname.startsWith('/api/cron/agent-swarm') ||
     pathname.startsWith('/api/cron/strike-brief-push') ||
+    pathname.startsWith('/api/objectives/create') ||
+    pathname.startsWith('/api/mip/') ||
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/legal') ||
