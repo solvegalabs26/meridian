@@ -3,13 +3,17 @@ import { buildUrl, evaluateThreshold, writeEvent, logRun } from './agentHelpers'
 import { getMoonPhase } from '@/lib/swarm/agents/outdoor/moonPhase';
 import { updateAgentHealth } from './agentHealth';
 import { recordAndCheckSignal, recordEstimatedSignal } from './agentSignalHistory';
+import { computeTerrainIntelligence } from '@/lib/swarm/agents/outdoor/terrain';
 
-function runCalculated(calculatorKey: string): number | null {
+// Returns: number = value, null = known calculator but no data (→ miss), undefined = unknown key (→ error)
+async function runCalculated(calculatorKey: string, objectiveId?: string): Promise<number | null | undefined> {
   switch (calculatorKey) {
     case 'moon_phase_meeus':
       return getMoonPhase(new Date()).illumination;
+    case 'terrain_composite':
+      return computeTerrainIntelligence(objectiveId);
     default:
-      return null;
+      return undefined;
   }
 }
 
@@ -72,13 +76,20 @@ export async function runAgent(
   // 3a. CALCULATED: prefix — run local function, skip fetch entirely
   if ((agent.source_url_template as string).startsWith('CALCULATED:')) {
     const calculatorKey = (agent.source_url_template as string).slice('CALCULATED:'.length);
-    const calculatedBody = runCalculated(calculatorKey);
+    const calculatedBody = await runCalculated(calculatorKey, geoContext.objectiveId);
 
-    if (calculatedBody === null) {
+    if (calculatedBody === undefined) {
       const errMsg = `Unknown calculator: ${calculatorKey}`;
       await logRun(supabase, agentKey, 'error', Date.now() - start, undefined, undefined, geoContext, errMsg);
       await updateAgentHealth(supabase, agentKey, 'error', errMsg).catch(e => console.error('[agentHealth] update failed:', e));
       return { agentKey, result: 'error', durationMs: Date.now() - start, errorMessage: errMsg };
+    }
+
+    // null = known calculator with no data available yet (e.g. empty terrain_cache) → miss
+    if (calculatedBody === null) {
+      await logRun(supabase, agentKey, 'miss', Date.now() - start, undefined, undefined, geoContext);
+      await updateAgentHealth(supabase, agentKey, 'miss').catch(e => console.error('[agentHealth] update failed:', e));
+      return { agentKey, result: 'miss', durationMs: Date.now() - start };
     }
 
     const { crossed } = evaluateThreshold(
