@@ -61,48 +61,31 @@ function extractFirstNumeric(body: unknown): number | null {
       }
     }
     // GeoJSON FeatureCollection (weather.gov station observations):
-    // { type: 'FeatureCollection', features: [{ properties: { temp: { value: 15.5 }, ... } }] }
-    // Skip 'elevation' — it is a static station attribute, not an observation measurement.
+    // Properties are QualifiedValues: { value: 19.4, unitCode: "wmoUnit:degC", qualityControl: "V" }
+    // Skip static station attributes (elevation, stationId) and array fields (presentWeather, cloudLayers).
     if (b.type === 'FeatureCollection' && Array.isArray(b.features) && b.features.length > 0) {
       const props = (b.features[0] as Record<string, unknown>).properties;
       if (typeof props === 'object' && props !== null) {
-        console.log('[DEBUG extractFirstNumeric] FeatureCollection props keys:', Object.keys(props as Record<string, unknown>));
         for (const [k, v] of Object.entries(props as Record<string, unknown>)) {
-          if (k === 'elevation') { console.log('[DEBUG] skipping elevation'); continue; }
-          if (typeof v === 'object' && v !== null) {
+          if (k === 'elevation' || k === 'stationId') continue;
+          if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
             const qv = (v as Record<string, unknown>).value;
-            console.log(`[DEBUG] key=${k} type=${typeof v} qv=${JSON.stringify(qv)}`);
-            if (typeof qv === 'number' && !isNaN(qv)) {
-              console.log(`[DEBUG extractFirstNumeric] returning ${qv} (key=${k})`);
-              return qv;
-            }
+            if (typeof qv === 'number' && !isNaN(qv)) return qv;
           }
         }
-        console.log('[DEBUG extractFirstNumeric] FeatureCollection: no numeric value found, returning null');
       }
     }
-    // GeoJSON Feature (weather.gov forecast):
-    // { type: 'Feature', properties: { periods: [{ windSpeed: "15 mph", probabilityOfPrecipitation: { value: 20 }, temperature: 54 }] } }
-    // Try windSpeed string first (OUTDOOR_WINDY_API), then first QualifiedValue (e.g. probabilityOfPrecipitation),
-    // then plain temperature integer as final fallback.
+    // GeoJSON Feature (weather.gov forecast): periods[0] QualifiedValues come before windSpeed string.
+    // Property order: probabilityOfPrecipitation → dewpoint → relativeHumidity → windSpeed (string) → ...
+    // Walking QualifiedValues first returns probabilityOfPrecipitation.value for both forecast agents.
     if (b.type === 'Feature' && typeof b.properties === 'object' && b.properties !== null) {
       const props = b.properties as Record<string, unknown>;
       if (Array.isArray(props.periods) && props.periods.length > 0) {
         const period = props.periods[0] as Record<string, unknown>;
-        console.log('[DEBUG extractFirstNumeric] Feature forecast period keys:', Object.keys(period));
-        if (typeof period.windSpeed === 'string') {
-          const m = (period.windSpeed as string).match(/\d+/);
-          console.log(`[DEBUG] windSpeed string="${period.windSpeed}" parsed=${m ? m[0] : 'null'}`);
-          if (m) return parseFloat(m[0]);
-        }
-        for (const [pk, v] of Object.entries(period)) {
+        for (const v of Object.values(period)) {
           if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
             const qv = (v as Record<string, unknown>).value;
-            console.log(`[DEBUG] period key=${pk} qv=${JSON.stringify(qv)}`);
-            if (typeof qv === 'number' && !isNaN(qv)) {
-              console.log(`[DEBUG extractFirstNumeric] Feature returning ${qv} (key=${pk})`);
-              return qv;
-            }
+            if (typeof qv === 'number' && !isNaN(qv)) return qv;
           }
         }
         if (typeof period.temperature === 'number') return period.temperature;
@@ -156,8 +139,8 @@ function extractSecondNumeric(body: unknown): number | null {
       const props = (b.features[1] as Record<string, unknown>).properties;
       if (typeof props === 'object' && props !== null) {
         for (const [k, v] of Object.entries(props as Record<string, unknown>)) {
-          if (k === 'elevation') continue;
-          if (typeof v === 'object' && v !== null) {
+          if (k === 'elevation' || k === 'stationId') continue;
+          if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
             const qv = (v as Record<string, unknown>).value;
             if (typeof qv === 'number' && !isNaN(qv)) return qv;
           }
