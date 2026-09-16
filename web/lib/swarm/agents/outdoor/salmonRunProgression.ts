@@ -86,7 +86,7 @@ export async function computeSalmonRunProgression(): Promise<number | null> {
   };
 
   // Write progression record
-  await supabase.from('salmon_run_progression').insert({
+  const { error: insertError } = await supabase.from('salmon_run_progression').insert({
     run_year: new Date().getFullYear(),
     species: 'chinook',
     ladder_location: 'Bonneville→McNary',
@@ -96,7 +96,8 @@ export async function computeSalmonRunProgression(): Promise<number | null> {
       ? Math.round(bonCounts.reduce((s, r) => s + r.value, 0))
       : null,
     projected_arrival: projectedArrival,
-  }).catch(e => console.error('[salmonProgression] write failed:', e));
+  });
+  if (insertError) console.error('[salmonProgression] write failed:', insertError.message);
 
   return projectedMilesFromBonneville;
 }
