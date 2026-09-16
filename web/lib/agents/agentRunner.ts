@@ -123,8 +123,22 @@ export async function runAgent(
       : await response.text();
 
     // 5. Threshold evaluation
+    // For OUTDOOR_WINDY_API: forecast windSpeed is a string ("15 mph", "15 to 25 mph").
+    // Parse the first integer and evaluate against it directly so threshold value_above:30 (mph) works.
+    let evalBody: unknown = body;
+    if (agentKey === 'OUTDOOR_WINDY_API' && typeof body === 'object' && body !== null) {
+      const b = body as Record<string, unknown>;
+      const periods = (b.properties as Record<string, unknown> | undefined)?.periods;
+      if (Array.isArray(periods) && periods.length > 0) {
+        const ws = (periods[0] as Record<string, unknown>).windSpeed;
+        if (typeof ws === 'string') {
+          const m = ws.match(/\d+/);
+          if (m) evalBody = parseFloat(m[0]);
+        }
+      }
+    }
     const { crossed, observedValue } = evaluateThreshold(
-      body,
+      evalBody,
       agent.threshold_type as string,
       agent.threshold_value as number | null,
       agent.threshold_keywords as string[] | null
