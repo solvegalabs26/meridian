@@ -109,7 +109,7 @@ export async function checkCrossAgentCorrelation(
 
   if (!recent || recent.length === 0) return
 
-  const agentKeys = [...new Set((recent as { agent_key: string }[]).map(r => r.agent_key))]
+  const agentKeys = Array.from(new Set((recent as { agent_key: string }[]).map(r => r.agent_key)))
 
   const deviating: Array<{ agentKey: string; deviationPct: number }> = []
 
