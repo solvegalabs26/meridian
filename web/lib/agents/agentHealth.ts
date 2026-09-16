@@ -98,29 +98,81 @@ async function runHaikuInvestigation(
     .map(r => `- ${r.ran_at}: ${r.error_message ?? 'no message'}`)
     .join('\n')
 
-  const prompt = `Agent ${agentKey} (${agent?.display_name ?? agentKey}) has failed 5 consecutive times.
+  const prompt = `You are diagnosing a failing API agent. Return only a JSON object, no other text.
 
-Config:
-- URL: ${agent?.source_url_template ?? 'unknown'}
-- Threshold: ${agent?.threshold_type ?? 'unknown'} = ${agent?.threshold_value ?? 'unknown'}
+Agent: ${agentKey} (${agent?.display_name ?? agentKey})
+URL: ${agent?.source_url_template ?? 'unknown'}
+Threshold: ${agent?.threshold_type ?? 'unknown'} = ${agent?.threshold_value ?? 'unknown'}
 
 Recent errors:
 ${errorLines || `Last error: ${lastErrorMessage ?? 'unknown'}`}
 
-In 2-3 sentences, diagnose the most likely cause and what a developer should check first.`
+Return this exact JSON shape:
+{
+  "diagnosis": "2-3 sentence diagnosis of the most likely cause and what a developer should check first",
+  "is_credential_issue": true or false,
+  "credential_name": "environment variable name (e.g. MY_API_KEY) if credential issue, else null",
+  "registration_url": "URL where the credential can be obtained, or null",
+  "instructions": "brief instructions for obtaining and configuring the credential, or null"
+}`
 
   const msg = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 256,
+    max_tokens: 512,
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const summary = (msg.content[0] as { type: string; text: string }).text
+  const raw = (msg.content[0] as { type: string; text: string }).text
+
+  let diagnosis = raw
+  let isCredentialIssue = false
+  let credentialName: string | null = null
+  let registrationUrl: string | null = null
+  let instructions: string | null = null
+
+  try {
+    const parsed = JSON.parse(raw) as {
+      diagnosis?: string
+      is_credential_issue?: boolean
+      credential_name?: string | null
+      registration_url?: string | null
+      instructions?: string | null
+    }
+    diagnosis = parsed.diagnosis ?? raw
+    isCredentialIssue = parsed.is_credential_issue === true
+    credentialName = parsed.credential_name ?? null
+    registrationUrl = parsed.registration_url ?? null
+    instructions = parsed.instructions ?? null
+  } catch {
+    // Haiku didn't return valid JSON — use raw text as diagnosis, skip credential extraction
+  }
 
   await supabase
     .from('agent_health_log')
-    .update({ investigation_summary: summary, updated_at: new Date().toISOString() })
+    .update({ investigation_summary: diagnosis, updated_at: new Date().toISOString() })
     .eq('agent_key', agentKey)
 
-  console.log(`[agentHealth] Haiku investigation for ${agentKey}: ${summary}`)
+  console.log(`[agentHealth] Haiku investigation for ${agentKey}: ${diagnosis}`)
+
+  if (isCredentialIssue && credentialName) {
+    // Dedup: skip if a pending request already exists for this agent + credential
+    const { data: existing } = await supabase
+      .from('agent_credential_requests')
+      .select('id')
+      .eq('agent_key', agentKey)
+      .eq('credential_name', credentialName)
+      .eq('status', 'pending')
+      .maybeSingle()
+
+    if (!existing) {
+      await supabase.from('agent_credential_requests').insert({
+        agent_key: agentKey,
+        credential_name: credentialName,
+        registration_url: registrationUrl,
+        instructions: instructions,
+        status: 'pending',
+      })
+      console.log(`[agentHealth] Credential request queued for ${agentKey}: ${credentialName}`)
+    }
+  }
 }
