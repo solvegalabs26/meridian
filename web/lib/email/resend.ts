@@ -190,6 +190,68 @@ export async function sendSweepReportEmail({
   }
 }
 
+export async function sendAgentEscalationAlert({
+  agentKey,
+  consecutiveErrors,
+  lastErrorMessage,
+}: {
+  agentKey: string
+  consecutiveErrors: number
+  lastErrorMessage?: string
+}) {
+  if (!RESEND_API_KEY) {
+    console.warn('RESEND_API_KEY not set — skipping agent escalation alert')
+    return
+  }
+
+  const html = `
+    <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
+      <span style="font-size: 13px; color: #C0392B; text-transform: uppercase; letter-spacing: 0.1em;">🚨 Meridian Arc · Swarm Maestro</span>
+      <h2 style="font-size: 20px; color: #1A1A2E; margin: 12px 0 8px;">
+        Agent down — ${consecutiveErrors} consecutive errors
+      </h2>
+      <p style="font-size: 14px; color: #4A5568; margin: 0 0 8px;">
+        <strong>${agentKey}</strong> has failed ${consecutiveErrors} times in a row.
+      </p>
+      ${lastErrorMessage ? `
+        <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 12px; margin: 16px 0;">
+          <p style="font-size: 12px; color: #C0392B; font-family: monospace; margin: 0; word-break: break-all;">${lastErrorMessage}</p>
+        </div>
+      ` : ''}
+      <p style="font-size: 13px; color: #4A5568; margin: 16px 0;">
+        This agent has crossed the Definition of Insanity threshold. Manual investigation required — this agent will not resolve itself.
+      </p>
+      <a href="${APP_URL}/admin" style="display: inline-block; background: #C0392B; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 500;">
+        Open admin panel →
+      </a>
+      <p style="font-size: 11px; color: #8098B4; margin-top: 32px;">
+        Solvega Labs · meridianarc.ai
+      </p>
+    </div>
+  `
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: `Meridian Arc <${FROM_EMAIL}>`,
+        to: ADMIN_EMAIL,
+        subject: `🚨 ${agentKey} — ${consecutiveErrors} consecutive failures`,
+        html,
+      }),
+    })
+    if (!res.ok) {
+      console.error('[resend] Agent escalation alert failed:', await res.text().catch(() => ''))
+    }
+  } catch (err) {
+    console.error('[resend] Agent escalation alert failed:', err)
+  }
+}
+
 // Internal notification to Jason — one email per job, batched after the
 // full account loop finishes, not one per failure.
 export async function sendBulkSweepFailureAlert({

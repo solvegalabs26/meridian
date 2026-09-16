@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { buildUrl, evaluateThreshold, writeEvent, logRun } from './agentHelpers';
 import { getMoonPhase } from '@/lib/swarm/agents/outdoor/moonPhase';
+import { updateAgentHealth } from './agentHealth';
 
 function runCalculated(calculatorKey: string): number | null {
   switch (calculatorKey) {
@@ -73,8 +74,10 @@ export async function runAgent(
     const calculatedBody = runCalculated(calculatorKey);
 
     if (calculatedBody === null) {
-      await logRun(supabase, agentKey, 'error', Date.now() - start, undefined, undefined, geoContext, `Unknown calculator: ${calculatorKey}`);
-      return { agentKey, result: 'error', durationMs: Date.now() - start, errorMessage: `Unknown calculator: ${calculatorKey}` };
+      const errMsg = `Unknown calculator: ${calculatorKey}`;
+      await logRun(supabase, agentKey, 'error', Date.now() - start, undefined, undefined, geoContext, errMsg);
+      void updateAgentHealth(supabase, agentKey, 'error', errMsg).catch(e => console.error('[agentHealth] update failed:', e));
+      return { agentKey, result: 'error', durationMs: Date.now() - start, errorMessage: errMsg };
     }
 
     const { crossed } = evaluateThreshold(
@@ -89,6 +92,7 @@ export async function runAgent(
 
     if (!crossed) {
       await logRun(supabase, agentKey, 'miss', Date.now() - start, undefined, observedValue, geoContext);
+      void updateAgentHealth(supabase, agentKey, 'miss').catch(e => console.error('[agentHealth] update failed:', e));
       return { agentKey, result: 'miss', durationMs: Date.now() - start, thresholdValueObserved: observedValue };
     }
 
@@ -100,6 +104,7 @@ export async function runAgent(
       `CALCULATED:${calculatorKey}`
     );
     await logRun(supabase, agentKey, 'hit', Date.now() - start, eventId, observedValue, geoContext);
+    void updateAgentHealth(supabase, agentKey, 'hit').catch(e => console.error('[agentHealth] update failed:', e));
     return { agentKey, result: 'hit', eventId, durationMs: Date.now() - start, thresholdValueObserved: observedValue };
   }
 
@@ -146,6 +151,7 @@ export async function runAgent(
 
     if (!crossed) {
       await logRun(supabase, agentKey, 'miss', Date.now() - start, undefined, observedValue, geoContext);
+      void updateAgentHealth(supabase, agentKey, 'miss').catch(e => console.error('[agentHealth] update failed:', e));
       return { agentKey, result: 'miss', durationMs: Date.now() - start, thresholdValueObserved: observedValue };
     }
 
@@ -154,11 +160,13 @@ export async function runAgent(
 
     // 7. Log run
     await logRun(supabase, agentKey, 'hit', Date.now() - start, eventId, observedValue, geoContext);
+    void updateAgentHealth(supabase, agentKey, 'hit').catch(e => console.error('[agentHealth] update failed:', e));
 
     return { agentKey, result: 'hit', eventId, durationMs: Date.now() - start, thresholdValueObserved: observedValue };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
     await logRun(supabase, agentKey, 'error', Date.now() - start, undefined, undefined, geoContext, msg);
+    void updateAgentHealth(supabase, agentKey, 'error', msg).catch(e => console.error('[agentHealth] update failed:', e));
     return { agentKey, result: 'error', durationMs: Date.now() - start, errorMessage: msg };
   }
 }
