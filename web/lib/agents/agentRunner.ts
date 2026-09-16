@@ -94,7 +94,7 @@ export async function runAgent(
     if (!crossed) {
       await logRun(supabase, agentKey, 'miss', Date.now() - start, undefined, observedValue, geoContext);
       void updateAgentHealth(supabase, agentKey, 'miss').catch(e => console.error('[agentHealth] update failed:', e));
-      void recordAndCheckSignal(supabase, agentKey, geoContext.objectiveId, observedValue).catch(e => console.error('[signalHistory] record failed:', e));
+      await recordAndCheckSignal(supabase, agentKey, geoContext.objectiveId, observedValue).catch(e => console.error('[signalHistory] record failed:', e));
       return { agentKey, result: 'miss', durationMs: Date.now() - start, thresholdValueObserved: observedValue };
     }
 
@@ -156,7 +156,7 @@ export async function runAgent(
       await logRun(supabase, agentKey, 'miss', Date.now() - start, undefined, observedValue, geoContext);
       void updateAgentHealth(supabase, agentKey, 'miss').catch(e => console.error('[agentHealth] update failed:', e));
       if (observedValue !== undefined) {
-        void recordAndCheckSignal(supabase, agentKey, geoContext.objectiveId, observedValue).catch(e => console.error('[signalHistory] record failed:', e));
+        await recordAndCheckSignal(supabase, agentKey, geoContext.objectiveId, observedValue).catch(e => console.error('[signalHistory] record failed:', e));
       }
       return { agentKey, result: 'miss', durationMs: Date.now() - start, thresholdValueObserved: observedValue };
     }
@@ -168,7 +168,7 @@ export async function runAgent(
     await logRun(supabase, agentKey, 'hit', Date.now() - start, eventId, observedValue, geoContext);
     void updateAgentHealth(supabase, agentKey, 'hit').catch(e => console.error('[agentHealth] update failed:', e));
     if (observedValue !== undefined) {
-      void recordAndCheckSignal(supabase, agentKey, geoContext.objectiveId, observedValue).catch(e => console.error('[signalHistory] record failed:', e));
+      await recordAndCheckSignal(supabase, agentKey, geoContext.objectiveId, observedValue).catch(e => console.error('[signalHistory] record failed:', e));
     }
 
     return { agentKey, result: 'hit', eventId, durationMs: Date.now() - start, thresholdValueObserved: observedValue };
@@ -176,7 +176,7 @@ export async function runAgent(
     const msg = err instanceof Error ? err.message : 'Unknown error';
     await logRun(supabase, agentKey, 'error', Date.now() - start, undefined, undefined, geoContext, msg);
     void updateAgentHealth(supabase, agentKey, 'error', msg).catch(e => console.error('[agentHealth] update failed:', e));
-    void recordEstimatedSignal(supabase, agentKey, geoContext.objectiveId).catch(e => console.error('[signalHistory] estimation failed:', e));
+    await recordEstimatedSignal(supabase, agentKey, geoContext.objectiveId).catch(e => console.error('[signalHistory] estimation failed:', e));
     return { agentKey, result: 'error', durationMs: Date.now() - start, errorMessage: msg };
   }
 }
