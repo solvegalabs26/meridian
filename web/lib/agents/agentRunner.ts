@@ -4,8 +4,8 @@ import { getMoonPhase } from '@/lib/swarm/agents/outdoor/moonPhase';
 
 function runCalculated(calculatorKey: string): number | null {
   switch (calculatorKey) {
-    case 'MOON_PHASE':
-      return getMoonPhase().illumination;
+    case 'moon_phase_meeus':
+      return getMoonPhase(new Date()).illumination;
     default:
       return null;
   }
