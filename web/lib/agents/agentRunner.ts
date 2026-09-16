@@ -4,6 +4,8 @@ import { getMoonPhase } from '@/lib/swarm/agents/outdoor/moonPhase';
 import { updateAgentHealth } from './agentHealth';
 import { recordAndCheckSignal, recordEstimatedSignal } from './agentSignalHistory';
 import { computeTerrainIntelligence } from '@/lib/swarm/agents/outdoor/terrain';
+import { computeHatchWindow } from '@/lib/swarm/agents/outdoor/fishingPhenology';
+import { computeSalmonRunProgression } from '@/lib/swarm/agents/outdoor/salmonRunProgression';
 
 // Returns: number = value, null = known calculator but no data (→ miss), undefined = unknown key (→ error)
 async function runCalculated(calculatorKey: string, objectiveId?: string): Promise<number | null | undefined> {
@@ -12,6 +14,10 @@ async function runCalculated(calculatorKey: string, objectiveId?: string): Promi
       return getMoonPhase(new Date()).illumination;
     case 'terrain_composite':
       return computeTerrainIntelligence(objectiveId);
+    case 'hatch_window_meeus':
+      return computeHatchWindow();
+    case 'salmon_run_progression':
+      return computeSalmonRunProgression();
     default:
       return undefined;
   }
