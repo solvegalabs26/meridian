@@ -3,11 +3,14 @@ import { buildUrl, evaluateThreshold, writeEvent, logRun } from './agentHelpers'
 import { getMoonPhase } from '@/lib/swarm/agents/outdoor/moonPhase';
 import { updateAgentHealth } from './agentHealth';
 import { recordAndCheckSignal, recordEstimatedSignal } from './agentSignalHistory';
+import { computeTerrainIntelligence } from '@/lib/swarm/agents/outdoor/terrain';
 
-function runCalculated(calculatorKey: string): number | null {
+async function runCalculated(calculatorKey: string, objectiveId?: string): Promise<number | null> {
   switch (calculatorKey) {
     case 'moon_phase_meeus':
       return getMoonPhase(new Date()).illumination;
+    case 'terrain_composite':
+      return computeTerrainIntelligence(objectiveId);
     default:
       return null;
   }
@@ -72,7 +75,7 @@ export async function runAgent(
   // 3a. CALCULATED: prefix — run local function, skip fetch entirely
   if ((agent.source_url_template as string).startsWith('CALCULATED:')) {
     const calculatorKey = (agent.source_url_template as string).slice('CALCULATED:'.length);
-    const calculatedBody = runCalculated(calculatorKey);
+    const calculatedBody = await runCalculated(calculatorKey, geoContext.objectiveId);
 
     if (calculatedBody === null) {
       const errMsg = `Unknown calculator: ${calculatorKey}`;
