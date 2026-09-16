@@ -66,13 +66,19 @@ function extractFirstNumeric(body: unknown): number | null {
     if (b.type === 'FeatureCollection' && Array.isArray(b.features) && b.features.length > 0) {
       const props = (b.features[0] as Record<string, unknown>).properties;
       if (typeof props === 'object' && props !== null) {
+        console.log('[DEBUG extractFirstNumeric] FeatureCollection props keys:', Object.keys(props as Record<string, unknown>));
         for (const [k, v] of Object.entries(props as Record<string, unknown>)) {
-          if (k === 'elevation') continue;
+          if (k === 'elevation') { console.log('[DEBUG] skipping elevation'); continue; }
           if (typeof v === 'object' && v !== null) {
             const qv = (v as Record<string, unknown>).value;
-            if (typeof qv === 'number' && !isNaN(qv)) return qv;
+            console.log(`[DEBUG] key=${k} type=${typeof v} qv=${JSON.stringify(qv)}`);
+            if (typeof qv === 'number' && !isNaN(qv)) {
+              console.log(`[DEBUG extractFirstNumeric] returning ${qv} (key=${k})`);
+              return qv;
+            }
           }
         }
+        console.log('[DEBUG extractFirstNumeric] FeatureCollection: no numeric value found, returning null');
       }
     }
     // GeoJSON Feature (weather.gov forecast):
@@ -83,14 +89,20 @@ function extractFirstNumeric(body: unknown): number | null {
       const props = b.properties as Record<string, unknown>;
       if (Array.isArray(props.periods) && props.periods.length > 0) {
         const period = props.periods[0] as Record<string, unknown>;
+        console.log('[DEBUG extractFirstNumeric] Feature forecast period keys:', Object.keys(period));
         if (typeof period.windSpeed === 'string') {
           const m = (period.windSpeed as string).match(/\d+/);
+          console.log(`[DEBUG] windSpeed string="${period.windSpeed}" parsed=${m ? m[0] : 'null'}`);
           if (m) return parseFloat(m[0]);
         }
-        for (const v of Object.values(period)) {
+        for (const [pk, v] of Object.entries(period)) {
           if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
             const qv = (v as Record<string, unknown>).value;
-            if (typeof qv === 'number' && !isNaN(qv)) return qv;
+            console.log(`[DEBUG] period key=${pk} qv=${JSON.stringify(qv)}`);
+            if (typeof qv === 'number' && !isNaN(qv)) {
+              console.log(`[DEBUG extractFirstNumeric] Feature returning ${qv} (key=${pk})`);
+              return qv;
+            }
           }
         }
         if (typeof period.temperature === 'number') return period.temperature;
