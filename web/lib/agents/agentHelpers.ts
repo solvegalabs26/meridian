@@ -60,6 +60,20 @@ function extractFirstNumeric(body: unknown): number | null {
         }
       }
     }
+    // GeoJSON FeatureCollection (weather.gov observations/gridpoints):
+    // { type: 'FeatureCollection', features: [{ properties: { temp: { value: 15.5 }, ... } }] }
+    if (b.type === 'FeatureCollection' && Array.isArray(b.features) && b.features.length > 0) {
+      const props = (b.features[0] as Record<string, unknown>).properties;
+      if (typeof props === 'object' && props !== null) {
+        for (const v of Object.values(props as Record<string, unknown>)) {
+          if (typeof v === 'object' && v !== null) {
+            const qv = (v as Record<string, unknown>).value;
+            if (typeof qv === 'number' && !isNaN(qv)) return qv;
+          }
+        }
+      }
+    }
+
     // USGS waterservices-style: { value: { timeSeries: [{ values: [{ value: [{ value: "..." }] }] }] } }
     if (typeof b.value === 'object' && b.value !== null) {
       const v = b.value as Record<string, unknown>;
