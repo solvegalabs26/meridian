@@ -1,5 +1,15 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { buildUrl, evaluateThreshold, writeEvent, logRun } from './agentHelpers';
+import { getMoonPhase } from '@/lib/swarm/agents/outdoor/moonPhase';
+
+function runCalculated(calculatorKey: string): number | null {
+  switch (calculatorKey) {
+    case 'MOON_PHASE':
+      return getMoonPhase().illumination;
+    default:
+      return null;
+  }
+}
 
 export type AgentResult = {
   agentKey: string;
@@ -57,7 +67,40 @@ export async function runAgent(
     }
   }
 
-  // 3. Build URL
+  // 3a. CALCULATED: prefix — run local function, skip fetch entirely
+  if ((agent.source_url_template as string).startsWith('CALCULATED:')) {
+    const calculatorKey = (agent.source_url_template as string).slice('CALCULATED:'.length);
+    const calculatedBody = runCalculated(calculatorKey);
+
+    if (calculatedBody === null) {
+      await logRun(supabase, agentKey, 'error', Date.now() - start, undefined, undefined, geoContext, `Unknown calculator: ${calculatorKey}`);
+      return { agentKey, result: 'error', durationMs: Date.now() - start, errorMessage: `Unknown calculator: ${calculatorKey}` };
+    }
+
+    const { crossed, observedValue } = evaluateThreshold(
+      calculatedBody,
+      agent.threshold_type as string,
+      agent.threshold_value as number | null,
+      agent.threshold_keywords as string[] | null
+    );
+
+    if (!crossed) {
+      await logRun(supabase, agentKey, 'miss', Date.now() - start, undefined, observedValue, geoContext);
+      return { agentKey, result: 'miss', durationMs: Date.now() - start, thresholdValueObserved: observedValue };
+    }
+
+    const eventId = await writeEvent(
+      supabase,
+      agent as Parameters<typeof writeEvent>[1],
+      geoContext,
+      observedValue,
+      `CALCULATED:${calculatorKey}`
+    );
+    await logRun(supabase, agentKey, 'hit', Date.now() - start, eventId, observedValue, geoContext);
+    return { agentKey, result: 'hit', eventId, durationMs: Date.now() - start, thresholdValueObserved: observedValue };
+  }
+
+  // 3b. Build URL
   const url = buildUrl(agent.source_url_template as string, geoContext)
     .replace('FRED_API_KEY', process.env.FRED_API_KEY ?? '')
     .replace('EIA_API_KEY',  process.env.EIA_API_KEY  ?? '');
