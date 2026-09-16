@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   // For partner integrations (BaseMaps, GoHunt), user_id is the platform's service account
   // For direct Arc users, they POST authenticated — but this route uses service client
   // so org_source is the partition key, not auth session
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile } = await supabase
     .from('profiles')
     .select('id')
     .eq('org_source', org_source)
