@@ -12,9 +12,9 @@ VALUES
     'OUTDOOR_USGS_WATER_TEMP',
     'outdoor', 'elk_hunt',
     'USGS Water Temperature',
-    'Stream water temperature — trout optimal ceiling 65°F; above triggers thermal stress signal',
+    'Stream water temperature in °C — trout optimal ceiling 18.3°C (65°F); USGS always returns Celsius',
     'https://waterservices.usgs.gov/nwis/iv/?format=json&sites=15266300&parameterCd=00010&siteStatus=active',
-    'value_below', 65.0, NULL,
+    'value_below', 18.3, NULL,
     1440, 'climate_regulatory', 'ELK_HUNT:', true, false
   ),
 
