@@ -1,5 +1,4 @@
 // Meeus algorithm — "Astronomical Algorithms" ch. 49
-// Returns illumination (0–100), age in days (0–29.53), and phase name.
 
 const SYNODIC_MONTH = 29.53058867;
 // Known new moon: 2000-01-06 18:14 UTC
@@ -23,12 +22,6 @@ function julianDate(date: Date): number {
   return Math.floor(365.25 * (Y + 4716)) + Math.floor(30.6001 * (M + 1)) + D + B - 1524.5;
 }
 
-export type MoonPhaseResult = {
-  illumination: number;  // 0–100 percent
-  ageDays: number;       // 0–29.53 days since last new moon
-  phaseName: string;
-};
-
 function phaseName(ageDays: number): string {
   if (ageDays < 1.85)  return 'New Moon';
   if (ageDays < 7.38)  return 'Waxing Crescent';
@@ -40,15 +33,27 @@ function phaseName(ageDays: number): string {
   return 'Waning Crescent';
 }
 
-export function getMoonPhase(date: Date = new Date()): MoonPhaseResult {
+export function getMoonPhase(date: Date): {
+  phase: number;        // 0–1 (0=new, 0.5=full)
+  phaseName: string;
+  illumination: number; // 0–100%
+  daysToFull: number;
+} {
   const jd = julianDate(date);
   const daysSinceNew = jd - KNOWN_NEW_MOON_JD;
   const ageDays = ((daysSinceNew % SYNODIC_MONTH) + SYNODIC_MONTH) % SYNODIC_MONTH;
+
+  const phase = ageDays / SYNODIC_MONTH;
   const illumination = 50 * (1 - Math.cos((2 * Math.PI * ageDays) / SYNODIC_MONTH));
+  const fullMoonAge = SYNODIC_MONTH / 2;
+  const daysToFull = ageDays <= fullMoonAge
+    ? fullMoonAge - ageDays
+    : SYNODIC_MONTH + fullMoonAge - ageDays;
 
   return {
-    illumination: Math.round(illumination * 10) / 10,
-    ageDays: Math.round(ageDays * 1000) / 1000,
+    phase: Math.round(phase * 10000) / 10000,
     phaseName: phaseName(ageDays),
+    illumination: Math.round(illumination * 10) / 10,
+    daysToFull: Math.round(daysToFull * 10) / 10,
   };
 }

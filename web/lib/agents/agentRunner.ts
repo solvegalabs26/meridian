@@ -4,8 +4,8 @@ import { getMoonPhase } from '@/lib/swarm/agents/outdoor/moonPhase';
 
 function runCalculated(calculatorKey: string): number | null {
   switch (calculatorKey) {
-    case 'MOON_PHASE':
-      return getMoonPhase().illumination;
+    case 'moon_phase_meeus':
+      return getMoonPhase(new Date()).illumination;
     default:
       return null;
   }
@@ -77,12 +77,15 @@ export async function runAgent(
       return { agentKey, result: 'error', durationMs: Date.now() - start, errorMessage: `Unknown calculator: ${calculatorKey}` };
     }
 
-    const { crossed, observedValue } = evaluateThreshold(
+    const { crossed } = evaluateThreshold(
       calculatedBody,
       agent.threshold_type as string,
       agent.threshold_value as number | null,
       agent.threshold_keywords as string[] | null
     );
+    // For CALCULATED: agents the computed value is always the observation,
+    // regardless of whether evaluateThreshold echoes it back.
+    const observedValue = calculatedBody;
 
     if (!crossed) {
       await logRun(supabase, agentKey, 'miss', Date.now() - start, undefined, observedValue, geoContext);
