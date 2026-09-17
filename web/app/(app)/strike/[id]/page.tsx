@@ -26,21 +26,14 @@ export default async function StrikePage({ params }: { params: { id: string } })
   console.log('[strike/[id]] params.id:', params.id, 'objective id:', (objective as Record<string, unknown> | null)?.id ?? null)
   if (!objective) notFound()
 
-  // Prefer arc objective_id for the brief API (what strike_briefs is keyed by).
-  // Fall back to profile PK so the dispatch can resolve it.
-  const obj = objective as Record<string, unknown>
-  const briefObjectiveId = (obj.objective_id as string | null) ?? (obj.id as string)
-
-  // VERCEL_URL is auto-set on all Vercel deployments (preview + production).
-  // NEXT_PUBLIC_APP_URL overrides when explicitly set (local dev or custom domain).
   const appUrl = process.env.NEXT_PUBLIC_APP_URL
     ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
   let brief: Record<string, unknown> = {}
   try {
-    const briefUrl = `${appUrl}/api/mip/brief?objective_id=${briefObjectiveId}&partner_key=strike`
+    const briefUrl = `${appUrl}/api/mip/brief?objective_id=${params.id}&partner_key=strike`
     console.log('[strike/[id]] briefUrl:', briefUrl)
-    const res = await fetch(briefUrl, { cache: 'no-store' })
+    const res = await fetch(briefUrl, { next: { revalidate: 1800 } })
     if (res.ok) {
       brief = await res.json()
     } else {
