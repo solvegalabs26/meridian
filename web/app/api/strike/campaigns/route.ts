@@ -6,10 +6,11 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const authClient = createClient()
-  const { data: { user } } = await authClient.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { data: { session } } = await authClient.auth.getSession()
 
-  console.log('[campaigns] session user id:', user?.id)
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  console.log('[campaigns] session user id:', session.user.id)
 
   const supabase = createServiceClient()
 
@@ -17,11 +18,11 @@ export async function GET() {
   const { data: campaigns, error: campErr } = await supabase
     .from('hunt_campaigns')
     .select('*, campaign_units(*)')
-    .eq('user_id', user.id)
+    .eq('user_id', session.user.id)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
 
-  console.log('[campaigns] campaigns query:', JSON.stringify({ data: campaigns, error: campErr }))
+  console.log('[campaigns] result count:', campaigns?.length, 'error:', campErr?.message)
 
   if (campErr) return NextResponse.json({ error: campErr.message }, { status: 500 })
   if (!campaigns || campaigns.length === 0) return NextResponse.json({ campaigns: [] })
