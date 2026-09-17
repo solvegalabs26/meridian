@@ -166,9 +166,9 @@ async function handleStrikeBrief(
   })
 
   // Sources from OUTDOOR_ agent_hits only
-  const sources = [...new Set(
+  const sources = Array.from(new Set(
     agentHits.filter(h => h.startsWith('OUTDOOR_')).map(agentKeyToLabel)
-  )]
+  ))
 
   return NextResponse.json({
     objective_id: objectiveId,
