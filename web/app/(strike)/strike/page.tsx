@@ -5,7 +5,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 export const dynamic = 'force-dynamic'
 
 type ObjectiveProfile = {
-  objective_id: string
+  id: string
   taxonomy_key: string
   geo: { state?: string; unit?: string } | null
   timing: { trip_start?: string; trip_end?: string } | null
@@ -33,12 +33,26 @@ export default async function StrikeListPage() {
   if (!user) redirect('/login')
 
   const supabase = createServiceClient()
-  const { data: objectives } = await supabase
+
+  // Resolve canonical user_id by email — guards against session/preview env mismatch
+  // where the JWT user.id may not match the profiles row's id.
+  let canonicalUserId = user.id
+  if (user.email) {
+    const { data: adminData } = await supabase.auth.admin.listUsers()
+    const match = (adminData?.users ?? []).find(u => u.email === user.email)
+    if (match?.id) canonicalUserId = match.id
+  }
+
+  console.log('[strike/list] session user.id:', user.id, 'email:', user.email, 'canonicalUserId:', canonicalUserId)
+
+  const { data: objectives, error: objError } = await supabase
     .from('objective_profiles')
-    .select('objective_id, taxonomy_key, geo, timing, agent_build_status')
-    .eq('user_id', user.id)
+    .select('id, taxonomy_key, geo, timing, agent_build_status')
+    .eq('user_id', canonicalUserId)
     .eq('org_source', 'strike')
     .order('created_at', { ascending: false })
+
+  console.log('[strike/list] objectives count:', objectives?.length ?? 0, 'error:', objError?.message ?? null)
 
   const list = (objectives ?? []) as ObjectiveProfile[]
 
@@ -70,8 +84,8 @@ export default async function StrikeListPage() {
         ) : (
           list.map(obj => (
             <Link
-              key={obj.objective_id}
-              href={`/strike/${obj.objective_id}`}
+              key={obj.id}
+              href={`/strike/${obj.id}`}
               className="block bg-slate-800 rounded-xl px-4 py-4 hover:bg-slate-750 transition-colors"
             >
               <div className="flex items-start justify-between gap-3">

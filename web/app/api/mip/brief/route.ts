@@ -85,13 +85,13 @@ type StrikeTimeWindow = {
 
 async function handleStrikeBrief(
   supabase: ReturnType<typeof createServiceClient>,
-  objectiveId: string,
+  objectiveId: string,  // arc objective_id (FK on both strike_briefs and objective_profiles)
 ): Promise<NextResponse> {
   const today = new Date().toISOString().split('T')[0]
   const headers = { 'X-MIP-Partner': 'strike' }
 
-  // Today's brief first, fallback to most recent
-  let { data: brief } = await supabase
+  // Step 1 — get the brief (today first, fallback to most recent)
+  const { data: todayBrief, error: todayError } = await supabase
     .from('strike_briefs')
     .select('*')
     .eq('objective_id', objectiveId)
@@ -99,23 +99,29 @@ async function handleStrikeBrief(
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+  console.log('[handleStrikeBrief] step1 today brief:', JSON.stringify(todayBrief), 'error:', todayError?.message)
 
+  let brief = todayBrief
   if (!brief) {
-    const { data: fallback } = await supabase
+    const { data: fallback, error: fallbackError } = await supabase
       .from('strike_briefs')
       .select('*')
       .eq('objective_id', objectiveId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
+    console.log('[handleStrikeBrief] step1 fallback brief:', JSON.stringify(fallback), 'error:', fallbackError?.message)
     brief = fallback
   }
 
-  const { data: objProfile } = await supabase
+  // Step 2 — get the objective profile separately
+  const { data: objProfile, error: profileError } = await supabase
     .from('objective_profiles')
     .select('taxonomy_key, geo, timing')
     .eq('objective_id', objectiveId)
+    .limit(1)
     .maybeSingle()
+  console.log('[handleStrikeBrief] step2 profile:', JSON.stringify(objProfile), 'error:', profileError?.message)
 
   const objectiveBlock = {
     taxonomy_key: (objProfile?.taxonomy_key as string) ?? '',
@@ -131,9 +137,9 @@ async function handleStrikeBrief(
       confidence_tier: 'T4',
       confidence_pct: 35,
       go_no_go: 'NO-GO',
-      summary: 'Intelligence sweep pending — check back after next scheduled run.',
+      summary: null,
       lead_signal: null,
-      time_windows: [],
+      time_windows: null,
       signal_chips: [],
       sources: [],
       attribution: 'Powered by Meridian Arc',
@@ -173,9 +179,8 @@ async function handleStrikeBrief(
   ))
 
   const rawSynthesis = (brief.synthesis as string) ?? ''
-  const cleanSummary = rawSynthesis
-    .replace(/ \(T[1-4]: [A-Z_]+(?:, \d{4}-\d{2}-\d{2})?\)/g, '')
-    .trim()
+  const stripped = rawSynthesis.replace(/ \(T[1-4]: [^)]+\)/g, '').trim()
+  const cleanSummary = stripped || rawSynthesis.trim() || null
 
   return NextResponse.json({
     objective_id: objectiveId,
@@ -231,8 +236,16 @@ export async function GET(request: Request) {
   const supabase = createServiceClient()
 
   // Strike partner: dedicated response shape built from strike_briefs directly
+  // objectiveId from URL may be profile PK — resolve to arc objective_id before querying
   if (partnerKey === 'strike') {
-    return handleStrikeBrief(supabase, objectiveId)
+    const { data: profileLookup } = await supabase
+      .from('objective_profiles')
+      .select('objective_id')
+      .eq('id', objectiveId)
+      .maybeSingle()
+    const arcObjectiveId = (profileLookup?.objective_id as string | null) ?? objectiveId
+    console.log('[strike dispatch] url objectiveId:', objectiveId, '→ arcObjectiveId:', arcObjectiveId)
+    return handleStrikeBrief(supabase, arcObjectiveId)
   }
 
   // 1. Resolve objective — try objective_profiles first (MIP-intake), then objectives (native Arc)

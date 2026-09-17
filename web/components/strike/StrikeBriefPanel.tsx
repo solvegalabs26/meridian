@@ -14,16 +14,17 @@ type TimeWindow = {
 type MapPin = { type: string; lat: number; lon: number; confidence: string; label: string }
 
 type StrikeBrief = {
-  summary: string
+  summary?: string | null
   lead_signal?: string | null
-  go_no_go: string
-  brief_date: string
-  confidence_tier: string
-  confidence_pct: number
-  time_windows: TimeWindow[]
-  map_pins?: MapPin[]
-  sources?: string[]
-  attribution: string
+  go_no_go?: string | null
+  brief_date?: string | null
+  confidence_tier?: string | null
+  confidence_pct?: number | null
+  time_windows?: TimeWindow[] | null
+  signal_chips?: unknown[] | null
+  map_pins?: MapPin[] | null
+  sources?: string[] | null
+  attribution?: string | null
 }
 
 type Props = {
@@ -45,21 +46,21 @@ const PRIORITY_TEXT: Record<string, string> = {
 }
 
 export default function StrikeBriefPanel({ brief, isOnline, onRefresh }: Props) {
-  if (!brief) {
+  // time_windows === null means no brief row found (stub). time_windows === [] means
+  // brief exists but movement_windows not yet populated — show content, not full pending.
+  if (!brief || brief.time_windows === null) {
     return (
       <div className="p-6 text-center text-slate-400 text-sm">
-        Loading brief…
+        <div className="mb-1">Intelligence sweep pending</div>
+        <div className="text-xs text-slate-500">Check back after the next scheduled run</div>
       </div>
     )
   }
 
-  const {
-    time_windows = [],
-    lead_signal,
-    summary,
-    sources = [],
-    map_pins = [],
-  } = brief
+  const time_windows = brief.time_windows ?? []
+  const map_pins     = brief.map_pins ?? []
+  const sources      = brief.sources ?? []
+  const { lead_signal, summary } = brief
 
   return (
     <div className="px-4 py-4 space-y-5">
@@ -67,11 +68,15 @@ export default function StrikeBriefPanel({ brief, isOnline, onRefresh }: Props) 
       <StrikeMapStrip pins={map_pins} isOnline={isOnline} />
 
       {/* TIME WINDOWS — rendered first */}
-      {time_windows.length > 0 && (
-        <section>
-          <div className="text-xs text-slate-400 uppercase tracking-wider mb-2">
-            Time windows
+      <section>
+        <div className="text-xs text-slate-400 uppercase tracking-wider mb-2">
+          Time windows
+        </div>
+        {time_windows.length === 0 ? (
+          <div className="bg-slate-800/60 rounded-lg px-4 py-3 text-slate-400 text-sm">
+            Brief generating — check back shortly
           </div>
+        ) : (
           <div className="space-y-2">
             {time_windows.map((w, i) => (
               <div key={i} className="flex items-start gap-3 bg-slate-800/60 rounded-lg p-3">
@@ -94,8 +99,8 @@ export default function StrikeBriefPanel({ brief, isOnline, onRefresh }: Props) 
               </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* LEAD SIGNAL — callout above summary */}
       {lead_signal && (
