@@ -85,17 +85,43 @@ type StrikeTimeWindow = {
 
 async function handleStrikeBrief(
   supabase: ReturnType<typeof createServiceClient>,
-  profileId: string,  // objective_profiles.id (true PK)
+  objectiveId: string,  // arc objective_id (FK on both strike_briefs and objective_profiles)
 ): Promise<NextResponse> {
   const today = new Date().toISOString().split('T')[0]
   const headers = { 'X-MIP-Partner': 'strike' }
 
-  // Resolve profile by PK → extract arc objective_id for strike_briefs lookup
-  const { data: objProfile } = await supabase
-    .from('objective_profiles')
-    .select('taxonomy_key, geo, timing, objective_id')
-    .eq('id', profileId)
+  // Step 1 — get the brief (today first, fallback to most recent)
+  const { data: todayBrief, error: todayError } = await supabase
+    .from('strike_briefs')
+    .select('*')
+    .eq('objective_id', objectiveId)
+    .eq('brief_date', today)
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
+  console.log('[handleStrikeBrief] step1 today brief:', JSON.stringify(todayBrief), 'error:', todayError?.message)
+
+  let brief = todayBrief
+  if (!brief) {
+    const { data: fallback, error: fallbackError } = await supabase
+      .from('strike_briefs')
+      .select('*')
+      .eq('objective_id', objectiveId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    console.log('[handleStrikeBrief] step1 fallback brief:', JSON.stringify(fallback), 'error:', fallbackError?.message)
+    brief = fallback
+  }
+
+  // Step 2 — get the objective profile separately
+  const { data: objProfile, error: profileError } = await supabase
+    .from('objective_profiles')
+    .select('taxonomy_key, geo, timing')
+    .eq('objective_id', objectiveId)
+    .limit(1)
+    .maybeSingle()
+  console.log('[handleStrikeBrief] step2 profile:', JSON.stringify(objProfile), 'error:', profileError?.message)
 
   const objectiveBlock = {
     taxonomy_key: (objProfile?.taxonomy_key as string) ?? '',
@@ -103,37 +129,9 @@ async function handleStrikeBrief(
     timing: (objProfile?.timing as object) ?? {},
   }
 
-  // strike_briefs are keyed by arc native objective_id (null for new MIP intakes)
-  const arcObjectiveId = (objProfile?.objective_id as string | null) ?? null
-  let brief = null
-
-  if (arcObjectiveId) {
-    const { data: todayBrief } = await supabase
-      .from('strike_briefs')
-      .select('*')
-      .eq('objective_id', arcObjectiveId)
-      .eq('brief_date', today)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (!todayBrief) {
-      const { data: fallback } = await supabase
-        .from('strike_briefs')
-        .select('*')
-        .eq('objective_id', arcObjectiveId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      brief = fallback
-    } else {
-      brief = todayBrief
-    }
-  }
-
   if (!brief) {
     return NextResponse.json({
-      objective_id: profileId,
+      objective_id: objectiveId,
       brief_date: today,
       brief_generated_at: new Date().toISOString(),
       confidence_tier: 'T4',
@@ -185,7 +183,7 @@ async function handleStrikeBrief(
   const cleanSummary = stripped || rawSynthesis.trim() || null
 
   return NextResponse.json({
-    objective_id: profileId,
+    objective_id: objectiveId,
     brief_date: (brief.brief_date as string) ?? today,
     brief_generated_at: new Date().toISOString(),
     confidence_tier: tierStr,
@@ -238,8 +236,16 @@ export async function GET(request: Request) {
   const supabase = createServiceClient()
 
   // Strike partner: dedicated response shape built from strike_briefs directly
+  // objectiveId from URL may be profile PK — resolve to arc objective_id before querying
   if (partnerKey === 'strike') {
-    return handleStrikeBrief(supabase, objectiveId)
+    const { data: profileLookup } = await supabase
+      .from('objective_profiles')
+      .select('objective_id')
+      .eq('id', objectiveId)
+      .maybeSingle()
+    const arcObjectiveId = (profileLookup?.objective_id as string | null) ?? objectiveId
+    console.log('[strike dispatch] url objectiveId:', objectiveId, '→ arcObjectiveId:', arcObjectiveId)
+    return handleStrikeBrief(supabase, arcObjectiveId)
   }
 
   // 1. Resolve objective — try objective_profiles first (MIP-intake), then objectives (native Arc)
