@@ -180,9 +180,8 @@ async function handleStrikeBrief(
     agentHits.filter(h => h.startsWith('OUTDOOR_')).map(agentKeyToLabel)
   ))
 
-  const rawSynthesis = (brief.synthesis as string) ?? ''
-  const cleanSummary = rawSynthesis
-    .replace(/ \(T[1-4]: [A-Z_]+(?:, \d{4}-\d{2}-\d{2})?\)/g, '')
+  const cleanSummary = ((brief.synthesis as string) ?? '')
+    .replace(/ \(T[1-4]: [^)]+\)/g, '')
     .trim()
 
   return NextResponse.json({
