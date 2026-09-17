@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import AppShell from '@/components/layout/AppShell'
 import { VoiceInit } from '@/components/voice/VoiceInit'
@@ -13,6 +14,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect('/login')
 
   if (user.app_metadata?.enterprise_only === true) {
+    return <>{children}</>
+  }
+
+  const pathname = headers().get('x-pathname') ?? ''
+  if (pathname.startsWith('/strike')) {
     return <>{children}</>
   }
 

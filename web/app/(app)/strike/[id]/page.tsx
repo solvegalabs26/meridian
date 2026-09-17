@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import { createServiceClient } from '@/lib/supabase/server'
 import StrikeBriefClient from '@/components/strike/StrikeBriefClient'
 
-export const revalidate = 1800
+export const dynamic = 'force-dynamic'
 
 export default async function StrikePage({ params }: { params: { id: string } }) {
   const supabase = createServiceClient()
@@ -26,14 +26,11 @@ export default async function StrikePage({ params }: { params: { id: string } })
   console.log('[strike/[id]] params.id:', params.id, 'objective id:', (objective as Record<string, unknown> | null)?.id ?? null)
   if (!objective) notFound()
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL
-    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-
   let brief: Record<string, unknown> = {}
   try {
-    const briefUrl = `${appUrl}/api/mip/brief?objective_id=${params.id}&partner_key=strike`
+    const briefUrl = `/api/mip/brief?objective_id=${params.id}&partner_key=strike`
     console.log('[strike/[id]] briefUrl:', briefUrl)
-    const res = await fetch(briefUrl, { next: { revalidate: 1800 } })
+    const res = await fetch(briefUrl, { cache: 'no-store' })
     if (res.ok) {
       brief = await res.json()
     } else {
