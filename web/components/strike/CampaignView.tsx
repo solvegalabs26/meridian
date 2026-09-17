@@ -69,7 +69,9 @@ function gnoBadge(gno?: string) {
   return <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${cls}`}>{gno}</span>
 }
 
-function formatDates(timing: UnitProfile['timing']): string {
+type UnitTiming = { trip_start?: string; trip_end?: string } | null | undefined
+
+function formatDates(timing: UnitTiming): string {
   if (!timing?.trip_start) return ''
   const start = new Date(timing.trip_start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   const end = timing.trip_end
