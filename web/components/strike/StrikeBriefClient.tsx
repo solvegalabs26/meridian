@@ -19,7 +19,8 @@ const TAB_LABELS: Record<Tab, string> = {
 }
 
 type ObjectiveProfile = {
-  objective_id: string
+  id: string
+  objective_id?: string | null
   taxonomy_key: string
   geo: Record<string, unknown>
   timing: { trip_start?: string; trip_end?: string; [k: string]: unknown }
@@ -46,7 +47,7 @@ export default function StrikeBriefClient({
 
   const [brief, setBrief] = useState(initialBrief)
   const [isOnline, setIsOnline] = useState(true)
-  const { cachedBrief, cacheBrief } = useStrikeCache(objective.objective_id)
+  const { cachedBrief, cacheBrief } = useStrikeCache(objective.id)
 
   useEffect(() => {
     if (brief?.summary) cacheBrief(brief)
@@ -68,12 +69,12 @@ export default function StrikeBriefClient({
     if (!navigator.onLine) return
     try {
       const res = await fetch(
-        `/api/mip/brief?objective_id=${objective.objective_id}&partner_key=strike`
+        `/api/mip/brief?objective_id=${objective.id}&partner_key=strike`
       )
       const fresh = await res.json()
       setBrief(fresh)
     } catch {}
-  }, [objective.objective_id])
+  }, [objective.id])
 
   useEffect(() => {
     const interval = setInterval(refresh, 30 * 60 * 1000)
@@ -126,7 +127,7 @@ export default function StrikeBriefClient({
           <StrikeIntelPanel brief={displayBrief} objective={objective as unknown as Record<string, unknown>} />
         )}
         {activeTab === 'signals' && (
-          <StrikeSignalsPanel objectiveId={objective.objective_id} />
+          <StrikeSignalsPanel objectiveId={objective.id} />
         )}
       </div>
     </div>
