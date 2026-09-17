@@ -43,12 +43,16 @@ export default async function StrikeListPage() {
     if (match?.id) canonicalUserId = match.id
   }
 
-  const { data: objectives } = await supabase
+  console.log('[strike/list] session user.id:', user.id, 'email:', user.email, 'canonicalUserId:', canonicalUserId)
+
+  const { data: objectives, error: objError } = await supabase
     .from('objective_profiles')
     .select('id, taxonomy_key, geo, timing, agent_build_status')
     .eq('user_id', canonicalUserId)
     .eq('org_source', 'strike')
     .order('created_at', { ascending: false })
+
+  console.log('[strike/list] objectives count:', objectives?.length ?? 0, 'error:', objError?.message ?? null)
 
   const list = (objectives ?? []) as ObjectiveProfile[]
 
