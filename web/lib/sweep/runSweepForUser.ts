@@ -501,6 +501,31 @@ export async function runSweepForUser(
     )
     console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — strike brief generation complete`)
 
+    // Also generate briefs for Strike objective_profiles — these are in objective_profiles
+    // only (not in the objectives table), so the domain-detected loop above skips them.
+    // User_id comes from objective_profiles, not the sweep's userId, so stale objectives
+    // rows with wrong user_ids cannot poison the brief authorship.
+    const { data: strikeProfiles } = await supabase
+      .from('objective_profiles')
+      .select('objective_id, user_id')
+      .eq('user_id', userId)
+      .eq('org_source', 'strike')
+      .eq('status', 'active')
+      .not('objective_id', 'is', null)
+
+    if (strikeProfiles && strikeProfiles.length > 0) {
+      await Promise.allSettled(
+        strikeProfiles.map(async (sp) => {
+          try {
+            await generateStrikeBrief(sp.objective_id as string, sp.user_id as string)
+          } catch (err) {
+            console.error(`[sweep:strikeBrief] Strike profile ${sp.objective_id} failed:`, err)
+          }
+        })
+      )
+      console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — strike brief for ${strikeProfiles.length} Strike objective_profiles complete`)
+    }
+
     // 5c. Build signal coherence packages for objectives with active watch sources.
     // Runs in parallel — individual failures are caught per-objective and do not
     // abort the sweep (Promise.allSettled semantics preserved).

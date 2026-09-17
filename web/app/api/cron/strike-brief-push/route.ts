@@ -12,41 +12,33 @@ export async function GET(request: Request) {
 
   const supabase = createServiceClient();
 
-  // Load all active elk_hunt objectives (domain = elk_hunt, status = active)
+  // Resolve active Strike objectives from objective_profiles.
+  // User_id comes from objective_profiles (correct); the objectives table row had
+  // a stale founder user_id that caused briefs to be written under the wrong account.
   const { data: profiles } = await supabase
-    .from('domain_profiles')
-    .select('objective_id, domain')
-    .eq('domain', 'elk_hunt');
+    .from('objective_profiles')
+    .select('objective_id, user_id')
+    .eq('org_source', 'strike')
+    .eq('status', 'active')
+    .not('objective_id', 'is', null);
 
   if (!profiles || profiles.length === 0) {
-    console.log('[StrikeBriefPush] No elk_hunt domain profiles found');
-    return NextResponse.json({ generated: 0 });
-  }
-
-  const objectiveIds = profiles.map(p => p.objective_id as string);
-
-  // Load the objectives to get user_id
-  const { data: objectives } = await supabase
-    .from('objectives')
-    .select('id, user_id, status')
-    .in('id', objectiveIds)
-    .eq('status', 'active');
-
-  if (!objectives || objectives.length === 0) {
-    console.log('[StrikeBriefPush] No active elk_hunt objectives found');
+    console.log('[StrikeBriefPush] No active Strike objective_profiles found');
     return NextResponse.json({ generated: 0 });
   }
 
   const results: { objectiveId: string; result: 'generated' | 'error'; error?: string }[] = [];
 
-  for (const obj of objectives) {
+  for (const p of profiles) {
+    const objectiveId = p.objective_id as string;
+    const userId = p.user_id as string;
     try {
-      await generateStrikeBrief(obj.id as string, obj.user_id as string);
-      results.push({ objectiveId: obj.id as string, result: 'generated' });
+      await generateStrikeBrief(objectiveId, userId);
+      results.push({ objectiveId, result: 'generated' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[StrikeBriefPush] Failed for ${obj.id}:`, msg);
-      results.push({ objectiveId: obj.id as string, result: 'error', error: msg });
+      console.error(`[StrikeBriefPush] Failed for ${objectiveId}:`, msg);
+      results.push({ objectiveId, result: 'error', error: msg });
     }
   }
 
