@@ -65,16 +65,17 @@ export default function StrikeBriefClient({
     }
   }, [])
 
+  const refreshObjectiveId = (objective.objective_id ?? objective.id) as string
   const refresh = useCallback(async () => {
     if (!navigator.onLine) return
     try {
       const res = await fetch(
-        `/api/mip/brief?objective_id=${objective.id}&partner_key=strike`
+        `/api/mip/brief?objective_id=${refreshObjectiveId}&partner_key=strike`
       )
       const fresh = await res.json()
       setBrief(fresh)
     } catch {}
-  }, [objective.id])
+  }, [refreshObjectiveId])
 
   useEffect(() => {
     const interval = setInterval(refresh, 30 * 60 * 1000)
@@ -127,7 +128,7 @@ export default function StrikeBriefClient({
           <StrikeIntelPanel brief={displayBrief} objective={objective as unknown as Record<string, unknown>} />
         )}
         {activeTab === 'signals' && (
-          <StrikeSignalsPanel objectiveId={objective.id} />
+          <StrikeSignalsPanel objectiveId={(objective.objective_id ?? objective.id) as string} />
         )}
       </div>
     </div>

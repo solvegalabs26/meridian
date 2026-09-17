@@ -26,17 +26,30 @@ export default async function StrikePage({ params }: { params: { id: string } })
   console.log('[strike/[id]] params.id:', params.id, 'objective id:', (objective as Record<string, unknown> | null)?.id ?? null)
   if (!objective) notFound()
 
-  // Use profile PK for the brief API — dispatch resolves arc ID internally
-  const profileId = (objective as Record<string, unknown>).id as string
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  // Prefer arc objective_id for the brief API (what strike_briefs is keyed by).
+  // Fall back to profile PK so the dispatch can resolve it.
+  const obj = objective as Record<string, unknown>
+  const briefObjectiveId = (obj.objective_id as string | null) ?? (obj.id as string)
+
+  // VERCEL_URL is auto-set on all Vercel deployments (preview + production).
+  // NEXT_PUBLIC_APP_URL overrides when explicitly set (local dev or custom domain).
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+
   let brief: Record<string, unknown> = {}
   try {
-    const res = await fetch(
-      `${appUrl}/api/mip/brief?objective_id=${profileId}&partner_key=strike`,
-      { next: { revalidate: 1800 } }
-    )
-    if (res.ok) brief = await res.json()
-  } catch {}
+    const briefUrl = `${appUrl}/api/mip/brief?objective_id=${briefObjectiveId}&partner_key=strike`
+    console.log('[strike/[id]] briefUrl:', briefUrl)
+    const res = await fetch(briefUrl, { cache: 'no-store' })
+    if (res.ok) {
+      brief = await res.json()
+    } else {
+      console.log('[strike/[id]] brief fetch failed:', res.status, await res.text().catch(() => ''))
+    }
+  } catch (e) {
+    console.log('[strike/[id]] brief fetch error:', e)
+  }
+  console.log('[strike/[id]] brief time_windows:', (brief.time_windows as unknown[] | null)?.length ?? 'null/missing')
 
   return (
     <StrikeBriefClient
