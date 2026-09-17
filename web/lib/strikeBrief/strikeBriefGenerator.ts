@@ -2,6 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { getAnthropicClient } from '@/lib/anthropic/client';
 import { generateMovementWindows } from './movementPrediction';
 import { getTerrainIntel } from './terrainIntelligence';
+import { evaluatePivot } from './pivot-logic';
 
 // --- Time window resolution (Mountain Time) ---
 
@@ -311,6 +312,79 @@ export async function generateStrikeBrief(
     }
   } catch (err) {
     console.error('[StrikeBrief] Terrain intel failed:', err);
+  }
+
+  // FF-087: Append confidence snapshot to any active campaign_unit for this objective
+  const TIER_PCT: Record<string, number> = { T1: 90, T2: 74, T3: 55, T4: 35 }
+  const finalTier = (brief as { confidence_tier?: string }).confidence_tier ?? context.confidenceTier
+  const finalGoNoGo = (brief as { go_no_go?: string }).go_no_go ?? null
+
+  try {
+    const campaignServiceClient = createServiceClient()
+    const { data: campaignUnit } = await campaignServiceClient
+      .from('campaign_units')
+      .select('id, campaign_id, confidence_trajectory')
+      .eq('objective_id', objectiveId)
+      .eq('status', 'active')
+      .limit(1)
+      .single()
+
+    if (campaignUnit) {
+      const existingTrajectory = Array.isArray(campaignUnit.confidence_trajectory)
+        ? campaignUnit.confidence_trajectory
+        : []
+
+      const snapshot = {
+        date: today,
+        confidence_pct: TIER_PCT[finalTier] ?? 50,
+        tier: finalTier,
+        go_no_go: finalGoNoGo ?? 'MONITOR',
+      }
+
+      await campaignServiceClient
+        .from('campaign_units')
+        .update({
+          confidence_trajectory: [...existingTrajectory, snapshot],
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', campaignUnit.id)
+
+      console.log('[ff087] confidence snapshot appended for objective:', objectiveId)
+
+      // FF-087: Pivot check — evaluate against all campaign units
+      const { data: allUnits } = await campaignServiceClient
+        .from('campaign_units')
+        .select('id, objective_id, role, rank, status, confidence_trajectory')
+        .eq('campaign_id', campaignUnit.campaign_id)
+        .eq('status', 'active')
+
+      if (allUnits && allUnits.length > 1) {
+        const primary   = allUnits.find(u => u.role === 'primary')
+        const fallbacks = allUnits.filter(u => u.role !== 'primary')
+
+        if (primary && fallbacks.length) {
+          const pivot = evaluatePivot(
+            primary as unknown as Parameters<typeof evaluatePivot>[0],
+            fallbacks as unknown as Parameters<typeof evaluatePivot>[1]
+          )
+
+          if (pivot?.should_pivot) {
+            await campaignServiceClient
+              .from('campaign_units')
+              .update({
+                pivot_recommended: true,
+                pivot_reason: pivot.reason,
+                pivot_recommended_at: new Date().toISOString(),
+              })
+              .eq('objective_id', pivot.from_objective_id)
+
+            console.log('[ff087] pivot recommended:', pivot.reason)
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[ff087] campaign snapshot/pivot failed:', err)
   }
 
   return brief as StrikeBriefRow;
