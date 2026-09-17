@@ -156,10 +156,9 @@ export default function StrikePrepPanel({ objective }: Props) {
   const tripStart = timing.trip_start ?? ''
   const objectiveId = (objective.objective_id ?? objective.id) as string
 
-  const phase: Phase = tripStart ? getCurrentPhase(tripStart) : 'scouting'
-  const phaseDef = PHASE_DEFS[phase]
+  const currentPhase: Phase = tripStart ? getCurrentPhase(tripStart) : 'scouting'
 
-  const [activePhase, setActivePhase] = useState<Phase>(phase)
+  const [activePhase, setActivePhase] = useState<Phase>(currentPhase)
   const [cadence, setCadence] = useState<Cadence>('weekly')
   const [checks, setChecks] = useState<Record<string, boolean>>({})
 
@@ -238,14 +237,14 @@ export default function StrikePrepPanel({ objective }: Props) {
             onClick={() => setActivePhase(p)}
             className={`flex-1 text-xs py-1.5 rounded font-medium transition-colors ${
               activePhase === p
-                ? p === phase
+                ? p === currentPhase
                   ? 'bg-blue-600 text-white'
                   : 'bg-slate-600 text-white'
                 : 'bg-slate-800 text-slate-400 hover:text-slate-200'
             }`}
           >
             {PHASE_DEFS[p].label}
-            {p === phase && (
+            {p === currentPhase && (
               <span className="ml-1 text-blue-300">·</span>
             )}
           </button>
