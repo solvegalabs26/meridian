@@ -9,6 +9,8 @@ export async function GET() {
   const { data: { user } } = await authClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  console.log('[campaigns] session user id:', user?.id)
+
   const supabase = createServiceClient()
 
   // Fetch campaigns + units for this user
@@ -18,6 +20,8 @@ export async function GET() {
     .eq('user_id', user.id)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
+
+  console.log('[campaigns] campaigns query:', JSON.stringify({ data: campaigns, error: campErr }))
 
   if (campErr) return NextResponse.json({ error: campErr.message }, { status: 500 })
   if (!campaigns || campaigns.length === 0) return NextResponse.json({ campaigns: [] })
