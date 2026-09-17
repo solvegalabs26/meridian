@@ -15,6 +15,7 @@ type CreateObjectiveBody = {
   priority_stack: unknown[]
   timing: Record<string, unknown>
   org_source?: string
+  user_id?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -40,16 +41,24 @@ export async function POST(request: NextRequest) {
   // Resolve agent bundle from registry
   const { agents, buildStatus } = await resolveAgentBundle(taxonomy_key, geo)
 
-  // Determine user from partner key or service context
-  // For partner integrations (BaseMaps, GoHunt), user_id is the platform's service account
-  // For direct Arc users, they POST authenticated — but this route uses service client
-  // so org_source is the partition key, not auth session
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('org_source', org_source)
-    .limit(1)
-    .maybeSingle()
+  // Determine user from explicit user_id (authenticated intake) or org_source service account
+  let profile: { id: string } | null = null
+  if (body.user_id) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', body.user_id)
+      .maybeSingle()
+    profile = data
+  } else {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('org_source', org_source)
+      .limit(1)
+      .maybeSingle()
+    profile = data
+  }
 
   // If BaseMaps org_source → set account_type = enterprise on their profile
   if (org_source === 'basemaps' && profile) {

@@ -10,7 +10,7 @@ export default async function StrikePage({ params }: { params: { id: string } })
   const { data: objective } = await supabase
     .from('objective_profiles')
     .select('*')
-    .eq('objective_id', params.id)
+    .eq('id', params.id)
     .maybeSingle()
 
   if (!objective) notFound()

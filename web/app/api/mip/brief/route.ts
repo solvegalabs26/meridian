@@ -85,36 +85,16 @@ type StrikeTimeWindow = {
 
 async function handleStrikeBrief(
   supabase: ReturnType<typeof createServiceClient>,
-  objectiveId: string,
+  profileId: string,  // objective_profiles.id (true PK)
 ): Promise<NextResponse> {
   const today = new Date().toISOString().split('T')[0]
   const headers = { 'X-MIP-Partner': 'strike' }
 
-  // Today's brief first, fallback to most recent
-  let { data: brief } = await supabase
-    .from('strike_briefs')
-    .select('*')
-    .eq('objective_id', objectiveId)
-    .eq('brief_date', today)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (!brief) {
-    const { data: fallback } = await supabase
-      .from('strike_briefs')
-      .select('*')
-      .eq('objective_id', objectiveId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    brief = fallback
-  }
-
+  // Resolve profile by PK → extract arc objective_id for strike_briefs lookup
   const { data: objProfile } = await supabase
     .from('objective_profiles')
-    .select('taxonomy_key, geo, timing')
-    .eq('objective_id', objectiveId)
+    .select('taxonomy_key, geo, timing, objective_id')
+    .eq('id', profileId)
     .maybeSingle()
 
   const objectiveBlock = {
@@ -123,9 +103,37 @@ async function handleStrikeBrief(
     timing: (objProfile?.timing as object) ?? {},
   }
 
+  // strike_briefs are keyed by arc native objective_id (null for new MIP intakes)
+  const arcObjectiveId = (objProfile?.objective_id as string | null) ?? null
+  let brief = null
+
+  if (arcObjectiveId) {
+    let { data: todayBrief } = await supabase
+      .from('strike_briefs')
+      .select('*')
+      .eq('objective_id', arcObjectiveId)
+      .eq('brief_date', today)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!todayBrief) {
+      const { data: fallback } = await supabase
+        .from('strike_briefs')
+        .select('*')
+        .eq('objective_id', arcObjectiveId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      brief = fallback
+    } else {
+      brief = todayBrief
+    }
+  }
+
   if (!brief) {
     return NextResponse.json({
-      objective_id: objectiveId,
+      objective_id: profileId,
       brief_date: today,
       brief_generated_at: new Date().toISOString(),
       confidence_tier: 'T4',
@@ -178,7 +186,7 @@ async function handleStrikeBrief(
     .trim()
 
   return NextResponse.json({
-    objective_id: objectiveId,
+    objective_id: profileId,
     brief_date: (brief.brief_date as string) ?? today,
     brief_generated_at: new Date().toISOString(),
     confidence_tier: tierStr,

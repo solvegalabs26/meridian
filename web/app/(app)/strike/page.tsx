@@ -5,7 +5,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 export const dynamic = 'force-dynamic'
 
 type ObjectiveProfile = {
-  objective_id: string
+  id: string
   taxonomy_key: string
   geo: { state?: string; unit?: string } | null
   timing: { trip_start?: string; trip_end?: string } | null
@@ -35,7 +35,7 @@ export default async function StrikeListPage() {
   const supabase = createServiceClient()
   const { data: objectives } = await supabase
     .from('objective_profiles')
-    .select('objective_id, taxonomy_key, geo, timing, agent_build_status')
+    .select('id, taxonomy_key, geo, timing, agent_build_status')
     .eq('user_id', user.id)
     .eq('org_source', 'strike')
     .order('created_at', { ascending: false })
@@ -70,8 +70,8 @@ export default async function StrikeListPage() {
         ) : (
           list.map(obj => (
             <Link
-              key={obj.objective_id}
-              href={`/strike/${obj.objective_id}`}
+              key={obj.id}
+              href={`/strike/${obj.id}`}
               className="block bg-slate-800 rounded-xl px-4 py-4 hover:bg-slate-750 transition-colors"
             >
               <div className="flex items-start justify-between gap-3">
