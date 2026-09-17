@@ -33,10 +33,20 @@ export default async function StrikeListPage() {
   if (!user) redirect('/login')
 
   const supabase = createServiceClient()
+
+  // Resolve canonical user_id by email — guards against session/preview env mismatch
+  // where the JWT user.id may not match the profiles row's id.
+  let canonicalUserId = user.id
+  if (user.email) {
+    const { data: adminData } = await supabase.auth.admin.listUsers()
+    const match = (adminData?.users ?? []).find(u => u.email === user.email)
+    if (match?.id) canonicalUserId = match.id
+  }
+
   const { data: objectives } = await supabase
     .from('objective_profiles')
     .select('id, taxonomy_key, geo, timing, agent_build_status')
-    .eq('user_id', user.id)
+    .eq('user_id', canonicalUserId)
     .eq('org_source', 'strike')
     .order('created_at', { ascending: false })
 

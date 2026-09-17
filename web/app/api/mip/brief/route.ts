@@ -139,9 +139,9 @@ async function handleStrikeBrief(
       confidence_tier: 'T4',
       confidence_pct: 35,
       go_no_go: 'NO-GO',
-      summary: 'Intelligence sweep pending — check back after next scheduled run.',
+      summary: null,
       lead_signal: null,
-      time_windows: [],
+      time_windows: null,
       signal_chips: [],
       sources: [],
       attribution: 'Powered by Meridian Arc',
@@ -180,9 +180,9 @@ async function handleStrikeBrief(
     agentHits.filter(h => h.startsWith('OUTDOOR_')).map(agentKeyToLabel)
   ))
 
-  const cleanSummary = ((brief.synthesis as string) ?? '')
-    .replace(/ \(T[1-4]: [^)]+\)/g, '')
-    .trim()
+  const rawSynthesis = (brief.synthesis as string) ?? ''
+  const stripped = rawSynthesis.replace(/ \(T[1-4]: [^)]+\)/g, '').trim()
+  const cleanSummary = stripped || rawSynthesis.trim() || null
 
   return NextResponse.json({
     objective_id: profileId,

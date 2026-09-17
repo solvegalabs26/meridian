@@ -46,8 +46,9 @@ const PRIORITY_TEXT: Record<string, string> = {
 }
 
 export default function StrikeBriefPanel({ brief, isOnline, onRefresh }: Props) {
-  const isPending = !brief || (brief.go_no_go === 'NO-GO' && !brief.summary)
-  if (isPending) {
+  // time_windows === null means no brief row found (stub). time_windows === [] means
+  // brief exists but movement_windows not yet populated — show content, not full pending.
+  if (!brief || brief.time_windows === null) {
     return (
       <div className="p-6 text-center text-slate-400 text-sm">
         <div className="mb-1">Intelligence sweep pending</div>
@@ -67,11 +68,15 @@ export default function StrikeBriefPanel({ brief, isOnline, onRefresh }: Props) 
       <StrikeMapStrip pins={map_pins} isOnline={isOnline} />
 
       {/* TIME WINDOWS — rendered first */}
-      {time_windows.length > 0 && (
-        <section>
-          <div className="text-xs text-slate-400 uppercase tracking-wider mb-2">
-            Time windows
+      <section>
+        <div className="text-xs text-slate-400 uppercase tracking-wider mb-2">
+          Time windows
+        </div>
+        {time_windows.length === 0 ? (
+          <div className="bg-slate-800/60 rounded-lg px-4 py-3 text-slate-400 text-sm">
+            Brief generating — check back shortly
           </div>
+        ) : (
           <div className="space-y-2">
             {time_windows.map((w, i) => (
               <div key={i} className="flex items-start gap-3 bg-slate-800/60 rounded-lg p-3">
@@ -94,8 +99,8 @@ export default function StrikeBriefPanel({ brief, isOnline, onRefresh }: Props) 
               </div>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* LEAD SIGNAL — callout above summary */}
       {lead_signal && (
