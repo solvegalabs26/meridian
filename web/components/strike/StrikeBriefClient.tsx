@@ -1,21 +1,24 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import StrikeHeader from './StrikeHeader'
 import StrikePrepPanel from './StrikePrepPanel'
 import StrikeBriefPanel from './StrikeBriefPanel'
 import StrikeIntelPanel from './StrikeIntelPanel'
 import StrikeSignalsPanel from './StrikeSignalsPanel'
+import StrikeNotesPanel from './StrikeNotesPanel'
 import OfflineBanner from './OfflineBanner'
 import { useStrikeCache } from '@/hooks/useStrikeCache'
 
-type Tab = 'prep' | 'strike' | 'intel' | 'signals'
+type Tab = 'prep' | 'strike' | 'intel' | 'signals' | 'notes'
 
 const TAB_LABELS: Record<Tab, string> = {
   prep:    'Prep',
   strike:  'Strike Brief',
   intel:   'Intel',
   signals: 'Signals',
+  notes:   'Notes',
 }
 
 type ObjectiveProfile = {
@@ -36,6 +39,8 @@ export default function StrikeBriefClient({
   brief: Record<string, unknown>
   objective: ObjectiveProfile
 }) {
+  const router = useRouter()
+
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const opener = objective.timing?.trip_start ? new Date(objective.timing.trip_start) : null
     if (opener) {
@@ -89,6 +94,26 @@ export default function StrikeBriefClient({
       {!isOnline && (
         <OfflineBanner cachedAt={(cachedBrief as { cached_at?: string } | null)?.cached_at} />
       )}
+
+      <button
+        onClick={() => router.push('/strike')}
+        className="strike-back-btn"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          background: 'none',
+          border: 'none',
+          fontSize: 13,
+          color: 'var(--text-secondary, #7aad8a)',
+          cursor: 'pointer',
+          padding: '8px 16px 4px',
+          fontFamily: 'inherit',
+        }}
+      >
+        ← Objectives
+      </button>
+
       <StrikeHeader
         objective={objective as unknown as Record<string, unknown>}
         brief={displayBrief}
@@ -129,6 +154,9 @@ export default function StrikeBriefClient({
         )}
         {activeTab === 'signals' && (
           <StrikeSignalsPanel objectiveId={(objective.objective_id ?? objective.id) as string} />
+        )}
+        {activeTab === 'notes' && (
+          <StrikeNotesPanel objectiveId={(objective.objective_id ?? objective.id) as string} />
         )}
       </div>
     </div>
