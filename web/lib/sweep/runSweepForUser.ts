@@ -513,13 +513,17 @@ export async function runSweepForUser(
       .eq('status', 'active')
       .not('objective_id', 'is', null)
 
+    console.log('[sweep:strikeBrief] Strike profiles found:', strikeProfiles?.length ?? 0, JSON.stringify(strikeProfiles?.map(sp => sp.objective_id)))
+
     if (strikeProfiles && strikeProfiles.length > 0) {
       await Promise.allSettled(
         strikeProfiles.map(async (sp) => {
+          console.log('[sweep:strikeBrief] Calling generateStrikeBrief for:', sp.objective_id, sp.user_id)
           try {
             await generateStrikeBrief(sp.objective_id as string, sp.user_id as string)
+            console.log('[sweep:strikeBrief] Strike brief generated for:', sp.objective_id)
           } catch (err) {
-            console.error(`[sweep:strikeBrief] Strike profile ${sp.objective_id} failed:`, err)
+            console.error('[sweep:strikeBrief] generateStrikeBrief failed for:', sp.objective_id, err)
           }
         })
       )
