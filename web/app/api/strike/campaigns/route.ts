@@ -5,20 +5,22 @@ export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const authClient = createClient()
-  const { data: { user }, error: authErr } = await authClient.auth.getUser()
+  const { data: { session }, error: sessionErr } = await authClient.auth.getSession()
 
-  if (authErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  console.log('[campaigns] session:', session?.user?.id ?? 'NULL', 'error:', sessionErr?.message)
 
-  const session = { user }
-  console.log('[campaigns] session.user.id:', session.user.id)
+  if (sessionErr || !session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
+  const userId = session.user.id
   const supabase = createServiceClient()
 
   // Fetch campaigns + units for this user
   const { data: campaigns, error: campErr } = await supabase
     .from('hunt_campaigns')
     .select('*, campaign_units(*)')
-    .eq('user_id', session.user.id)
+    .eq('user_id', userId)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
 
