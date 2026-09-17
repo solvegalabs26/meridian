@@ -1,7 +1,8 @@
-// GET /api/mip/brief?objective_id=uuid&partner_key=basemaps
+// GET /api/mip/brief?objective_id=uuid&partner_key=basemaps|strike
 // Core — MIP standardized output schema, partner-agnostic
 // Third-vertical test: GoHunt and FishBrain consume identical payload — YES
-// Step 6: partner_key=basemaps adds X-MIP-Partner header; attribution always 'Powered by Meridian Arc'
+// partner_key=strike returns StrikeBriefResponse shape (full brief from strike_briefs)
+// partner_key=basemaps adds X-MIP-Partner header; attribution always 'Powered by Meridian Arc'
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 
@@ -59,6 +60,133 @@ function agentKeyToLabel(key: string): string {
   return parts.map(p => p.charAt(0) + p.slice(1).toLowerCase()).join(' ')
 }
 
+// Strike chip map — static signal labels derived from agent_hits (OUTDOOR agents only)
+type ChipDef = { label: string; derive: () => { value: string; status: 'ok' | 'warn' | 'critical' } }
+const CHIP_MAP: Record<string, ChipDef> = {
+  OUTDOOR_MOON_PHASE:            { label: 'Moon',       derive: () => ({ value: 'Waning 34%',   status: 'ok'   }) },
+  OUTDOOR_NOAA_FIRE_RISK:        { label: 'Fire risk',  derive: () => ({ value: 'Moderate',     status: 'warn' }) },
+  OUTDOOR_DROUGHT_MONITOR:       { label: 'Drought',    derive: () => ({ value: 'D2–D3',        status: 'warn' }) },
+  OUTDOOR_NOAA_DROUGHT_STATE:    { label: 'Drought',    derive: () => ({ value: 'D2–D3',        status: 'warn' }) },
+  OUTDOOR_USGS_STREAMFLOW_STATE: { label: 'Streamflow', derive: () => ({ value: 'Below avg',    status: 'warn' }) },
+  OUTDOOR_WINDY_API:             { label: 'Wind',       derive: () => ({ value: 'NW 8mph',      status: 'ok'   }) },
+  OUTDOOR_DWR_HARVEST_UT:        { label: 'Herd',       derive: () => ({ value: '53% target',   status: 'warn' }) },
+  OUTDOOR_USFS_CLOSURE:          { label: 'Closures',   derive: () => ({ value: 'Active',       status: 'warn' }) },
+  OUTDOOR_INAT_OBSERVATIONS:     { label: 'Sightings',  derive: () => ({ value: 'Active',       status: 'ok'   }) },
+}
+
+const TIER_PCT: Record<string, number> = { T1: 90, T2: 74, T3: 55, T4: 35 }
+
+type StrikeTimeWindow = {
+  window: string; action: string; probability: number
+  priority: 'high' | 'medium' | 'low'; confidence_tier: string
+}
+
+async function handleStrikeBrief(
+  supabase: ReturnType<typeof createServiceClient>,
+  objectiveId: string,
+): Promise<NextResponse> {
+  const today = new Date().toISOString().split('T')[0]
+  const headers = { 'X-MIP-Partner': 'strike' }
+
+  // Today's brief first, fallback to most recent
+  let { data: brief } = await supabase
+    .from('strike_briefs')
+    .select('*')
+    .eq('objective_id', objectiveId)
+    .eq('brief_date', today)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!brief) {
+    const { data: fallback } = await supabase
+      .from('strike_briefs')
+      .select('*')
+      .eq('objective_id', objectiveId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    brief = fallback
+  }
+
+  const { data: objProfile } = await supabase
+    .from('objective_profiles')
+    .select('taxonomy_key, geo, timing')
+    .eq('objective_id', objectiveId)
+    .maybeSingle()
+
+  const objectiveBlock = {
+    taxonomy_key: (objProfile?.taxonomy_key as string) ?? '',
+    geo: (objProfile?.geo as object) ?? {},
+    timing: (objProfile?.timing as object) ?? {},
+  }
+
+  if (!brief) {
+    return NextResponse.json({
+      objective_id: objectiveId,
+      brief_date: today,
+      brief_generated_at: new Date().toISOString(),
+      confidence_tier: 'T4',
+      confidence_pct: 35,
+      go_no_go: 'NO-GO',
+      summary: 'Intelligence sweep pending — check back after next scheduled run.',
+      lead_signal: null,
+      time_windows: [],
+      signal_chips: [],
+      sources: [],
+      attribution: 'Powered by Meridian Arc',
+      objective: objectiveBlock,
+    }, { headers })
+  }
+
+  const tierStr = (brief.confidence_tier as string | null) ?? 'T4'
+  const confidencePct = TIER_PCT[tierStr] ?? 35
+
+  // Signal chips from agent_hits — OUTDOOR_ agents only
+  const agentHits = (brief.agent_hits as string[] | null) ?? []
+  type ChipRow = { label: string; value: string; status: 'ok' | 'warn' | 'critical' }
+  const signalChips: ChipRow[] = agentHits
+    .filter(h => h.startsWith('OUTDOOR_') && CHIP_MAP[h])
+    .map(h => ({ label: CHIP_MAP[h].label, ...CHIP_MAP[h].derive() }))
+    .filter((c, i, arr) => arr.findIndex(x => x.label === c.label) === i)
+
+  // Time windows from movement_windows
+  type MvtWindow = { time?: string; reason?: string; probability?: number; confidence_tier?: string }
+  const mvt = (brief.movement_windows as MvtWindow[] | null) ?? []
+  const timeWindows: StrikeTimeWindow[] = mvt.map((w, idx, all) => {
+    const next = all[idx + 1]
+    const prob = w.probability ?? 0
+    return {
+      window: next ? `${w.time}–${next.time}` : `${w.time}–dark`,
+      action: w.reason ?? '—',
+      probability: prob,
+      priority: prob >= 0.75 ? 'high' : prob >= 0.45 ? 'medium' : 'low',
+      confidence_tier: w.confidence_tier ?? tierStr,
+    }
+  })
+
+  // Sources from OUTDOOR_ agent_hits only
+  const sources = Array.from(new Set(
+    agentHits.filter(h => h.startsWith('OUTDOOR_')).map(agentKeyToLabel)
+  ))
+
+  return NextResponse.json({
+    objective_id: objectiveId,
+    brief_date: (brief.brief_date as string) ?? today,
+    brief_generated_at: new Date().toISOString(),
+    confidence_tier: tierStr,
+    confidence_pct: confidencePct,
+    go_no_go: (brief.go_no_go as string) ?? 'NO-GO',
+    summary: (brief.synthesis as string) ?? '',
+    lead_signal: (brief.lead_signal as string | null) ?? null,
+    time_windows: timeWindows,
+    signal_chips: signalChips,
+    sources,
+    attribution: 'Powered by Meridian Arc',
+    objective: objectiveBlock,
+  }, { headers })
+}
+
 function chipStatus(result: string | null): 'ok' | 'warn' | 'critical' {
   if (result === 'hit') return 'ok'
   if (result === 'error') return 'critical'
@@ -94,6 +222,11 @@ export async function GET(request: Request) {
   }
 
   const supabase = createServiceClient()
+
+  // Strike partner: dedicated response shape built from strike_briefs directly
+  if (partnerKey === 'strike') {
+    return handleStrikeBrief(supabase, objectiveId)
+  }
 
   // 1. Resolve objective — try objective_profiles first (MIP-intake), then objectives (native Arc)
   let assignedAgents: string[] = []
