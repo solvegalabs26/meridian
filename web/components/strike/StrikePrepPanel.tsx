@@ -2,7 +2,7 @@
 
 type Props = { objective: Record<string, unknown>; brief: Record<string, unknown> | null }
 
-export default function StrikePrepPanel({ objective }: Props) {
+export default function StrikePrepPanel(_: Props) {
   return (
     <div className="p-4 text-slate-300">
       <div className="text-sm text-slate-400 mb-2">Preparation checklist</div>
