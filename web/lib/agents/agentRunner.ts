@@ -128,10 +128,30 @@ export async function runAgent(
     return { agentKey, result: 'hit', eventId, durationMs: Date.now() - start, thresholdValueObserved: observedValue };
   }
 
-  // 3b. Build URL
+  // 3b. Load objective geo profile for URL substitution (best-effort)
+  let geoProfile: {
+    lat?: number | null
+    lon?: number | null
+    nws_grid_office?: string | null
+    nws_grid_x?: number | null
+    nws_grid_y?: number | null
+  } | null = null;
+  if (geoContext.objectiveId) {
+    const { data: gp } = await supabase
+      .from('objective_profiles')
+      .select('lat, lon, nws_grid_office, nws_grid_x, nws_grid_y')
+      .eq('id', geoContext.objectiveId)
+      .maybeSingle();
+    geoProfile = gp;
+  }
+
+  // 3c. Build URL with geo substitution — NWS fallback is Elizabeth Pass (OBJ-17)
   const url = buildUrl(agent.source_url_template as string, geoContext)
-    .replace('FRED_API_KEY', process.env.FRED_API_KEY ?? '')
-    .replace('EIA_API_KEY',  process.env.EIA_API_KEY  ?? '');
+    .replace('{nws_grid_office}', geoProfile?.nws_grid_office ?? 'GJT')
+    .replace('{nws_grid_x}',     String(geoProfile?.nws_grid_x ?? 69))
+    .replace('{nws_grid_y}',     String(geoProfile?.nws_grid_y ?? 170))
+    .replace('{lat}',            String(geoProfile?.lat ?? 40.948))
+    .replace('{lon}',            String(geoProfile?.lon ?? -110.668));
 
   try {
     // 4. Fetch — Accept header excludes application/json so HTML pages respond correctly

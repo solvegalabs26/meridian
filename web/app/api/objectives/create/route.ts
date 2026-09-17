@@ -4,13 +4,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { resolveAgentBundle } from '@/lib/swarm/objectiveRouter'
+import { resolveNWSGridpoint } from '@/lib/geo/nwsGridpoint'
 
 export const dynamic = 'force-dynamic'
 
 type CreateObjectiveBody = {
   domain: string
   taxonomy_key: string
-  geo: { state?: string; unit?: string }
+  geo: { state?: string; unit?: string; lat?: number; lon?: number }
   priority_stack: unknown[]
   timing: Record<string, unknown>
   org_source?: string
@@ -58,6 +59,8 @@ export async function POST(request: NextRequest) {
       .eq('id', profile.id)
   }
 
+  const { lat, lon } = geo
+
   // Insert objective_profiles row
   const { data: objProfile, error: insertError } = await supabase
     .from('objective_profiles')
@@ -76,6 +79,8 @@ export async function POST(request: NextRequest) {
           ? 'building'
           : 'queued',
       status: 'active',
+      ...(lat != null ? { lat } : {}),
+      ...(lon != null ? { lon } : {}),
     })
     .select('id')
     .single()
@@ -83,6 +88,22 @@ export async function POST(request: NextRequest) {
   if (insertError) {
     console.error('[objectives/create] insert failed', insertError)
     return NextResponse.json({ error: insertError.message }, { status: 500 })
+  }
+
+  // Resolve NWS gridpoint if lat/lon provided — non-blocking, best-effort
+  if (lat != null && lon != null && objProfile?.id) {
+    void resolveNWSGridpoint(lat, lon).then(async (grid) => {
+      if (!grid) return
+      await supabase
+        .from('objective_profiles')
+        .update({
+          nws_grid_office: grid.gridOffice,
+          nws_grid_x: grid.gridX,
+          nws_grid_y: grid.gridY,
+          nws_zone_id: grid.zoneId,
+        })
+        .eq('id', objProfile.id)
+    }).catch(e => console.error('[objectives/create] gridpoint update failed:', e))
   }
 
   return NextResponse.json(
