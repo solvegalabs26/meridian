@@ -30,6 +30,24 @@ export type StrikeBriefContext = {
   agentHits: string[];
   geoProfile: { lat?: number; lng?: number } | null;
   domainProfile: object | null;
+  locationProfile: {
+    lat: number | null;
+    lon: number | null;
+    geo: { unit?: string; region?: string; state?: string } | null;
+    nws_grid_office: string | null;
+    nws_grid_x: number | null;
+    nws_grid_y: number | null;
+    elevation_ft: number | null;
+  } | null;
+  terrainCache: {
+    slope_aspect: string | null;
+    elevation_ft: number | null;
+    thermal_belt_min_ft: number | null;
+    thermal_belt_max_ft: number | null;
+    water_proximity_m: number | null;
+    bedding_probability: number | null;
+    terrain_interpretation: object | null;
+  } | null;
 };
 
 export type StrikeBriefRow = {
@@ -116,6 +134,22 @@ export async function buildStrikeBriefContext(
     agentHits = (runLogs ?? []).map(r => r.agent_key as string);
   }
 
+  // Location profile from objective_profiles (lat/lon, NWS gridpoint, geo unit label)
+  const { data: locationProfile } = await supabase
+    .from('objective_profiles')
+    .select('lat, lon, geo, nws_grid_office, nws_grid_x, nws_grid_y, elevation_ft')
+    .eq('objective_id', objectiveId)
+    .maybeSingle();
+
+  // Terrain cache — most recent entry for this objective (non-fatal if absent)
+  const { data: terrainCacheRow } = await supabase
+    .from('terrain_cache')
+    .select('slope_aspect, elevation_ft, thermal_belt_min_ft, thermal_belt_max_ft, water_proximity_m, bedding_probability, terrain_interpretation')
+    .eq('objective_id', objectiveId)
+    .order('computed_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   // Format domain events summary
   const domainEvents = (macroEvents ?? [])
     .map(e => `[${e.event_date}] ${e.event_name}: ${e.description ?? ''} (${e.direction ?? 'neutral'}, magnitude ${e.magnitude ?? '?'})`)
@@ -148,6 +182,24 @@ export async function buildStrikeBriefContext(
     agentHits,
     geoProfile: geoScope ?? null,
     domainProfile: profile ?? null,
+    locationProfile: locationProfile ? {
+      lat: locationProfile.lat as number | null,
+      lon: locationProfile.lon as number | null,
+      geo: locationProfile.geo as { unit?: string; region?: string; state?: string } | null,
+      nws_grid_office: locationProfile.nws_grid_office as string | null,
+      nws_grid_x: locationProfile.nws_grid_x as number | null,
+      nws_grid_y: locationProfile.nws_grid_y as number | null,
+      elevation_ft: locationProfile.elevation_ft as number | null,
+    } : null,
+    terrainCache: terrainCacheRow ? {
+      slope_aspect: terrainCacheRow.slope_aspect as string | null,
+      elevation_ft: terrainCacheRow.elevation_ft as number | null,
+      thermal_belt_min_ft: terrainCacheRow.thermal_belt_min_ft as number | null,
+      thermal_belt_max_ft: terrainCacheRow.thermal_belt_max_ft as number | null,
+      water_proximity_m: terrainCacheRow.water_proximity_m as number | null,
+      bedding_probability: terrainCacheRow.bedding_probability as number | null,
+      terrain_interpretation: terrainCacheRow.terrain_interpretation as object | null,
+    } : null,
   };
 }
 
@@ -166,6 +218,58 @@ export function buildStrikeBriefPrompt(context: StrikeBriefContext, timeWindow: 
       One paragraph. End with tomorrow's first action.`,
   };
 
+  // Step 2: filter to hunting-relevant OUTDOOR_ agents only
+  const huntingAgentHits = context.agentHits.filter(hit =>
+    hit.startsWith('OUTDOOR_') &&
+    !hit.includes('SALMON') &&
+    !hit.includes('AQUATIC') &&
+    !hit.includes('FISHING') &&
+    !hit.includes('BONNEVILLE') &&
+    !hit.includes('MCNARY')
+  );
+
+  // Step 1: build LOCATION CONTEXT block
+  const loc = context.locationProfile;
+  let locationBlock = '';
+  if (loc) {
+    const geo = loc.geo ?? {};
+    const unitLabel = [geo.unit, geo.region, geo.state].filter(Boolean).join(' — ');
+    const coords = (loc.lat != null && loc.lon != null)
+      ? `Coordinates: ${loc.lat}°N, ${Math.abs(loc.lon)}°W`
+      : '';
+    const nws = (loc.nws_grid_office && loc.nws_grid_x != null && loc.nws_grid_y != null)
+      ? `NWS gridpoint: ${loc.nws_grid_office} ${loc.nws_grid_x}/${loc.nws_grid_y}`
+      : '';
+    const elev = loc.elevation_ft ? `Elevation: ${loc.elevation_ft}ft` : '';
+
+    // Step 3: append terrain cache if available
+    const tc = context.terrainCache;
+    let terrainLine = '';
+    if (tc) {
+      const parts: string[] = [];
+      if (tc.slope_aspect) parts.push(`Aspect: ${tc.slope_aspect}`);
+      if (tc.thermal_belt_min_ft != null && tc.thermal_belt_max_ft != null)
+        parts.push(`Thermal belt: ${tc.thermal_belt_min_ft}–${tc.thermal_belt_max_ft}ft`);
+      if (tc.water_proximity_m != null) parts.push(`Nearest water: ~${tc.water_proximity_m}m`);
+      if (tc.bedding_probability != null) parts.push(`Bedding probability: ${(Number(tc.bedding_probability) * 100).toFixed(0)}%`);
+      if (parts.length) terrainLine = `Terrain data: ${parts.join(' | ')}`;
+    }
+
+    locationBlock = `
+LOCATION CONTEXT (make every directional and terrain reference specific to this location):
+${unitLabel ? `Unit: ${unitLabel}` : ''}
+${coords}
+${nws}
+${elev}
+${terrainLine}
+
+Derive all wind, thermal, approach, and terrain references from this specific location.
+Do not use generic directional language. Name specific terrain features where derivable
+from elevation and aspect data. Reference water sources by drainage position relative
+to these coordinates, not generic corridor language.
+`.replace(/\n{3,}/g, '\n\n').trim();
+  }
+
   return `You are Meridian's Strike Brief engine for the outdoor / hunting domain.
 
 TIME WINDOW: ${windowInstructions[timeWindow] ?? windowInstructions['0600']}
@@ -175,14 +279,14 @@ DOMAIN: ${context.domain}
 PATTERN MATCH: ${context.patternMatchYear ? `Current conditions match ${context.patternMatchYear} at ${context.patternMatchScore}% similarity` : 'No pattern match'}
 CONFIDENCE TIER: ${context.confidenceTier}
 
-SIGNAL BRIEF (from sub-agents):
+${locationBlock ? locationBlock + '\n\n' : ''}SIGNAL BRIEF (from sub-agents):
 ${context.signalBrief}
 
 DOMAIN EVENTS (from enrichment engine):
 ${context.domainEvents}
 
 AGENT HITS TODAY:
-${context.agentHits.length > 0 ? context.agentHits.join('\n') : 'No new agent hits today'}
+${huntingAgentHits.length > 0 ? huntingAgentHits.join('\n') : 'No new agent hits today'}
 
 INTELLIGENCE INTEGRITY STANDARD:
 - T1: Government/agency structured data — state as fact
