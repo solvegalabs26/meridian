@@ -108,7 +108,7 @@ async function handleStrikeBrief(
   let brief = null
 
   if (arcObjectiveId) {
-    let { data: todayBrief } = await supabase
+    const { data: todayBrief } = await supabase
       .from('strike_briefs')
       .select('*')
       .eq('objective_id', arcObjectiveId)
