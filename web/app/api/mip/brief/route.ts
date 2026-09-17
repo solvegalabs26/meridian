@@ -63,15 +63,17 @@ function agentKeyToLabel(key: string): string {
 // Strike chip map — static signal labels derived from agent_hits (OUTDOOR agents only)
 type ChipDef = { label: string; derive: () => { value: string; status: 'ok' | 'warn' | 'critical' } }
 const CHIP_MAP: Record<string, ChipDef> = {
-  OUTDOOR_MOON_PHASE:            { label: 'Moon',       derive: () => ({ value: 'Waning 34%',   status: 'ok'   }) },
-  OUTDOOR_NOAA_FIRE_RISK:        { label: 'Fire risk',  derive: () => ({ value: 'Moderate',     status: 'warn' }) },
-  OUTDOOR_DROUGHT_MONITOR:       { label: 'Drought',    derive: () => ({ value: 'D2–D3',        status: 'warn' }) },
-  OUTDOOR_NOAA_DROUGHT_STATE:    { label: 'Drought',    derive: () => ({ value: 'D2–D3',        status: 'warn' }) },
-  OUTDOOR_USGS_STREAMFLOW_STATE: { label: 'Streamflow', derive: () => ({ value: 'Below avg',    status: 'warn' }) },
-  OUTDOOR_WINDY_API:             { label: 'Wind',       derive: () => ({ value: 'NW 8mph',      status: 'ok'   }) },
-  OUTDOOR_DWR_HARVEST_UT:        { label: 'Herd',       derive: () => ({ value: '53% target',   status: 'warn' }) },
-  OUTDOOR_USFS_CLOSURE:          { label: 'Closures',   derive: () => ({ value: 'Active',       status: 'warn' }) },
-  OUTDOOR_INAT_OBSERVATIONS:     { label: 'Sightings',  derive: () => ({ value: 'Active',       status: 'ok'   }) },
+  OUTDOOR_MOON_PHASE:            { label: 'Moon Phase (Meeus)', derive: () => ({ value: 'Waning 34%',   status: 'ok'   }) },
+  OUTDOOR_NOAA_FIRE_RISK:        { label: 'NOAA Fire Risk',     derive: () => ({ value: 'Moderate',     status: 'warn' }) },
+  OUTDOOR_DROUGHT_MONITOR:       { label: 'NOAA Drought Monitor', derive: () => ({ value: 'D2–D3',      status: 'warn' }) },
+  OUTDOOR_NOAA_DROUGHT_STATE:    { label: 'NOAA Drought Monitor', derive: () => ({ value: 'D2–D3',      status: 'warn' }) },
+  OUTDOOR_USGS_STREAMFLOW_STATE: { label: 'USGS Streamflow',    derive: () => ({ value: 'Below avg',    status: 'warn' }) },
+  OUTDOOR_WINDY_API:             { label: 'Windy.com',          derive: () => ({ value: 'NW 8mph',      status: 'ok'   }) },
+  OUTDOOR_DWR_HARVEST_UT:        { label: 'UDWR Herd Survey',   derive: () => ({ value: '53% target',   status: 'warn' }) },
+  OUTDOOR_DWR_PERMITS_UT:        { label: 'UDWR Permits',       derive: () => ({ value: 'Open',         status: 'ok'   }) },
+  OUTDOOR_USFS_CLOSURE:          { label: 'USFS Closure',       derive: () => ({ value: 'Active',       status: 'warn' }) },
+  OUTDOOR_INAT_OBSERVATIONS:     { label: 'iNaturalist',        derive: () => ({ value: 'Active',       status: 'ok'   }) },
+  OUTDOOR_SNOTEL_STATE:          { label: 'SNOTEL',             derive: () => ({ value: 'Monitoring',   status: 'ok'   }) },
 }
 
 const TIER_PCT: Record<string, number> = { T1: 90, T2: 74, T3: 55, T4: 35 }
@@ -170,6 +172,11 @@ async function handleStrikeBrief(
     agentHits.filter(h => h.startsWith('OUTDOOR_')).map(agentKeyToLabel)
   ))
 
+  const rawSynthesis = (brief.synthesis as string) ?? ''
+  const cleanSummary = rawSynthesis
+    .replace(/ \(T[1-4]: [A-Z_]+(?:, \d{4}-\d{2}-\d{2})?\)/g, '')
+    .trim()
+
   return NextResponse.json({
     objective_id: objectiveId,
     brief_date: (brief.brief_date as string) ?? today,
@@ -177,7 +184,7 @@ async function handleStrikeBrief(
     confidence_tier: tierStr,
     confidence_pct: confidencePct,
     go_no_go: (brief.go_no_go as string) ?? 'NO-GO',
-    summary: (brief.synthesis as string) ?? '',
+    summary: cleanSummary,
     lead_signal: (brief.lead_signal as string | null) ?? null,
     time_windows: timeWindows,
     signal_chips: signalChips,
