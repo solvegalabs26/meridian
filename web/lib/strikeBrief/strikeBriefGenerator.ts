@@ -163,10 +163,13 @@ export async function buildStrikeBriefContext(
     .map(e => `[${e.event_date}] ${e.event_name}: ${e.description ?? ''} (${e.direction ?? 'neutral'}, magnitude ${e.magnitude ?? '?'})`)
     .join('\n') || 'No recent domain events';
 
-  // Signal brief from domain profile taxonomy
+  // Signal brief from domain profile taxonomy — strip fishing/aquatic keys
   const taxonomy = profile?.signal_taxonomy as Record<string, unknown> | null;
-  const signalBrief = taxonomy
-    ? JSON.stringify(taxonomy, null, 2)
+  const huntingTaxonomy = taxonomy
+    ? Object.fromEntries(Object.entries(taxonomy).filter(([key]) => !isFishingTerm(key)))
+    : null;
+  const signalBrief = huntingTaxonomy && Object.keys(huntingTaxonomy).length > 0
+    ? JSON.stringify(huntingTaxonomy, null, 2)
     : 'No signal taxonomy available — domain profile not yet built for this objective.';
 
   // Confidence tier from pattern match
@@ -290,6 +293,8 @@ ${context.domainEvents}
 
 AGENT HITS TODAY:
 ${huntingAgentHits.length > 0 ? huntingAgentHits.join('\n') : 'No new agent hits today'}
+
+DOMAIN CONSTRAINT: This is an elk hunting brief. Discard any aquatic insect, hatch window, salmon, or fish ladder data — these are cross-domain noise. Do not reference water temperature in the context of fish or insect activity. Water temperature is only relevant as an elk hydration signal.
 
 INTELLIGENCE INTEGRITY STANDARD:
 - T1: Government/agency structured data — state as fact
