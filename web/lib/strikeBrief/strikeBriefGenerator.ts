@@ -4,6 +4,13 @@ import { generateMovementWindows } from './movementPrediction';
 import { getTerrainIntel } from './terrainIntelligence';
 import { evaluatePivot } from './pivot-logic';
 
+// Fishing/aquatic agent keys excluded from elk hunt briefs
+const FISHING_AGENT_EXCLUDE = ['SALMON', 'AQUATIC', 'FISHING', 'BONNEVILLE', 'MCNARY', 'HATCH']
+
+function isFishingTerm(s: string): boolean {
+  return FISHING_AGENT_EXCLUDE.some(term => s.toUpperCase().includes(term))
+}
+
 // --- Time window resolution (Mountain Time) ---
 
 export function getTimeWindow(): '0600' | '1100' | '1700' {
@@ -150,8 +157,9 @@ export async function buildStrikeBriefContext(
     .limit(1)
     .maybeSingle();
 
-  // Format domain events summary
+  // Format domain events summary — exclude fishing/aquatic events
   const domainEvents = (macroEvents ?? [])
+    .filter(e => !isFishingTerm(e.event_name ?? '') && !isFishingTerm(e.source_series_id ?? ''))
     .map(e => `[${e.event_date}] ${e.event_name}: ${e.description ?? ''} (${e.direction ?? 'neutral'}, magnitude ${e.magnitude ?? '?'})`)
     .join('\n') || 'No recent domain events';
 
@@ -220,12 +228,7 @@ export function buildStrikeBriefPrompt(context: StrikeBriefContext, timeWindow: 
 
   // Step 2: filter to hunting-relevant OUTDOOR_ agents only
   const huntingAgentHits = context.agentHits.filter(hit =>
-    hit.startsWith('OUTDOOR_') &&
-    !hit.includes('SALMON') &&
-    !hit.includes('AQUATIC') &&
-    !hit.includes('FISHING') &&
-    !hit.includes('BONNEVILLE') &&
-    !hit.includes('MCNARY')
+    hit.startsWith('OUTDOOR_') && !isFishingTerm(hit)
   );
 
   // Step 1: build LOCATION CONTEXT block
@@ -375,7 +378,7 @@ export async function generateStrikeBrief(
       condition_delta: parsed.condition_delta ?? null,
       pattern_match_year: context.patternMatchYear,
       confidence_tier: parsed.confidence_tier ?? context.confidenceTier,
-      agent_hits: context.agentHits,
+      agent_hits: context.agentHits.filter(h => !isFishingTerm(h)),
     })
     .select()
     .single();
