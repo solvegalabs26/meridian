@@ -37,11 +37,21 @@ type Campaign = {
   units: EnrichedUnit[]
 }
 
+function formatRole(role: string): string {
+  switch (role) {
+    case 'primary':    return 'Primary'
+    case 'fallback_1': return 'Fallback 1'
+    case 'fallback_2': return 'Fallback 2'
+    case 'fallback_3': return 'Fallback 3'
+    case 'missed':     return 'Missed'
+    default: return role
+  }
+}
+
 function roleBadge(role: string) {
-  const r = role?.toUpperCase()
-  if (r === 'PRIMARY')  return 'bg-emerald-700 text-emerald-100'
-  if (r === 'FALLBACK') return 'bg-blue-700 text-blue-100'
-  if (r === 'MISSED')   return 'bg-slate-700 text-slate-400'
+  if (role === 'primary')  return 'bg-emerald-700 text-emerald-100'
+  if (role === 'fallback_1' || role === 'fallback_2' || role === 'fallback_3') return 'bg-blue-700 text-blue-100'
+  if (role === 'missed')   return 'bg-slate-700 text-slate-400'
   return 'bg-slate-700 text-slate-300'
 }
 
@@ -96,7 +106,7 @@ function UnitRow({ unit }: { unit: EnrichedUnit }) {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-white">{unitName}</span>
           <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${roleBadge(unit.role)}`}>
-            {unit.role}
+            {formatRole(unit.role)}
           </span>
         </div>
         {dates && <div className="text-xs text-slate-400 mt-0.5">{dates}</div>}
