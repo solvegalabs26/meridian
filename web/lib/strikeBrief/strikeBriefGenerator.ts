@@ -3,6 +3,7 @@ import { getAnthropicClient } from '@/lib/anthropic/client';
 import { generateMovementWindows } from './movementPrediction';
 import { getTerrainIntel } from './terrainIntelligence';
 import { evaluatePivot } from './pivot-logic';
+import { FISHING_PROMPT_ADDENDUM, FISHING_WINDOW_INSTRUCTIONS } from '@/lib/strike/config/fishing-synthesis-prompt';
 
 // Fishing/aquatic agent keys excluded from elk hunt briefs
 const FISHING_AGENT_EXCLUDE = ['SALMON', 'AQUATIC', 'FISHING', 'BONNEVILLE', 'MCNARY', 'HATCH']
@@ -104,7 +105,7 @@ export async function buildStrikeBriefContext(
     .eq('objective_id', objectiveId)
     .maybeSingle();
 
-  const domain = profile?.domain ?? 'elk_hunt';
+  let domain = profile?.domain ?? 'elk_hunt';
   const geoScope = profile?.geographic_scope as { lat?: number; lng?: number } | null;
 
   // Recent macro events (ELK_HUNT + UNIVERSAL, last 10)
@@ -144,12 +145,17 @@ export async function buildStrikeBriefContext(
     agentHits = (runLogs ?? []).map(r => r.agent_key as string);
   }
 
-  // Location profile from objective_profiles (lat/lon, NWS gridpoint, geo unit label)
+  // Location profile from objective_profiles (lat/lon, NWS gridpoint, geo unit label, domain)
   const { data: locationProfile } = await supabase
     .from('objective_profiles')
-    .select('lat, lon, geo, nws_grid_office, nws_grid_x, nws_grid_y, elevation_ft')
+    .select('lat, lon, geo, nws_grid_office, nws_grid_x, nws_grid_y, elevation_ft, domain')
     .eq('objective_id', objectiveId)
     .maybeSingle();
+
+  // Use objective_profiles.domain as fallback when no domain_profile row exists
+  if (domain === 'elk_hunt' && locationProfile) {
+    domain = (locationProfile as { domain?: string }).domain ?? domain;
+  }
 
   // Terrain cache — most recent entry for this objective (non-fatal if absent)
   const { data: terrainCacheRow } = await supabase
@@ -220,7 +226,9 @@ export async function buildStrikeBriefContext(
 // --- Prompt builder ---
 
 export function buildStrikeBriefPrompt(context: StrikeBriefContext, timeWindow: string): string {
-  const windowInstructions: Record<string, string> = {
+  const isFishing = context.domain === 'fishing';
+
+  const huntingWindowInstructions: Record<string, string> = {
     '0600': `MORNING BRIEF — 0600. Synthesize for a hunter leaving camp within 90 minutes.
       Lead with: where to be and why. Include thermal direction, wind, water source proximity given current drought.
       End with one sentence: the single most important thing to act on this morning.`,
@@ -232,10 +240,12 @@ export function buildStrikeBriefPrompt(context: StrikeBriefContext, timeWindow: 
       One paragraph. End with tomorrow's first action.`,
   };
 
-  // Step 2: filter to hunting-relevant OUTDOOR_ agents only
-  const huntingAgentHits = context.agentHits.filter(hit =>
-    hit.startsWith('OUTDOOR_') && !isFishingTerm(hit)
-  );
+  const windowInstructions = isFishing ? FISHING_WINDOW_INSTRUCTIONS : huntingWindowInstructions;
+
+  // Filter agent hits by domain: fishing gets all OUTDOOR_ agents; hunting excludes fishing terms
+  const activeAgentHits = isFishing
+    ? context.agentHits.filter(hit => hit.startsWith('OUTDOOR_'))
+    : context.agentHits.filter(hit => hit.startsWith('OUTDOOR_') && !isFishingTerm(hit));
 
   // Step 1: build LOCATION CONTEXT block
   const loc = context.locationProfile;
@@ -279,7 +289,13 @@ to these coordinates, not generic corridor language.
 `.replace(/\n{3,}/g, '\n\n').trim();
   }
 
-  return `You are Meridian's Strike Brief engine for the outdoor / hunting domain.
+  const domainConstraintBlock = isFishing
+    ? FISHING_PROMPT_ADDENDUM
+    : `DOMAIN CONSTRAINT: This is an elk hunting brief. Discard any aquatic insect, hatch window, salmon, or fish ladder data — these are cross-domain noise. Do not reference water temperature in the context of fish or insect activity. Water temperature is only relevant as an elk hydration signal.
+
+WATER TEMPERATURE NOTE: USGS water temperature data is included as an ELK HYDRATION signal only. A 10°C creek temperature crossing indicates elk will prioritize this water source. Do not interpret water temperature as a fish or aquatic insect signal. Do not mention fish, aquatic insects, or hatch windows in this brief.`;
+
+  return `You are Meridian's Strike Brief engine for the outdoor / ${isFishing ? 'fishing' : 'hunting'} domain.
 
 TIME WINDOW: ${windowInstructions[timeWindow] ?? windowInstructions['0600']}
 
@@ -295,11 +311,9 @@ DOMAIN EVENTS (from enrichment engine):
 ${context.domainEvents}
 
 AGENT HITS TODAY:
-${huntingAgentHits.length > 0 ? huntingAgentHits.join('\n') : 'No new agent hits today'}
+${activeAgentHits.length > 0 ? activeAgentHits.join('\n') : 'No new agent hits today'}
 
-DOMAIN CONSTRAINT: This is an elk hunting brief. Discard any aquatic insect, hatch window, salmon, or fish ladder data — these are cross-domain noise. Do not reference water temperature in the context of fish or insect activity. Water temperature is only relevant as an elk hydration signal.
-
-WATER TEMPERATURE NOTE: USGS water temperature data is included as an ELK HYDRATION signal only. A 10°C creek temperature crossing indicates elk will prioritize this water source. Do not interpret water temperature as a fish or aquatic insect signal. Do not mention fish, aquatic insects, or hatch windows in this brief.
+${domainConstraintBlock}
 
 INTELLIGENCE INTEGRITY STANDARD:
 - T1: Government/agency structured data — state as fact
@@ -389,7 +403,9 @@ export async function generateStrikeBrief(
       pattern_match_year: context.patternMatchYear,
       confidence_tier: parsed.confidence_tier ?? context.confidenceTier,
       agent_hits: (() => {
-        const filtered = context.agentHits.filter(h => !isFishingTerm(h))
+        const filtered = context.domain === 'fishing'
+          ? context.agentHits
+          : context.agentHits.filter(h => !isFishingTerm(h))
         console.log('[agent-filter] raw hits:', context.agentHits.length, 'filtered:', filtered.length)
         return filtered
       })(),
