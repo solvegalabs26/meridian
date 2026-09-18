@@ -8,7 +8,10 @@ import { evaluatePivot } from './pivot-logic';
 const FISHING_AGENT_EXCLUDE = ['SALMON', 'AQUATIC', 'FISHING', 'BONNEVILLE', 'MCNARY', 'HATCH']
 
 function isFishingTerm(s: string): boolean {
-  return FISHING_AGENT_EXCLUDE.some(term => s.toUpperCase().includes(term))
+  const upper = s.toUpperCase()
+  const result = FISHING_AGENT_EXCLUDE.some(term => upper.includes(term))
+  console.log('[fishing-filter]', s, '->', result)
+  return result
 }
 
 // --- Time window resolution (Mountain Time) ---
@@ -296,6 +299,8 @@ ${huntingAgentHits.length > 0 ? huntingAgentHits.join('\n') : 'No new agent hits
 
 DOMAIN CONSTRAINT: This is an elk hunting brief. Discard any aquatic insect, hatch window, salmon, or fish ladder data — these are cross-domain noise. Do not reference water temperature in the context of fish or insect activity. Water temperature is only relevant as an elk hydration signal.
 
+WATER TEMPERATURE NOTE: USGS water temperature data is included as an ELK HYDRATION signal only. A 10°C creek temperature crossing indicates elk will prioritize this water source. Do not interpret water temperature as a fish or aquatic insect signal. Do not mention fish, aquatic insects, or hatch windows in this brief.
+
 INTELLIGENCE INTEGRITY STANDARD:
 - T1: Government/agency structured data — state as fact
 - T2: Verified field observation — state as reported
@@ -383,7 +388,11 @@ export async function generateStrikeBrief(
       condition_delta: parsed.condition_delta ?? null,
       pattern_match_year: context.patternMatchYear,
       confidence_tier: parsed.confidence_tier ?? context.confidenceTier,
-      agent_hits: context.agentHits.filter(h => !isFishingTerm(h)),
+      agent_hits: (() => {
+        const filtered = context.agentHits.filter(h => !isFishingTerm(h))
+        console.log('[agent-filter] raw hits:', context.agentHits.length, 'filtered:', filtered.length)
+        return filtered
+      })(),
     })
     .select()
     .single();
