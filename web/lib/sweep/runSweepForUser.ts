@@ -486,8 +486,7 @@ export async function runSweepForUser(
     // exists for this time window today, so duplicate work is avoided. Non-fatal.
     //
     // Strike Brief ships per-vertical — add domains here as each vertical launches.
-    // TODO FF-081: add 'fishing_trout', 'fishing_salmon' when fishing vertical ships.
-    const STRIKE_BRIEF_DOMAINS = new Set(['elk_hunt'])
+    const STRIKE_BRIEF_DOMAINS = new Set(['elk_hunt', 'fishing'])
     await Promise.allSettled(
       objectives.map(async obj => {
         const domain = detectDomain({ title: obj.title, category: obj.category as string, notes: (obj.notes as string | undefined) ?? undefined })
@@ -507,7 +506,7 @@ export async function runSweepForUser(
     // rows with wrong user_ids cannot poison the brief authorship.
     const { data: strikeProfiles } = await supabase
       .from('objective_profiles')
-      .select('objective_id, user_id')
+      .select('objective_id, user_id, domain')
       .eq('user_id', userId)
       .eq('org_source', 'strike')
       .eq('status', 'active')
@@ -516,6 +515,17 @@ export async function runSweepForUser(
     console.log('[sweep:strikeBrief] Strike profiles found:', strikeProfiles?.length ?? 0, JSON.stringify(strikeProfiles?.map(sp => sp.objective_id)))
 
     if (strikeProfiles && strikeProfiles.length > 0) {
+      // FF-088: bind agents to Strike objectives (hunting + fishing) before brief generation
+      await Promise.allSettled(
+        strikeProfiles.map(async (sp) => {
+          const spDomain = (sp.domain as string | null) ?? 'elk_hunt'
+          await bindObjectiveToAgents(sp.objective_id as string, sp.user_id as string, spDomain).catch(err =>
+            console.error(`[sweep:agentBind] bindObjectiveToAgents failed for Strike profile ${sp.objective_id}:`, err)
+          )
+        })
+      )
+      console.log(`[sweep:timing] ${sweep.id} ${elapsed()} — FF-088 agent binding for Strike profiles complete`)
+
       await Promise.allSettled(
         strikeProfiles.map(async (sp) => {
           console.log('[sweep:strikeBrief] Calling generateStrikeBrief for:', sp.objective_id, sp.user_id)
